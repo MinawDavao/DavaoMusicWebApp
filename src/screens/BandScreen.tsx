@@ -4,7 +4,7 @@ import {
   MessageCircle, Plus, Star, Trash2, UserMinus, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, timeAgo, toHandle, uploadImage, type Band, type Gig, type Track } from '../lib/db';
+import { checkFile, errorMessage, timeAgo, toHandle, uploadImage, type Band, type Gig, type Track, removeImageByUrl } from '../lib/db';
 import { fetchMyRsvps, fetchRsvpCounts, fetchTracks, fetchUpcomingGigs, genreNames } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
@@ -71,7 +71,7 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
     setFollowing(!!(amF as any).data);
     setFollowerList((((fl as any).data as any[]) || []).map((x) => x.profiles).filter(Boolean));
     setLoading(false);
-  }, [id, user]);
+  }, [id, user?.id]); // id only: a token refresh shouldn't close open editors
 
   useEffect(() => { setLoading(true); load(); }, [load]);
 
@@ -87,23 +87,13 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
 
   const toggleFollow = async () => {
     if (!user) return go({ name: 'auth' });
-    if (following) await supabase.from('follows').delete().eq('band_id', id).eq('follower_id', user.id);
-    else await supabase.from('follows').insert({ band_id: id, follower_id: user.id });
+    const { error } = following
+      ? await supabase.from('follows').delete().eq('band_id', id).eq('follower_id', user.id)
+      : await supabase.from('follows').insert({ band_id: id, follower_id: user.id });
+    if (error) return setErr(errorMessage(error));
     load();
   };
 
-  const deleteTrack = async (t: Track) => {
-    if (!confirm(`Remove “${t.title}”? This can’t be undone.`)) return;
-    setErr(null);
-    const { error } = await supabase.from('tracks').delete().eq('id', t.id);
-    if (error) return setErr(errorMessage(error));
-    await supabase.storage.from('tracks').remove([t.audio_path]);
-    load();
-  };
-  const toggleDownload = async (t: Track) => {
-    await supabase.from('tracks').update({ allow_download: !t.allow_download }).eq('id', t.id);
-    load();
-  };
   const addPhoto = async (f: File) => {
     const bad = checkFile(f, 'image'); if (bad) return setErr(bad);
     setErr(null);
@@ -117,12 +107,16 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
   };
   const deletePhoto = async (p: Photo) => {
     if (!confirm('Remove this photo?')) return;
-    await supabase.from('band_photos').delete().eq('id', p.id);
+    const { error } = await supabase.from('band_photos').delete().eq('id', p.id);
+    if (error) return setErr(errorMessage(error));
+    await removeImageByUrl(p.image_url);
     load();
   };
   const deleteGig = async (g: Gig) => {
     if (!confirm(`Delete “${g.title}”?`)) return;
-    await supabase.from('gigs').delete().eq('id', g.id);
+    const { error } = await supabase.from('gigs').delete().eq('id', g.id);
+    if (error) return setErr(errorMessage(error));
+    await removeImageByUrl(g.poster_url);
     load();
   };
 
@@ -278,14 +272,14 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
               <p className="text-xs italic text-[#8E9AA7] leading-relaxed">“{r.message}”</p>
               <div className="flex justify-end gap-2">
                 {r.author_id === user?.id
-                  ? <button onClick={async () => { await supabase.from('band_reviews').delete().eq('id', r.id); load(); }} className="text-[11px] text-[#8E9AA7] underline cursor-pointer">Delete my review</button>
+                  ? <button onClick={async () => { const { error } = await supabase.from('band_reviews').delete().eq('id', r.id); if (error) setErr(errorMessage(error)); load(); }} className="text-[11px] text-[#8E9AA7] underline cursor-pointer">Delete my review</button>
                   : <button onClick={() => setReport({ type: 'review', id: r.id, label: 'this review' })} className="text-[11px] text-[#8E9AA7] flex items-center gap-1 cursor-pointer"><Flag className="w-3 h-3" />Report</button>}
               </div>
             </div>
           ))}
       </section>
 
-      {editing && <EditBandModal band={band} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
+      {editing && <EditBandModal band={band} onClose={() => { setEditing(false); load(); }} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
       {addGig && <AddGigModal bandId={band.id} onClose={() => setAddGig(false)} onSaved={() => { setAddGig(false); load(); }} />}
       {playlistFor && <PlaylistModal track={{ ...playlistFor, bands: { id: band.id, name: band.name, handle: band.handle, logo_url: band.logo_url } }} onClose={() => setPlaylistFor(null)} />}
       {report && <ReportModal targetType={report.type} targetId={report.id} label={report.label} onClose={() => setReport(null)} onLogin={() => go({ name: 'auth' })} />}
@@ -310,7 +304,7 @@ const MembersSection: React.FC<{ bandId: string; members: Member[]; isOwner: boo
         <div key={m.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#1D232A] border border-white/[0.08]">
           <Avatar name={m.name} size={34} />
           <div className="flex-1 min-w-0"><p className="text-[13px] font-bold text-white">{m.name}</p>{m.role && <p className="text-[11px] text-[#8E9AA7]">{m.role}</p>}</div>
-          {isOwner && <button onClick={async () => { await supabase.from('band_members').delete().eq('id', m.id); onChange(); }} aria-label="Remove member" className={btn.icon}><X className="w-4 h-4" /></button>}
+          {isOwner && <button onClick={async () => { const { error } = await supabase.from('band_members').delete().eq('id', m.id); if (error) alert(errorMessage(error)); onChange(); }} aria-label="Remove member" className={btn.icon}><X className="w-4 h-4" /></button>}
         </div>
       ))}
       {isOwner && (
@@ -373,6 +367,7 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
   };
 
   const save = async () => {
+    if (f.year_formed && (Number(f.year_formed) < 1950 || Number(f.year_formed) > 2100)) return setErr('Year formed should be between 1950 and 2100.');
     setBusy(true); setErr(null);
     const { error } = await supabase.from('bands').update({
       name: f.name.trim(), handle: toHandle(f.handle), home_base: f.home_base.trim() || null, year_formed: f.year_formed ? Number(f.year_formed) : null,
@@ -383,6 +378,9 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
     if (error) { setBusy(false); return setErr(errorMessage(error)); }
     try { await setBandGenres(band.id, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
     await supabase.from('profiles').update({ display_name: f.name.trim(), avatar_url: logo }).eq('id', user!.id);
+    // free the replaced images
+    if (band.logo_url !== logo) await removeImageByUrl(band.logo_url, [logo, banner]);
+    if (band.banner_url !== banner) await removeImageByUrl(band.banner_url, [logo, banner]);
     setBusy(false);
     onSaved();
   };
@@ -432,6 +430,7 @@ const AddGigModal: React.FC<{ bandId: string; onClose: () => void; onSaved: () =
 
   const save = async () => {
     if (!f.title.trim() || !f.venue.trim() || !f.start) return setErr('Title, venue and start date/time are required.');
+    if (f.end && new Date(f.end) <= new Date(f.start)) return setErr('The end time must be after the start time.');
     setBusy(true); setErr(null);
     const { error } = await supabase.from('gigs').insert({
       band_id: bandId, title: f.title.trim(), venue: f.venue.trim(), address: f.address.trim() || null, district: f.district.trim() || null,

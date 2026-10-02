@@ -57,18 +57,22 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
   };
   const del = async (pl: PL) => {
     if (!confirm(`Delete the playlist “${pl.name}”?`)) return;
-    await supabase.from('playlists').delete().eq('id', pl.id);
+    const { error } = await supabase.from('playlists').delete().eq('id', pl.id);
+    if (error) return setErr(errorMessage(error));
     load();
   };
   const removeSong = async (pl: PL, trackId: string) => {
-    await supabase.from('playlist_tracks').delete().eq('playlist_id', pl.id).eq('track_id', trackId);
+    const { error } = await supabase.from('playlist_tracks').delete().eq('playlist_id', pl.id).eq('track_id', trackId);
+    if (error) return setErr(errorMessage(error));
     load();
   };
   const like = async (pl: PL) => {
     if (!user) return go({ name: 'auth' });
     const liked = pl.playlist_likes.some((l) => l.user_id === user.id);
-    if (liked) await supabase.from('playlist_likes').delete().eq('playlist_id', pl.id).eq('user_id', user.id);
-    else await supabase.from('playlist_likes').insert({ playlist_id: pl.id, user_id: user.id });
+    const { error } = liked
+      ? await supabase.from('playlist_likes').delete().eq('playlist_id', pl.id).eq('user_id', user.id)
+      : await supabase.from('playlist_likes').insert({ playlist_id: pl.id, user_id: user.id });
+    if (error) return setErr(errorMessage(error));
     load();
   };
   const share = async (pl: PL) => {

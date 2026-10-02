@@ -23,7 +23,7 @@ export const HomeScreen: React.FC = () => {
   const loadGigs = useCallback(async () => {
     const [g, c, m] = await Promise.all([fetchUpcomingGigs(10), fetchRsvpCounts(), user ? fetchMyRsvps(user.id) : Promise.resolve(new Set<string>())]);
     setGigs(g); setCounts(c); setMine(m);
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     (async () => {

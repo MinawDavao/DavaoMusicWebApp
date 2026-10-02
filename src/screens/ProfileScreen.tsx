@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, AtSign, BadgeCheck, Calendar, Camera, Check, Flag, Globe, MapPin, MessageCircle, Music, Pencil, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, toHandle, uploadImage, type Band, type Gig, type Profile } from '../lib/db';
+import { checkFile, errorMessage, removeImageByUrl, toHandle, uploadImage, type Band, type Gig, type Profile } from '../lib/db';
 import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts, genreNames } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
@@ -61,7 +61,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     setCounts(c); setMine(my); setPostCount(pc.count || 0);
     setTheirBand((b as unknown as Band) || null);
     setLoading(false);
-  }, [targetId, user]);
+  }, [targetId, user?.id]); // id only: a token refresh shouldn't reload the page or close the editor
 
   useEffect(() => { setLoading(true); setEditing(false); load(); }, [load]);
 
@@ -69,9 +69,11 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     if (!user) return go({ name: 'auth' });
     if (!targetId) return;
     setFollowBusy(true);
-    if (iFollow) await supabase.from('user_follows').delete().eq('follower_id', user.id).eq('followee_id', targetId);
-    else await supabase.from('user_follows').insert({ follower_id: user.id, followee_id: targetId });
+    const { error } = iFollow
+      ? await supabase.from('user_follows').delete().eq('follower_id', user.id).eq('followee_id', targetId)
+      : await supabase.from('user_follows').insert({ follower_id: user.id, followee_id: targetId });
     setFollowBusy(false);
+    if (error) alert(errorMessage(error));
     load();
   };
 
@@ -199,7 +201,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
 };
 
 const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () => void; onSaved: () => void }> = ({ profile, bandId, onCancel, onSaved }) => {
-  const { user } = useAuth();
+  const { user, band: authBand } = useAuth();
   const [f, setF] = useState({
     display_name: profile.display_name, username: profile.username, district: profile.district || '', bio: profile.bio || '',
     instagram: profile.instagram || '', facebook: profile.facebook || '',
@@ -207,7 +209,8 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
   const [avatar, setAvatar] = useState(profile.avatar_url);
   const [rsvps, setRsvps] = useState(profile.show_rsvps);
   const [genres, setGenres] = useState<string[]>([]);
-  useEffect(() => { if (bandId) fetchBandGenreNames(bandId).then(setGenres); }, [bandId]);
+  const [genresLoaded, setGenresLoaded] = useState(false);
+  useEffect(() => { if (bandId) fetchBandGenreNames(bandId).then((g) => { setGenres(g); setGenresLoaded(true); }); }, [bandId]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -220,10 +223,12 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
       instagram: f.instagram.trim() || null, facebook: f.facebook.trim() || null, avatar_url: avatar, show_rsvps: rsvps,
     }).eq('id', user!.id);
     if (!error && bandId) {
-      try { await setBandGenres(bandId, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
+      try { if (genresLoaded) await setBandGenres(bandId, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
     }
     setBusy(false);
-    if (error) setErr(errorMessage(error)); else onSaved();
+    if (error) return setErr(errorMessage(error));
+    if (profile.avatar_url !== avatar) await removeImageByUrl(profile.avatar_url, [avatar, authBand?.logo_url]); // keep it if it's also the band logo
+    onSaved();
   };
 
   return (

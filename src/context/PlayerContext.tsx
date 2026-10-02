@@ -32,11 +32,24 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => { a.pause(); };
   }, []);
 
+  // Resume; if the 1-hour signed link expired, fetch a fresh one and continue from the same spot.
+  const resume = useCallback(async (a: HTMLAudioElement, t: Track) => {
+    try { await a.play(); }
+    catch {
+      try {
+        const at = a.currentTime;
+        a.src = await trackUrl(t.audio_path);
+        a.currentTime = at;
+        await a.play();
+      } catch { setError('Could not play this track.'); }
+    }
+  }, []);
+
   const play = useCallback(async (t: Track) => {
     const a = audio.current;
     if (!a) return;
     setError(null);
-    if (current?.id === t.id) { a.paused ? a.play() : a.pause(); return; }
+    if (current?.id === t.id) { if (a.paused) resume(a, t); else a.pause(); return; }
     try {
       a.pause();
       a.src = await trackUrl(t.audio_path);
@@ -47,13 +60,14 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (e: any) {
       setError('Could not play this track.');
     }
-  }, [current]);
+  }, [current, resume]);
 
   const toggle = useCallback(() => {
     const a = audio.current;
     if (!a || !current) return;
-    a.paused ? a.play() : a.pause();
-  }, [current]);
+    setError(null);
+    if (a.paused) resume(a, current); else a.pause();
+  }, [current, resume]);
 
   const stop = useCallback(() => {
     audio.current?.pause();
@@ -63,6 +77,13 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   return (
     <PlayerContext.Provider value={{ current, playing, error, play, toggle, stop }}>
       {children}
+      {!current && error && (
+        <div role="alert" className="fixed bottom-[84px] left-0 right-0 z-40 mx-auto max-w-[420px] px-3">
+          <p className="flex items-center justify-between gap-2 rounded-xl bg-[#1D232A] border border-[#FF8A7A]/40 px-3 py-2 text-[12px] text-[#FF8A7A]">
+            {error}<button onClick={() => setError(null)} aria-label="Dismiss" className="cursor-pointer"><X className="w-4 h-4" /></button>
+          </p>
+        </div>
+      )}
       {current && (
         <div className="fixed bottom-[84px] left-0 right-0 z-40 mx-auto max-w-[420px] px-3">
           <div className="rounded-2xl bg-[#1D232A]/95 backdrop-blur border border-[#6045F4]/40 shadow-xl overflow-hidden">

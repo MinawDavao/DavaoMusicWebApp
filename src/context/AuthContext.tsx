@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, CURRENT_TERMS_VERSION } from '../lib/supabase';
 import type { Band, Profile } from '../lib/db';
@@ -25,7 +25,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
 
+  const loadSeq = useRef(0); // ignore results from an older load (e.g. one still running when the user signs out)
   const load = useCallback(async (s: Session | null) => {
+    const seq = ++loadSeq.current;
     if (!s?.user) {
       setProfile(null); setBand(null); setTermsAccepted(false); setIsModerator(false);
       return;
@@ -43,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabase.from('terms_acceptances').select('version').eq('user_id', uid).eq('version', CURRENT_TERMS_VERSION).maybeSingle(),
       supabase.from('moderators').select('user_id').eq('user_id', uid).maybeSingle(),
     ]);
+    if (seq !== loadSeq.current) return;
     setProfile(p);
     setBand((b as Band) || null);
     setTermsAccepted(!!t);

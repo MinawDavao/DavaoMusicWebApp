@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BadgeCheck, Check, ChevronRight, Download, Flag, Headphones, ListPlus, MapPin, Pause, Pencil, Play, Ticket, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { formatGigDate, trackUrl, type Band, type Gig, type Track } from '../lib/db';
+import { errorMessage, formatGigDate, trackUrl, type Band, type Gig, type Track } from '../lib/db';
 import { genreNames } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
@@ -19,9 +19,11 @@ export const GigCard: React.FC<{ gig: Gig; count: number; going: boolean; onChan
   const rsvp = async () => {
     if (!user) return go({ name: 'auth' });
     setBusy(true);
-    if (going) await supabase.from('gig_rsvps').delete().eq('gig_id', gig.id).eq('user_id', user.id);
-    else await supabase.from('gig_rsvps').insert({ gig_id: gig.id, user_id: user.id });
+    const { error } = going
+      ? await supabase.from('gig_rsvps').delete().eq('gig_id', gig.id).eq('user_id', user.id)
+      : await supabase.from('gig_rsvps').insert({ gig_id: gig.id, user_id: user.id });
     setBusy(false);
+    if (error) alert(errorMessage(error));
     onChange();
   };
 
@@ -102,8 +104,11 @@ export const TrackRow: React.FC<{
   const dur = track.duration_sec ? `${Math.floor(track.duration_sec / 60)}:${String(track.duration_sec % 60).padStart(2, '0')}` : '';
 
   const download = async () => {
-    const url = await trackUrl(track.audio_path, true, `${track.title}.${track.format || 'mp3'}`);
-    window.location.href = url;
+    setErr(null);
+    try {
+      const url = await trackUrl(track.audio_path, true, `${track.title}.${track.format || 'mp3'}`);
+      window.location.href = url;
+    } catch (e) { setErr(errorMessage(e)); }
   };
   const save = async () => {
     if (!title.trim()) return setErr('Song title can’t be empty.');

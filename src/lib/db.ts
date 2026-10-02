@@ -181,6 +181,14 @@ export async function uploadImage(bucket: ImageBucket, userId: string, file: Fil
   return publicUrl(bucket, path)!;
 }
 
+/** Deletes an uploaded image given its public URL (best effort). Skips URLs that are still used elsewhere (`stillUsed`). */
+export async function removeImageByUrl(url: string | null | undefined, stillUsed: (string | null | undefined)[] = []): Promise<void> {
+  if (!url || stillUsed.includes(url)) return;
+  const m = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
+  if (!m) return;
+  try { await supabase.storage.from(m[1]).remove([decodeURIComponent(m[2].split('?')[0])]); } catch { /* ignore */ }
+}
+
 export async function trackUrl(path: string, download = false, filename?: string): Promise<string> {
   const { data, error } = await supabase.storage
     .from('tracks')
@@ -235,10 +243,20 @@ export function errorMessage(e: any): string {
   const msg: string = e?.message || String(e);
   if (/duplicate key.*username/i.test(msg) || /profiles_username_key/.test(msg)) return 'That username is already taken.';
   if (/bands_handle_key/.test(msg)) return 'That band username is already taken.';
+  if (/bands_owner_id_key/.test(msg)) return 'You already have a band page — refresh the page to edit it.';
   if (/row-level security/i.test(msg)) return 'You don’t have permission to do that yet. Make sure you’ve accepted the Terms and are logged in.';
   if (/Upload limit reached/i.test(msg)) return 'Upload limit reached: 3 tracks max for now.';
   if (/check constraint.*username/i.test(msg)) return 'Username must be 3–30 characters: lowercase letters, numbers or _.';
   if (/check constraint.*handle/i.test(msg)) return 'Band username must be 3–30 characters: lowercase letters, numbers or _.';
   if (/reports_reporter_id_target_type_target_id_key/.test(msg)) return 'You already reported this. Our moderators will review it.';
+  if (/year_formed_check/.test(msg)) return 'Year formed should be between 1950 and 2100.';
+  if (/display_name_check|name_check/.test(msg)) return 'Name must be 1–80 characters.';
+  if (/bio_check/.test(msg)) return 'Your bio is too long.';
+  if (/description_check|content_check|message_check|details_check/.test(msg)) return 'That text is too long (or empty). Please shorten it and try again.';
+  if (/title_check/.test(msg)) return 'Please enter a title (not too long).';
+  if (/price_check/.test(msg)) return 'Price can’t be negative.';
+  if (/listings_check/.test(msg)) return 'Please enter a price (only “For Trade” listings can skip it).';
+  if (/gigs_check/.test(msg)) return 'The end time must be after the start time.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'Network problem — check your connection and try again.';
   return msg;
 }

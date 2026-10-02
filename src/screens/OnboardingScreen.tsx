@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeftRight, AtSign, Calendar, Camera, Check, Disc3, Eye, Globe, Headphones, Lock, Mail, MapPin, Music, Pencil, Phone,
   Play, Plus, ShieldCheck, Sparkles, Users, X,
@@ -10,6 +10,7 @@ import { useNav } from '../nav';
 import { TermsText } from '../components/TermsText';
 import { MAX_TRACKS, uploadTrack } from '../components/TrackUpload';
 import { GenrePicker } from '../components/GenrePicker';
+import { MembersEditor } from '../components/MembersEditor';
 import { setBandGenres } from '../lib/genres';
 import { Avatar, ErrorNote, Field, FilePick, btn, inputCls } from '../components/ui';
 
@@ -225,6 +226,8 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
   const [status, setStatus] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Remembers a band created during this visit, so retrying after a failed step updates it instead of inserting a duplicate.
+  const createdId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     supabase.from('genres').select('id, name').order('name').then(({ data }) => setGenres((data as any) || []));
@@ -237,13 +240,11 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
     setUploading(false);
   };
 
-  const toggleGenre = (id: number) =>
-    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length >= 3 ? p : [...p, id]));
-
   const save = async () => {
     if (!user) return;
     if (!name.trim()) return setErr('Please enter your band or artist name.');
     if (toHandle(handle).length < 3) return setErr('Band username must be at least 3 characters (lowercase letters, numbers or _).');
+    if (year && (Number(year) < 1950 || Number(year) > 2100)) return setErr('Year formed should be between 1950 and 2100.');
     setBusy(true); setErr(null);
     try {
       setStatus('Saving band page…');
@@ -253,7 +254,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
         influences: influences.trim() || null, booking_email: email.trim() || null, mobile: mobile.trim() || null,
         facebook: fb.trim() || null, instagram: ig.trim() || null, streaming_url: stream.trim() || null, open_for_bookings: bookings,
       };
-      let bandId = band?.id;
+      let bandId = band?.id || createdId.current;
       if (bandId) {
         const { error } = await supabase.from('bands').update(row).eq('id', bandId);
         if (error) throw error;
@@ -261,6 +262,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
         const { data, error } = await supabase.from('bands').insert(row).select('id').single();
         if (error) throw error;
         bandId = (data as any).id;
+        createdId.current = bandId;
       }
       // genres
       await setBandGenres(bandId!, picked);
@@ -271,11 +273,14 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
           realMembers.map((m, i) => ({ band_id: bandId, name: m.name.trim(), role: m.role.trim() || null, sort_order: i })),
         );
         if (error) throw error;
+        setMembers([{ key: Date.now(), name: '', role: '' }]); // saved — don't insert them again on retry
       }
-      // tracks
-      for (let i = 0; i < tracks.length; i++) {
-        setStatus(`Uploading song ${i + 1} of ${tracks.length}…`);
-        await uploadTrack({ userId: user.id, bandId: bandId!, file: tracks[i].file, title: tracks[i].title, allowDownload: tracks[i].allow });
+      // tracks (each one is removed from the list once uploaded, so a retry never uploads it twice)
+      const queue = [...tracks];
+      for (let i = 0; i < queue.length; i++) {
+        setStatus(`Uploading song ${i + 1} of ${queue.length}…`);
+        await uploadTrack({ userId: user.id, bandId: bandId!, file: queue[i].file, title: queue[i].title, allowDownload: queue[i].allow });
+        setTracks((t) => t.filter((x) => x !== queue[i]));
       }
       setStatus('Finishing…');
       const { error: pe } = await supabase.from('profiles').update({ onboarding_completed: true, avatar_url: logo, display_name: name.trim() }).eq('id', user.id);
@@ -290,11 +295,12 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
   };
 
   const skip = async () => {
-    setBusy(true);
-    await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', user!.id);
+    setBusy(true); setErr(null);
+    const { error } = await supabase.from('profiles').update({ onboarding_completed: true }).eq('id', user!.id);
+    if (error) { setBusy(false); return setErr(errorMessage(error)); }
     await refresh();
     setBusy(false);
-    onDone();
+    onDone(band?.id || createdId.current);
   };
 
   return (
@@ -335,6 +341,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
       </Section>
 
       <Section title="Members" sub="Who’s in the band (optional)">
+        {(band?.id || createdId.current) ? <MembersEditor bandId={(band?.id || createdId.current)!} /> : (
         <div className="space-y-2">
           {members.map((m, i) => (
             <div key={m.key} className="flex gap-2">
@@ -347,6 +354,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
             <Users className="w-4 h-4" /> Add member
           </button>
         </div>
+        )}
       </Section>
 
       <Section title="Booking & Contacts" sub="How venues and fans reach you">
@@ -412,7 +420,8 @@ export const OnboardingScreen: React.FC = () => {
   const setRole = async (role: 'fan' | 'artist') => {
     if (!user || profile?.role === role || band) return;
     setSwitching(true);
-    await supabase.from('profiles').update({ role }).eq('id', user.id);
+    const { error } = await supabase.from('profiles').update({ role }).eq('id', user.id);
+    if (error) alert(errorMessage(error));
     await refresh();
     setSwitching(false);
   };

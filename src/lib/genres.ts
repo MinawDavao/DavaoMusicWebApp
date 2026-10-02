@@ -27,6 +27,7 @@ export async function setBandGenres(bandId: string, names: string[]): Promise<vo
 }
 
 export async function fetchBandGenreNames(bandId: string): Promise<string[]> {
-  const { data } = await supabase.from('band_genres').select('genres(name)').eq('band_id', bandId);
+  const { data, error } = await supabase.from('band_genres').select('genres(name)').eq('band_id', bandId);
+  if (error) throw error;
   return ((data as any[]) || []).map((r) => r.genres?.name).filter(Boolean);
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeftRight, BadgeCheck, Camera, Check, Flag, Globe, Lock, MapPin, Pencil, Plus, Search, Send, Tag, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -131,12 +131,17 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
   const mine = it.seller_id === user?.id;
   const photos = [...(it.listing_photos || [])].sort((a, b) => a.position - b.position);
   const [pi, setPi] = useState(0);
-  const photo = photos[pi];
+  const photo = photos[Math.min(pi, photos.length - 1)];
 
-  const markSold = async () => { await supabase.from('listings').update({ status: it.status === 'sold' ? 'active' : 'sold' }).eq('id', it.id); onChange(); };
+  const markSold = async () => {
+    const { error } = await supabase.from('listings').update({ status: it.status === 'sold' ? 'active' : 'sold' }).eq('id', it.id);
+    if (error) alert(errorMessage(error));
+    onChange();
+  };
   const remove = async () => {
     if (!confirm('Delete this listing?')) return;
-    await supabase.from('listings').delete().eq('id', it.id);
+    const { error } = await supabase.from('listings').delete().eq('id', it.id);
+    if (error) return alert(errorMessage(error));
     if (photos.length) await supabase.storage.from('gear-photos').remove(photos.map((p) => p.image_path));
     onChange();
   };
@@ -232,6 +237,7 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
   const [files, setFiles] = useState<File[]>([]);
   const [existing, setExisting] = useState(() => [...(e0?.listing_photos || [])].sort((a, b) => a.position - b.position));
   const [removed, setRemoved] = useState<{ id: string; image_path: string }[]>([]);
+  const createdId = useRef<string | null>(null);
   const totalPhotos = existing.length + files.length;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -245,15 +251,22 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
 
   const submit = async () => {
     if (!ok || !user) return;
+    const priceNum = price.trim() ? Number(price) : null;
+    if (priceNum !== null && !Number.isFinite(priceNum)) return setErr('Please enter a valid price, e.g. 4500 or 4500.50.');
     setBusy(true); setErr(null);
     try {
       const fields = {
         title: title.trim(), category: cat, deal_type: deal, condition: cond,
-        price: price.trim() ? Number(price.replace(/[^0-9.]/g, '')) : null, trade_wishlist: needsWish ? wish.trim() || null : null,
+        price: priceNum, trade_wishlist: needsWish ? wish.trim() || null : null,
         description: desc.trim() || null, specs: specs.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 6), district: district.trim() || null,
       };
       let listingId: string;
-      if (editing) {
+      if (createdId.current) {
+        // A previous attempt already created the listing (a photo upload failed) — update it instead of posting a duplicate.
+        const { error } = await supabase.from('listings').update(fields).eq('id', createdId.current);
+        if (error) throw error;
+        listingId = createdId.current;
+      } else if (editing) {
         const { error } = await supabase.from('listings').update(fields).eq('id', editing.id);
         if (error) throw error;
         listingId = editing.id;
@@ -266,11 +279,16 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
         const { data, error } = await supabase.from('listings').insert({ seller_id: user.id, band_id: band?.id ?? null, ...fields }).select('id').single();
         if (error) throw error;
         listingId = (data as any).id;
+        createdId.current = listingId;
       }
-      for (let i = 0; i < files.length; i++) {
-        const path = await uploadFile('gear-photos', user.id, files[i]);
-        const { error: pe } = await supabase.from('listing_photos').insert({ listing_id: listingId, image_path: path, position: existing.length + i });
+      setRemoved([]);
+      let pos = existing.reduce((m, p) => Math.max(m, p.position + 1), 0);
+      for (const f of [...files]) {
+        const path = await uploadFile('gear-photos', user.id, f);
+        const { data: ph, error: pe } = await supabase.from('listing_photos').insert({ listing_id: listingId, image_path: path, position: pos++ }).select('*').single();
         if (pe) throw pe;
+        setFiles((x) => x.filter((y) => y !== f));
+        setExisting((x) => [...x, ph as any]);
       }
       onPosted();
     } catch (e) { setErr(errorMessage(e)); }
@@ -304,7 +322,7 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
           ))}
           {files.map((f, i) => (
             <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-[#252D37]">
-              <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+              <FilePreview file={f} />
               <button onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label="Remove photo" className="absolute top-1 right-1 w-6 h-6 rounded-md bg-black/70 text-white flex items-center justify-center cursor-pointer"><X className="w-3 h-3" /></button>
             </div>
           ))}
@@ -325,4 +343,14 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
       <p className="-mt-2 text-center text-[11px] text-[#8E9AA7]">{!ok ? 'Add a title and price to post.' : editing ? 'Changes show up right away.' : 'Your deal will appear at the top of Gear Exchange.'}</p>
     </div>
   );
+};
+
+/** Local preview of a picked photo; frees the temporary object URL when removed. */
+const FilePreview: React.FC<{ file: File }> = ({ file }) => {
+  const [url, setUrl] = useState<string>('');
+  useEffect(() => {
+    const u = URL.createObjectURL(file); setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return url ? <img src={url} alt="" className="w-full h-full object-cover" /> : null;
 };

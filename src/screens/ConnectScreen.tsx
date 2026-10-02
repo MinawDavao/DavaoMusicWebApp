@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { BadgeCheck, Camera, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Play, Send, Trash2, X, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, timeAgo, uploadImage, type Comment, type Post } from '../lib/db';
+import { checkFile, errorMessage, removeImageByUrl, timeAgo, uploadImage, type Comment, type Post } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { ZoomImg } from '../components/Zoom';
@@ -74,18 +74,23 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
   const react = async (postId: string, r: Reaction) => {
     if (!user) return go({ name: 'auth' });
     const mine = reacts.some((x) => x.post_id === postId && x.user_id === user.id && x.reaction === r);
+    const before = reacts;
+    let error;
     if (mine) {
       setReacts(reacts.filter((x) => !(x.post_id === postId && x.user_id === user.id && x.reaction === r)));
-      await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', user.id).eq('reaction', r);
+      ({ error } = await supabase.from('post_reactions').delete().eq('post_id', postId).eq('user_id', user.id).eq('reaction', r));
     } else {
       setReacts([...reacts, { post_id: postId, user_id: user.id, reaction: r }]);
-      await supabase.from('post_reactions').insert({ post_id: postId, user_id: user.id, reaction: r });
+      ({ error } = await supabase.from('post_reactions').insert({ post_id: postId, user_id: user.id, reaction: r }));
     }
+    if (error) { setReacts(before); alert(errorMessage(error)); } // undo the instant UI change
   };
 
   const remove = async (p: Post) => {
     if (!confirm('Delete this post?')) return;
-    await supabase.from('posts').delete().eq('id', p.id);
+    const { error } = await supabase.from('posts').delete().eq('id', p.id);
+    if (error) return alert(errorMessage(error));
+    await removeImageByUrl(p.image_url);
     load();
   };
 
@@ -171,6 +176,7 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
   const [venue, setVenue] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -262,7 +268,7 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
             <p className="text-xs text-[#EBEBED] leading-relaxed"><MentionText text={c.content} /></p>
             <div className="flex justify-end gap-3 pt-1">
               {c.author_id === user?.id
-                ? <button onClick={async () => { await supabase.from('comments').delete().eq('id', c.id); load(); onChange(); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Delete</button>
+                ? <button onClick={async () => { const { error } = await supabase.from('comments').delete().eq('id', c.id); if (error) alert(errorMessage(error)); load(); onChange(); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Delete</button>
                 : <button onClick={() => onReport(c.id)} className="text-[10px] text-[#8E9AA7] flex items-center gap-1 cursor-pointer"><Flag className="w-3 h-3" />Report</button>}
             </div>
           </div>

@@ -20,8 +20,9 @@ function resolve(usernames: string[]): Promise<void> {
     timer = setTimeout(async () => {
       const batch = [...pending]; pending = new Set(); timer = null;
       const ws = waiters; waiters = [];
-      const { data } = await supabase.from('profiles').select('id, username, display_name, role').in('username', batch);
-      batch.forEach((u) => cache.set(u, null));
+      const { data, error } = await supabase.from('profiles').select('id, username, display_name, role').in('username', batch);
+      // Only remember "no such user" when the lookup worked; a network blip shouldn't grey out tags for the whole visit.
+      if (!error) batch.forEach((u) => cache.set(u, null));
       ((data as Who[]) || []).forEach((w) => cache.set(w.username, w));
       ws.forEach((w) => w());
     }, 30);
