@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BadgeCheck, Camera, Flag, Flame, Heart, ImagePlus, LogIn, MapPin, MessageCircle, Send, Trash2, X, Zap } from 'lucide-react';
+import { BadgeCheck, Camera, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Play, Send, Trash2, X, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { checkFile, errorMessage, timeAgo, uploadImage, type Comment, type Post } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { ZoomImg } from '../components/Zoom';
+import { MentionInput, MentionText } from '../components/Mentions';
 import { ReportModal } from '../components/ReportModal';
 import { Avatar, EmptyState, ErrorNote, FilePick, Spinner, btn, inputCls } from '../components/ui';
 
@@ -15,7 +16,26 @@ const REACTIONS: { key: Reaction; label: string; Icon: React.ElementType; color:
   { key: 'orchid', label: 'Love', Icon: Heart, color: '#D6457F' },
 ];
 
-const POST_COLS = '*, profiles!posts_author_id_fkey(id, display_name, username, avatar_url, role, is_verified)';
+const POST_COLS: string = '*, profiles!posts_author_id_fkey(id, display_name, username, avatar_url, role, is_verified), '
+  + 'playlists(id, name, owner_id, owner:profiles!playlists_owner_id_fkey(id, display_name), playlist_tracks(track_id))';
+
+/** Shared playlist card inside a post. */
+const PlaylistEmbed: React.FC<{ pl: any }> = ({ pl }) => {
+  const go = useNav();
+  if (!pl) return <p className="text-[11px] italic text-[#8E9AA7] px-3 py-2 rounded-xl bg-[#161B20] border border-white/[0.08]">This playlist is no longer available.</p>;
+  const n = (pl.playlist_tracks || []).length;
+  return (
+    <button onClick={() => go({ name: 'playlist', id: pl.id })} className="w-full flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-[#2A2160] to-[#161B20] border border-[#6045F4]/40 text-left cursor-pointer hover:border-[#6045F4]">
+      <span className="w-14 h-14 rounded-xl bg-[#53E6D4]/15 text-[#53E6D4] flex items-center justify-center flex-shrink-0"><ListMusic className="w-6 h-6" /></span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[10px] font-bold tracking-wider text-[#B7A8FF]">SHARED PLAYLIST</span>
+        <span className="block text-sm font-bold text-white truncate">{pl.name}</span>
+        <span className="block text-[11px] text-[#8E9AA7]">by {pl.owner?.display_name || 'a member'} • {n} song{n === 1 ? '' : 's'}</span>
+      </span>
+      <span className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#6045F4] text-white text-xs font-bold flex-shrink-0"><Play className="w-3.5 h-3.5 fill-white" />Open</span>
+    </button>
+  );
+};
 
 /** Connect feed. Pass authorId to show only one person’s posts (used on profiles). */
 export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }> = ({ authorId, showComposer = true }) => {
@@ -33,7 +53,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
     if (authorId) q = q.eq('author_id', authorId);
     const { data, error } = await q;
     setLoadErr(error ? 'Couldn’t load posts: ' + error.message : null);
-    const list = (data as Post[]) || [];
+    const list = (data as unknown as Post[]) || [];
     setPosts(list);
     const ids = list.map((p) => p.id);
     if (ids.length) {
@@ -109,7 +129,8 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
               </div>
               {isMine && <button onClick={() => remove(p)} aria-label="Delete post" className={btn.icon}><Trash2 className="w-4 h-4" /></button>}
             </div>
-            <p className="text-[13px] leading-relaxed text-[#EBEBED] whitespace-pre-line">{p.content}</p>
+            <p className="text-[13px] leading-relaxed text-[#EBEBED]"><MentionText text={p.content} /></p>
+            {(p as any).playlist_id && <PlaylistEmbed pl={(p as any).playlists} />}
             {p.venue_tag && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/15 text-[10px] font-bold"><MapPin className="w-3 h-3" />{p.venue_tag}</span>}
             {p.image_url && <ZoomImg src={p.image_url} alt="Post photo" className="w-full max-h-[420px] object-cover rounded-xl bg-[#252D37]" />}
             <div className="flex items-center justify-between text-[11px] text-[#8E9AA7]">
@@ -144,9 +165,9 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
   );
 };
 
-const Composer: React.FC<{ onPosted: () => void }> = ({ onPosted }) => {
+export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string; name: string; ownerName?: string } }> = ({ onPosted, playlist }) => {
   const { user, profile } = useAuth();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(playlist ? 'Check out this playlist: ' : '');
   const [venue, setVenue] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -160,6 +181,7 @@ const Composer: React.FC<{ onPosted: () => void }> = ({ onPosted }) => {
       const image_url = image ? await uploadImage('post-images', user.id, image) : null;
       const { error } = await supabase.from('posts').insert({
         author_id: user.id, content: text.trim(), image_url, venue_tag: venue.trim() || null, district_tag: profile?.district || null,
+        playlist_id: playlist?.id ?? null,
       });
       if (error) throw error;
       setText(''); setVenue(''); setImage(null); setPreview(null);
@@ -172,8 +194,15 @@ const Composer: React.FC<{ onPosted: () => void }> = ({ onPosted }) => {
     <div className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5 space-y-2.5">
       <div className="flex gap-2.5">
         <Avatar src={profile?.avatar_url} name={profile?.display_name} size={38} />
-        <textarea aria-label="Write a post" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Share a gig update, a shoutout, or a photo from last night’s show…" className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[#0F1417] border border-white/15 text-sm text-[#EBEBED] outline-none resize-none" />
+        <MentionInput ariaLabel="Write a post" rows={3} value={text} onChange={setText} placeholder="Share a gig update or a shoutout… type @ to tag a fan or artist" className="w-full px-3 py-2 rounded-xl bg-[#0F1417] border border-white/15 text-sm text-[#EBEBED] outline-none resize-none" />
       </div>
+      {playlist && (
+        <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#2A2160]/60 border border-[#6045F4]/40">
+          <ListMusic className="w-5 h-5 text-[#53E6D4] flex-shrink-0" />
+          <span className="flex-1 min-w-0 text-xs"><span className="block font-bold text-white truncate">{playlist.name}</span>{playlist.ownerName && <span className="text-[#8E9AA7]">by {playlist.ownerName}</span>}</span>
+          <span className="text-[10px] font-bold text-[#B7A8FF]">ATTACHED</span>
+        </div>
+      )}
       {preview && (
         <div className="relative">
           <img src={preview} alt="Selected" className="w-full max-h-64 object-cover rounded-xl" />
@@ -230,7 +259,7 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
               <button onClick={() => go({ name: 'profile', id: c.author_id })} className="text-xs font-bold text-white truncate cursor-pointer hover:underline">{c.profiles?.display_name || 'Member'}</button>
               <span className="text-[10px] text-[#8E9AA7] flex-shrink-0">{timeAgo(c.created_at)}</span>
             </div>
-            <p className="text-xs text-[#EBEBED] leading-relaxed whitespace-pre-line">{c.content}</p>
+            <p className="text-xs text-[#EBEBED] leading-relaxed"><MentionText text={c.content} /></p>
             <div className="flex justify-end gap-3 pt-1">
               {c.author_id === user?.id
                 ? <button onClick={async () => { await supabase.from('comments').delete().eq('id', c.id); load(); onChange(); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Delete</button>
@@ -241,7 +270,7 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
       ))}
       {user && termsAccepted ? (
         <div className="flex gap-2">
-          <input aria-label="Write a comment" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') send(); }} placeholder="Write a comment…" className={`${inputCls} !min-h-[40px] !rounded-full`} />
+          <MentionInput single ariaLabel="Write a comment" value={text} onChange={setText} onEnter={send} placeholder="Write a comment… type @ to tag" className={`${inputCls} !min-h-[40px] !rounded-full`} />
           <button onClick={send} aria-label="Send comment" className={`${btn.primary} !rounded-full !px-3`}><Send className="w-4 h-4" /></button>
         </div>
       ) : (

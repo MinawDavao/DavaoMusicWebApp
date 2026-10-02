@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Copy, Heart, ListMusic, Pause, Play, Plus, Share2, Trash2, X } from 'lucide-react';
+import { ChevronDown, Copy, Heart, ListMusic, Megaphone, Pause, Play, Plus, Share2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, type Track } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useNav } from '../nav';
-import { Avatar, EmptyState, ErrorNote, SectionHead, btn, inputCls } from './ui';
+import { Avatar, EmptyState, ErrorNote, Modal, SectionHead, btn, inputCls } from './ui';
+import { Composer } from '../screens/ConnectScreen';
 
 type Person = { id: string; display_name: string; avatar_url: string | null } | null;
 interface PL {
@@ -26,7 +27,8 @@ export const playlistLink = (id: string) => `${window.location.origin}${window.l
 /** Playlists: one person’s (ownerId) or a single shared one (playlistId). */
 export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?: boolean }> = ({ ownerId, playlistId, isMe = false }) => {
   const go = useNav();
-  const { user } = useAuth();
+  const { user, termsAccepted } = useAuth();
+  const [feedShare, setFeedShare] = useState<PL | null>(null);
   const { current, playing, play } = usePlayer();
   const [lists, setLists] = useState<PL[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -131,7 +133,8 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
               <button onClick={() => like(pl)} aria-pressed={liked} className={`${btn.ghost} !py-1.5 !px-3 !text-xs`} style={liked ? { color: '#FF6B9A' } : undefined}>
                 <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-[#FF6B9A]' : ''}`} />{liked ? 'Liked' : 'Like'}
               </button>
-              <button onClick={() => share(pl)} className={`${btn.ghost} !py-1.5 !px-3 !text-xs`}><Share2 className="w-3.5 h-3.5" />Share</button>
+              <button onClick={() => { if (!user) return go({ name: 'auth' }); if (!termsAccepted) return go({ name: 'onboarding' }); setFeedShare(pl); }} className={`${btn.primary} !py-1.5 !px-3 !text-xs`}><Megaphone className="w-3.5 h-3.5" />Post to Feed</button>
+              <button onClick={() => share(pl)} aria-label="Share link" title="Share link" className={btn.icon}><Share2 className="w-4 h-4" /></button>
               {user && !mine && <button onClick={() => saveCopy(pl)} className={`${btn.ghost} !py-1.5 !px-3 !text-xs`}><Copy className="w-3.5 h-3.5" />Save a copy</button>}
               <span className="flex-1" />
               {mine && <button onClick={() => del(pl)} aria-label={`Delete playlist ${pl.name}`} className={btn.icon}><Trash2 className="w-4 h-4" /></button>}
@@ -164,6 +167,14 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
       )}
       {note && <p role="status" className="text-xs text-[#53E6D4]">{note}</p>}
       <ErrorNote text={err} />
+      {feedShare && (
+        <Modal title="Post Playlist to Connect" onClose={() => setFeedShare(null)}>
+          <Composer
+            playlist={{ id: feedShare.id, name: feedShare.name, ownerName: feedShare.owner?.display_name }}
+            onPosted={() => { setFeedShare(null); flash('Posted to the Connect feed!'); }}
+          />
+        </Modal>
+      )}
     </>
   );
 
