@@ -6,7 +6,8 @@ A mobile-first music platform for Davao City and Southern Mindanao: discover loc
 
 | Path | What it is |
 | --- | --- |
-| `src/` | The React + TypeScript app (Vite, Tailwind CSS v4, lucide-react) |
+| `src/` | The React + TypeScript app (Vite, Tailwind CSS v4, lucide-react, Supabase) |
+| `supabase/` | Database migrations (tables, security rules, storage) |
 | `public/` | Static assets (logo) |
 | `design/` | Screen designs from Claude Design (see below) |
 
@@ -21,6 +22,14 @@ npm run dev                  # http://localhost:3000
 ```
 
 Other scripts: `npm run build`, `npm run preview`, `npm run lint` (type-check).
+
+## How the app is wired
+
+- **Supabase** handles accounts, data and file storage (`src/lib/supabase.ts`). The project URL and publishable key are built in and can be overridden with `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- **Flow:** Sign Up (Fan or Artist) → Terms of Agreement → Profile setup (artists create a band page and upload up to 3 songs) → app.
+- **Testing mode:** sign-ups are auto-confirmed by a database trigger (`private.auto_confirm_email`). Remove it before launch.
+- **Screens** (`src/screens/`): Home, Audio, Band page, Connect feed (posts, comments, reactions, Report), Profile, Deals (search, filters, Post a Deal), Auth, Onboarding.
+- **Sponsored Spotlight** content is static in `src/data/sponsors.ts` until an admin panel exists.
 
 ## Design files (`design/`)
 
