@@ -12,6 +12,7 @@ import { ProfileScreen } from './screens/ProfileScreen';
 import { DealsScreen } from './screens/DealsScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
+import { PlaylistScreen } from './components/Playlists';
 
 // ---------- hash routing (#/band/<id>, #/profile/<id>, …) so links and Back work ----------
 function parseHash(): Route {
@@ -22,6 +23,7 @@ function parseHash(): Route {
     case 'connect': return { name: 'connect' };
     case 'profile': return { name: 'profile', id: b || undefined };
     case 'deals': return { name: 'deals' };
+    case 'playlist': return b ? { name: 'playlist', id: b } : { name: 'audio' };
     case 'login': return { name: 'auth', mode: 'login' };
     case 'signup': return { name: 'auth', mode: 'signup' };
     case 'welcome': return { name: 'onboarding' };
@@ -31,6 +33,7 @@ function parseHash(): Route {
 function toHash(r: Route): string {
   switch (r.name) {
     case 'band': return `#/band/${r.id}`;
+    case 'playlist': return `#/playlist/${r.id}`;
     case 'profile': return r.id ? `#/profile/${r.id}` : '#/profile';
     case 'auth': return r.mode === 'signup' ? '#/signup' : '#/login';
     case 'onboarding': return '#/welcome';
@@ -45,7 +48,7 @@ const TABS: { key: Route['name']; label: string; Icon: React.ElementType; route:
   { key: 'deals', label: 'Deals', Icon: Tag, route: { name: 'deals' } },
 ];
 const activeTab = (r: Route): Route['name'] =>
-  r.name === 'band' ? 'audio' : r.name === 'profile' ? 'connect' : r.name;
+  r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' ? 'connect' : r.name;
 
 const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
   const { user, profile, band, signOut } = useAuth();
@@ -163,6 +166,7 @@ const Shell: React.FC = () => {
     case 'connect': screen = <ConnectScreen />; break;
     case 'profile': screen = <ProfileScreen key={view.id || 'me'} id={view.id} />; break;
     case 'deals': screen = <DealsScreen />; break;
+    case 'playlist': screen = <PlaylistScreen key={view.id} id={view.id} />; break;
     case 'auth': screen = <AuthScreen key={view.mode} initialMode={view.mode} />; break;
     case 'onboarding': screen = user ? <OnboardingScreen /> : <Spinner />; break;
   }

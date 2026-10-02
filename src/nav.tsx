@@ -7,6 +7,7 @@ export type Route =
   | { name: 'connect' }
   | { name: 'profile'; id?: string }
   | { name: 'deals' }
+  | { name: 'playlist'; id: string }
   | { name: 'auth'; mode?: 'login' | 'signup' }
   | { name: 'onboarding' };
 

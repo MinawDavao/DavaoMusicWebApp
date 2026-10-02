@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { checkFile, errorMessage, timeAgo, uploadImage, type Comment, type Post } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
+import { ZoomImg } from '../components/Zoom';
 import { ReportModal } from '../components/ReportModal';
 import { Avatar, EmptyState, ErrorNote, FilePick, Spinner, btn, inputCls } from '../components/ui';
 
@@ -110,7 +111,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
             </div>
             <p className="text-[13px] leading-relaxed text-[#EBEBED] whitespace-pre-line">{p.content}</p>
             {p.venue_tag && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/15 text-[10px] font-bold"><MapPin className="w-3 h-3" />{p.venue_tag}</span>}
-            {p.image_url && <img src={p.image_url} alt="Post photo" className="w-full max-h-[420px] object-cover rounded-xl bg-[#252D37]" />}
+            {p.image_url && <ZoomImg src={p.image_url} alt="Post photo" className="w-full max-h-[420px] object-cover rounded-xl bg-[#252D37]" />}
             <div className="flex items-center justify-between text-[11px] text-[#8E9AA7]">
               <span>{total} reaction{total === 1 ? '' : 's'}</span>
               <span>{commentCounts[p.id] || 0} comment{commentCounts[p.id] === 1 ? '' : 's'}</span>

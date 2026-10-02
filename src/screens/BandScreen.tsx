@@ -10,6 +10,9 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { GigCard, TrackRow } from '../components/cards';
 import { MembersEditor } from '../components/MembersEditor';
+import { GenrePicker } from '../components/GenrePicker';
+import { ZoomImg } from '../components/Zoom';
+import { setBandGenres } from '../lib/genres';
 import { PlaylistModal } from '../components/PlaylistModal';
 import { ConnectFeed } from './ConnectScreen';
 import { ReportModal } from '../components/ReportModal';
@@ -136,10 +139,10 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {/* HERO */}
       <div className="rounded-3xl bg-[#1D232A] border border-white/[0.08] overflow-hidden">
-        <div className="h-36 bg-[#252D37]">{band.banner_url && <img src={band.banner_url} alt="" className="w-full h-full object-cover" />}</div>
+        <div className="h-36 bg-[#252D37] overflow-hidden">{band.banner_url && <ZoomImg src={band.banner_url} alt={`${band.name} banner`} className="w-full h-36 object-cover" />}</div>
         <div className="px-4 pb-4 space-y-3">
           <div className="flex items-end justify-between gap-3 -mt-10">
-            <Avatar src={band.logo_url} name={band.name} size={80} square ring />
+            {band.logo_url ? <span className="relative z-10 w-20"><ZoomImg src={band.logo_url} alt={`${band.name} logo`} className="w-20 h-20 rounded-xl object-cover ring-2 ring-[#53E6D4] bg-[#252D37]" /></span> : <Avatar src={null} name={band.name} size={80} square ring />}
             {isOwner ? (
               <button onClick={() => setEditing(true)} className={`${btn.ghost} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" /> Edit Profile</button>
             ) : (
@@ -220,8 +223,8 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
             <div className="grid grid-cols-2 gap-2">
               {photos.map((p) => (
                 <div key={p.id} className="relative rounded-2xl overflow-hidden bg-[#252D37] aspect-square">
-                  <img src={p.image_url} alt={p.title || 'Band photo'} className="w-full h-full object-cover" />
-                  {p.title && <span className="absolute left-2 bottom-2 right-2 text-[11px] font-bold text-white drop-shadow">{p.title}</span>}
+                  <ZoomImg src={p.image_url} alt={p.title || 'Band photo'} className="w-full aspect-square object-cover" gallery={photos.map((x) => x.image_url)} index={photos.indexOf(p)} />
+                  {p.title && <span className="pointer-events-none absolute left-2 bottom-2 right-2 text-[11px] font-bold text-white drop-shadow">{p.title}</span>}
                   {isOwner && <button onClick={() => deletePhoto(p)} aria-label="Remove photo" className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-black/70 text-white flex items-center justify-center cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>}
                 </div>
               ))}
@@ -359,6 +362,7 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
   const [logo, setLogo] = useState(band.logo_url);
   const [banner, setBanner] = useState(band.banner_url);
   const [open, setOpen] = useState(band.open_for_bookings);
+  const [genres, setGenres] = useState<string[]>(genreNames(band));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -376,9 +380,11 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
       facebook: f.facebook.trim() || null, instagram: f.instagram.trim() || null, streaming_url: f.streaming_url.trim() || null,
       open_for_bookings: open, logo_url: logo, banner_url: banner,
     }).eq('id', band.id);
-    if (!error) await supabase.from('profiles').update({ display_name: f.name.trim(), avatar_url: logo }).eq('id', user!.id);
+    if (error) { setBusy(false); return setErr(errorMessage(error)); }
+    try { await setBandGenres(band.id, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
+    await supabase.from('profiles').update({ display_name: f.name.trim(), avatar_url: logo }).eq('id', user!.id);
     setBusy(false);
-    if (error) setErr(errorMessage(error)); else onSaved();
+    onSaved();
   };
 
   return (
@@ -404,6 +410,7 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
       <Field label="Instagram" icon={Camera} htmlFor="e-ig"><input id="e-ig" className={inputCls} value={f.instagram} onChange={set('instagram')} /></Field>
       <Field label="Spotify / YouTube" icon={Play} htmlFor="e-stream"><input id="e-stream" className={inputCls} value={f.streaming_url} onChange={set('streaming_url')} /></Field>
       <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Open for bookings (show contacts)</label>
+      <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><GenrePicker value={genres} onChange={setGenres} /></div>
       <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={band.id} /></div>
       <ErrorNote text={err} />
       <div className="flex gap-2">

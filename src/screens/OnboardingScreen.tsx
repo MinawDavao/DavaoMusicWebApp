@@ -9,6 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { TermsText } from '../components/TermsText';
 import { MAX_TRACKS, uploadTrack } from '../components/TrackUpload';
+import { GenrePicker } from '../components/GenrePicker';
+import { setBandGenres } from '../lib/genres';
 import { Avatar, ErrorNote, Field, FilePick, btn, inputCls } from '../components/ui';
 
 const Steps: React.FC<{ at: 'terms' | 'setup' }> = ({ at }) => {
@@ -209,7 +211,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
   const [base, setBase] = useState(band?.home_base ?? '');
   const [year, setYear] = useState(band?.year_formed ? String(band.year_formed) : '');
   const [bio, setBio] = useState(band?.bio ?? '');
-  const [picked, setPicked] = useState<number[]>(band?.band_genres?.map((g) => g.genre_id) ?? []);
+  const [picked, setPicked] = useState<string[]>((band?.band_genres || []).map((g: any) => g.genres?.name).filter(Boolean));
   const [influences, setInfluences] = useState(band?.influences ?? '');
   const [members, setMembers] = useState<MemberRow[]>([{ key: 1, name: '', role: '' }]);
   const [email, setEmail] = useState(band?.booking_email ?? user?.email ?? '');
@@ -261,11 +263,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
         bandId = (data as any).id;
       }
       // genres
-      await supabase.from('band_genres').delete().eq('band_id', bandId!);
-      if (picked.length) {
-        const { error } = await supabase.from('band_genres').insert(picked.map((g) => ({ band_id: bandId, genre_id: g })));
-        if (error) throw error;
-      }
+      await setBandGenres(bandId!, picked);
       // members
       const realMembers = members.filter((m) => m.name.trim());
       if (realMembers.length) {
@@ -332,19 +330,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
       </Section>
 
       <Section title="Sound" sub="Helps fans and the Audio tab find you">
-        <div className="space-y-2">
-          <p className="flex items-center gap-1.5 text-[13px] font-bold text-white"><Headphones className="w-3.5 h-3.5 text-[#53E6D4]" />Genre <span className="ml-auto text-[10px] font-medium text-[#8E9AA7]">{picked.length} / 3 max</span></p>
-          <div className="flex flex-wrap gap-1.5">
-            {genres.map((g) => {
-              const on = picked.includes(g.id);
-              return (
-                <button key={g.id} type="button" aria-pressed={on} onClick={() => toggleGenre(g.id)} className={`h-8 px-3 rounded-full text-xs font-bold cursor-pointer border ${on ? 'bg-[#6045F4] border-[#6045F4] text-white' : 'bg-[#0F1417] border-white/15 text-[#EBEBED]'}`}>
-                  {g.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <GenrePicker value={picked} onChange={setPicked} />
         <Field label="Influences" icon={Sparkles} htmlFor="a-infl"><input id="a-infl" className={inputCls} value={influences} onChange={(e) => setInfluences(e.target.value)} placeholder="e.g. Urbandub, Kulintang masters" /></Field>
       </Section>
 

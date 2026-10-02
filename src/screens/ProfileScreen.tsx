@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, AtSign, BadgeCheck, Calendar, Camera, Check, Flag, Globe, MapPin, MessageCircle, Music, Pencil, Users, X } from 'lucide-react';
+import { ArrowLeft, AtSign, BadgeCheck, Calendar, Camera, Check, Flag, Globe, MapPin, MessageCircle, Music, Pencil, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { checkFile, errorMessage, toHandle, uploadImage, type Band, type Gig, type Profile } from '../lib/db';
-import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts } from '../lib/queries';
+import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts, genreNames } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
+import { ZoomImg } from '../components/Zoom';
 import { ConnectFeed } from './ConnectScreen';
 import { BandRow, GigCard } from '../components/cards';
 import { MembersEditor } from '../components/MembersEditor';
 import { Playlists } from '../components/Playlists';
+import { GenrePicker } from '../components/GenrePicker';
+import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, SectionHead, Spinner, btn, inputCls } from '../components/ui';
 
@@ -28,10 +31,15 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [report, setReport] = useState(false);
+  type Person = { id: string; display_name: string; avatar_url: string | null; role: string };
+  const [fans, setFans] = useState<Person[]>([]);       // people who follow this profile
+  const [followingPeople, setFollowingPeople] = useState<Person[]>([]);
+  const [iFollow, setIFollow] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!targetId) { setLoading(false); return; }
-    const [{ data: prof }, { data: f }, { data: r }, { data: b }, c, my, pc] = await Promise.all([
+    const [{ data: prof }, { data: f }, { data: r }, { data: b }, c, my, pc, { data: fr }, { data: fg }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', targetId).maybeSingle(),
       supabase.from('follows').select(`band_id, bands(${BAND_COLS})`).eq('follower_id', targetId),
       supabase.from('gig_rsvps').select('gig_id, gigs(*, bands(id, name, logo_url))').eq('user_id', targetId),
@@ -39,7 +47,13 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       fetchRsvpCounts(),
       user ? fetchMyRsvps(user.id) : Promise.resolve(new Set<string>()),
       supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', targetId),
+      supabase.from('user_follows').select('follower_id, profiles!user_follows_follower_id_fkey(id, display_name, avatar_url, role)').eq('followee_id', targetId).order('created_at', { ascending: false }),
+      supabase.from('user_follows').select('followee_id, profiles!user_follows_followee_id_fkey(id, display_name, avatar_url, role)').eq('follower_id', targetId).order('created_at', { ascending: false }),
     ]);
+    const fansList = (((fr as any[]) || []).map((x) => x.profiles).filter(Boolean)) as Person[];
+    setFans(fansList);
+    setFollowingPeople((((fg as any[]) || []).map((x) => x.profiles).filter(Boolean)) as Person[]);
+    setIFollow(!!user && fansList.some((x) => x.id === user.id));
     setP((prof as Profile) || null);
     setFollowed(((f as any[]) || []).map((x) => x.bands).filter(Boolean));
     setRsvps(((r as any[]) || []).map((x) => x.gigs).filter((g) => g && new Date(g.starts_at).getTime() > Date.now() - 6 * 3600e3)
@@ -50,6 +64,27 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   }, [targetId, user]);
 
   useEffect(() => { setLoading(true); setEditing(false); load(); }, [load]);
+
+  const toggleFollow = async () => {
+    if (!user) return go({ name: 'auth' });
+    if (!targetId) return;
+    setFollowBusy(true);
+    if (iFollow) await supabase.from('user_follows').delete().eq('follower_id', user.id).eq('followee_id', targetId);
+    else await supabase.from('user_follows').insert({ follower_id: user.id, followee_id: targetId });
+    setFollowBusy(false);
+    load();
+  };
+
+  const personGrid = (list: Person[]) => (
+    <div className="grid grid-cols-4 gap-2.5">
+      {list.map((x) => (
+        <button key={x.id} onClick={() => go({ name: 'profile', id: x.id })} aria-label={`View ${x.display_name}’s profile`} className="flex flex-col items-center gap-1.5 min-w-0 cursor-pointer">
+          <Avatar src={x.avatar_url} name={x.display_name} size={52} square={x.role === 'artist'} />
+          <span className="text-[11px] font-bold text-white max-w-full truncate">{x.display_name}</span>
+        </button>
+      ))}
+    </div>
+  );
 
   if (!user && !id) {
     return (
@@ -74,16 +109,26 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
         ) : (
           <>
             <div className="flex items-center justify-between">
-              <Avatar src={p.avatar_url} name={p.display_name} size={80} ring />
+              {p.avatar_url ? <span className="w-20"><ZoomImg src={p.avatar_url} alt={`${p.display_name}’s photo`} className="w-20 h-20 rounded-full object-cover ring-2 ring-[#53E6D4] bg-[#252D37]" /></span> : <Avatar src={null} name={p.display_name} size={80} ring />}
               {isMe
                 ? <button onClick={() => { setSaved(false); setEditing(true); }} className={`${btn.ghost} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Edit Profile</button>
-                : user && <button onClick={() => setReport(true)} className={`${btn.ghost} !py-2 !text-xs`}><Flag className="w-3.5 h-3.5" />Report</button>}
+                : (
+                  <div className="flex gap-1.5">
+                    <button onClick={toggleFollow} disabled={followBusy} className={`${iFollow ? btn.ghost : btn.primary} !py-2 !text-xs`}>
+                      {iFollow ? <><UserMinus className="w-3.5 h-3.5" />Following</> : <><UserPlus className="w-3.5 h-3.5" />Follow</>}
+                    </button>
+                    {user && <button onClick={() => setReport(true)} aria-label="Report profile" className={btn.icon}><Flag className="w-4 h-4" /></button>}
+                  </div>
+                )}
             </div>
             <div className="flex items-center flex-wrap gap-2">
               <h1 className="font-heading font-bold text-[22px] text-white">{p.display_name}</h1>
               {p.is_verified && <BadgeCheck className="w-4 h-4 text-[#53E6D4]" />}
               <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/15 font-mono text-[10px] font-bold">@{p.username}</span>
             </div>
+            {p.role === 'artist' && theirBand && genreNames(theirBand).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">{genreNames(theirBand).map((g) => <span key={g} className="px-2.5 py-0.5 rounded-full bg-[#6045F4] text-white text-[10px] font-bold">{g}</span>)}</div>
+            )}
             {p.district && <p className="flex items-center gap-1.5 font-mono text-xs"><MapPin className="w-3.5 h-3.5 text-[#53E6D4]" />{p.district}</p>}
             {p.bio ? <p className="text-[13px] text-[#8E9AA7] leading-relaxed whitespace-pre-line">{p.bio}</p> : isMe && <p className="text-[13px] text-[#8E9AA7] italic">Add a short bio so the scene knows who you are.</p>}
             {(p.instagram || p.facebook) && (
@@ -93,8 +138,9 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
               </div>
             )}
             <OkNote text={saved ? 'Profile updated' : null} />
-            <div className="grid grid-cols-2 gap-2">
-              <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{followed.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">FOLLOWING</p></div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{fans.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">FOLLOWERS</p></div>
+              <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{followed.length + followingPeople.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">FOLLOWING</p></div>
               {p.role === 'artist'
                 ? <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{postCount}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">POSTS</p></div>
                 : <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{rsvps.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">GOING TO</p></div>}
@@ -118,6 +164,18 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
           ? <EmptyState icon={Users} title="Not following any bands yet" text={isMe ? 'Visit a band page and tap Follow.' : undefined} action={isMe ? <button onClick={() => go({ name: 'audio' })} className={btn.ghost}>Discover bands</button> : undefined} />
           : followed.map((b) => <BandRow key={b.id} band={b} />)}
       </section>
+
+      <section className="space-y-2.5">
+        <SectionHead icon={Users} title={`Followers (${fans.length})`} />
+        {fans.length === 0 ? <EmptyState icon={Users} title="No followers yet" text={isMe ? 'Fans and artists who follow you will show up here.' : 'Be the first to follow.'} /> : personGrid(fans)}
+      </section>
+
+      {followingPeople.length > 0 && (
+        <section className="space-y-2.5">
+          <SectionHead icon={Users} title={`Following People (${followingPeople.length})`} />
+          {personGrid(followingPeople)}
+        </section>
+      )}
 
       {p.role !== 'artist' && (isMe || p.show_rsvps) && (
         <section className="space-y-3">
@@ -148,6 +206,8 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
   });
   const [avatar, setAvatar] = useState(profile.avatar_url);
   const [rsvps, setRsvps] = useState(profile.show_rsvps);
+  const [genres, setGenres] = useState<string[]>([]);
+  useEffect(() => { if (bandId) fetchBandGenreNames(bandId).then(setGenres); }, [bandId]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -159,6 +219,9 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
       display_name: f.display_name.trim(), username: toHandle(f.username), district: f.district.trim() || null, bio: f.bio.trim() || null,
       instagram: f.instagram.trim() || null, facebook: f.facebook.trim() || null, avatar_url: avatar, show_rsvps: rsvps,
     }).eq('id', user!.id);
+    if (!error && bandId) {
+      try { await setBandGenres(bandId, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
+    }
     setBusy(false);
     if (error) setErr(errorMessage(error)); else onSaved();
   };
@@ -187,6 +250,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
       <Field label="Instagram" icon={Camera} htmlFor="p-ig"><input id="p-ig" className={inputCls} value={f.instagram} onChange={set('instagram')} /></Field>
       <Field label="Facebook" icon={Globe} htmlFor="p-fb"><input id="p-fb" className={inputCls} value={f.facebook} onChange={set('facebook')} /></Field>
       <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={rsvps} onChange={(e) => setRsvps(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Show my gig RSVPs on my profile</label>
+      {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><GenrePicker value={genres} onChange={setGenres} /></div>}
       {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={bandId} /></div>}
       <ErrorNote text={err} />
       <div className="flex gap-2">

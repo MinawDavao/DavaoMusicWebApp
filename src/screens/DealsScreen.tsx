@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeftRight, BadgeCheck, Camera, Check, Flag, Globe, Lock, MapPin, Plus, Search, Send, Tag, Trash2, X } from 'lucide-react';
+import { ArrowLeftRight, BadgeCheck, Camera, Check, Flag, Globe, Lock, MapPin, Pencil, Plus, Search, Send, Tag, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   CATEGORY_LABELS, CONDITION_LABELS, DEAL_LABELS, checkFile, errorMessage, peso, publicUrl, timeAgo, uploadFile,
@@ -7,6 +7,7 @@ import {
 } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
+import { ZoomImg } from '../components/Zoom';
 import { SponsoredSpotlight } from '../components/SponsoredSpotlight';
 import { ReportModal } from '../components/ReportModal';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, Spinner, btn, inputCls } from '../components/ui';
@@ -126,6 +127,7 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
   const go = useNav();
   const { user } = useAuth();
   const [contact, setContact] = useState(false);
+  const [editing, setEditing] = useState(false);
   const mine = it.seller_id === user?.id;
   const photos = [...(it.listing_photos || [])].sort((a, b) => a.position - b.position);
   const [pi, setPi] = useState(0);
@@ -138,6 +140,8 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
     if (photos.length) await supabase.storage.from('gear-photos').remove(photos.map((p) => p.image_path));
     onChange();
   };
+
+  if (editing) return <PostDeal editing={it} onCancel={() => setEditing(false)} onPosted={() => { setEditing(false); onChange(); }} />;
 
   return (
     <article className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5 space-y-3">
@@ -172,7 +176,7 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
       )}
       {photo && (
         <div className="relative">
-          <img src={publicUrl('gear-photos', photo.image_path)!} alt={it.title} className="w-full h-56 object-cover rounded-xl bg-[#252D37]" />
+          <ZoomImg src={publicUrl('gear-photos', photo.image_path)!} alt={it.title} className="w-full h-56 object-cover rounded-xl bg-[#252D37]" gallery={photos.map((x) => publicUrl('gear-photos', x.image_path)!)} index={pi} />
           {photos.length > 1 && (
             <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
               {photos.map((_, i) => <button key={i} onClick={() => setPi(i)} aria-label={`Photo ${i + 1}`} className={`h-2 rounded-full cursor-pointer ${i === pi ? 'w-5 bg-[#53E6D4]' : 'w-2 bg-white/60'}`} />)}
@@ -195,6 +199,7 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
       <div className="flex items-center gap-2">
         {mine ? (
           <>
+            <button onClick={() => setEditing(true)} className={`${btn.primary} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Edit</button>
             <button onClick={markSold} className={`${btn.ghost} !py-2 !text-xs`}><Check className="w-3.5 h-3.5" />{it.status === 'sold' ? 'Mark Active' : 'Mark Sold'}</button>
             <span className="flex-1" />
             <button onClick={remove} aria-label="Delete listing" className={btn.icon}><Trash2 className="w-4 h-4" /></button>
@@ -212,18 +217,22 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
   );
 };
 
-const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void }> = ({ onCancel, onPosted }) => {
+const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?: Listing }> = ({ onCancel, onPosted, editing }) => {
   const { user, profile, band } = useAuth();
-  const [deal, setDeal] = useState<DealType>('for_sale');
-  const [cat, setCat] = useState<GearCategory>('guitars_bass');
-  const [cond, setCond] = useState<GearCondition>('like_mint');
-  const [title, setTitle] = useState('');
-  const [price, setPrice] = useState('');
-  const [wish, setWish] = useState('');
-  const [desc, setDesc] = useState('');
-  const [specs, setSpecs] = useState('');
-  const [district, setDistrict] = useState(profile?.district || '');
+  const e0 = editing;
+  const [deal, setDeal] = useState<DealType>(e0?.deal_type ?? 'for_sale');
+  const [cat, setCat] = useState<GearCategory>(e0?.category ?? 'guitars_bass');
+  const [cond, setCond] = useState<GearCondition>(e0?.condition ?? 'like_mint');
+  const [title, setTitle] = useState(e0?.title ?? '');
+  const [price, setPrice] = useState(e0?.price != null ? String(e0.price) : '');
+  const [wish, setWish] = useState(e0?.trade_wishlist ?? '');
+  const [desc, setDesc] = useState(e0?.description ?? '');
+  const [specs, setSpecs] = useState((e0?.specs || []).join(', '));
+  const [district, setDistrict] = useState(e0?.district ?? profile?.district ?? '');
   const [files, setFiles] = useState<File[]>([]);
+  const [existing, setExisting] = useState(() => [...(e0?.listing_photos || [])].sort((a, b) => a.position - b.position));
+  const [removed, setRemoved] = useState<{ id: string; image_path: string }[]>([]);
+  const totalPhotos = existing.length + files.length;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -238,15 +247,29 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void }> = ({ on
     if (!ok || !user) return;
     setBusy(true); setErr(null);
     try {
-      const { data, error } = await supabase.from('listings').insert({
-        seller_id: user.id, band_id: band?.id ?? null, title: title.trim(), category: cat, deal_type: deal, condition: cond,
+      const fields = {
+        title: title.trim(), category: cat, deal_type: deal, condition: cond,
         price: price.trim() ? Number(price.replace(/[^0-9.]/g, '')) : null, trade_wishlist: needsWish ? wish.trim() || null : null,
         description: desc.trim() || null, specs: specs.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 6), district: district.trim() || null,
-      }).select('id').single();
-      if (error) throw error;
+      };
+      let listingId: string;
+      if (editing) {
+        const { error } = await supabase.from('listings').update(fields).eq('id', editing.id);
+        if (error) throw error;
+        listingId = editing.id;
+        for (const r of removed) {
+          const { error: de } = await supabase.from('listing_photos').delete().eq('id', r.id);
+          if (de) throw de;
+        }
+        if (removed.length) await supabase.storage.from('gear-photos').remove(removed.map((r) => r.image_path));
+      } else {
+        const { data, error } = await supabase.from('listings').insert({ seller_id: user.id, band_id: band?.id ?? null, ...fields }).select('id').single();
+        if (error) throw error;
+        listingId = (data as any).id;
+      }
       for (let i = 0; i < files.length; i++) {
         const path = await uploadFile('gear-photos', user.id, files[i]);
-        const { error: pe } = await supabase.from('listing_photos').insert({ listing_id: (data as any).id, image_path: path, position: i });
+        const { error: pe } = await supabase.from('listing_photos').insert({ listing_id: listingId, image_path: path, position: existing.length + i });
         if (pe) throw pe;
       }
       onPosted();
@@ -257,7 +280,7 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void }> = ({ on
   return (
     <div className="rounded-2xl bg-[#1D232A] border border-[#53E6D4]/45 p-4 space-y-3.5">
       <div className="flex items-center justify-between">
-        <div><h2 className="font-heading font-bold text-lg text-white">Post a Deal</h2><p className="text-[11px] text-[#8E9AA7]">Sell, trade or ask for gear in the Davao scene</p></div>
+        <div><h2 className="font-heading font-bold text-lg text-white">{editing ? 'Edit Deal' : 'Post a Deal'}</h2><p className="text-[11px] text-[#8E9AA7]">{editing ? 'Update your listing details and photos' : 'Sell, trade or ask for gear in the Davao scene'}</p></div>
         <button onClick={onCancel} aria-label="Close" className={btn.icon}><X className="w-4 h-4" /></button>
       </div>
       <div className="space-y-2"><p className="text-[13px] font-bold text-white">Listing Type</p><div className="flex flex-wrap gap-1.5">{(Object.keys(DEAL_LABELS) as DealType[]).map((d) => pill(d, deal, setDeal, DEAL_LABELS[d]))}</div></div>
@@ -271,19 +294,25 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void }> = ({ on
       <Field label="Description" htmlFor="d-desc" hint="condition, inclusions, meetup"><textarea id="d-desc" rows={4} className={`${inputCls} py-3 resize-none`} value={desc} onChange={(e) => setDesc(e.target.value)} /></Field>
       <Field label="Key Specs" htmlFor="d-specs" hint="comma separated"><input id="d-specs" className={inputCls} value={specs} onChange={(e) => setSpecs(e.target.value)} /></Field>
       <div className="space-y-2">
-        <p className="flex items-center text-[13px] font-bold text-white">Photos <span className="ml-auto text-[10px] font-medium text-[#8E9AA7]">{files.length} / 5</span></p>
+        <p className="flex items-center text-[13px] font-bold text-white">Photos <span className="ml-auto text-[10px] font-medium text-[#8E9AA7]">{totalPhotos} / 5</span></p>
         <div className="grid grid-cols-4 gap-2">
+          {existing.map((ph) => (
+            <div key={ph.id} className="relative aspect-square rounded-xl overflow-hidden bg-[#252D37]">
+              <img src={publicUrl('gear-photos', ph.image_path)!} alt="" className="w-full h-full object-cover" />
+              <button onClick={() => { setExisting(existing.filter((x) => x.id !== ph.id)); setRemoved([...removed, ph]); }} aria-label="Remove photo" className="absolute top-1 right-1 w-6 h-6 rounded-md bg-black/70 text-white flex items-center justify-center cursor-pointer"><X className="w-3 h-3" /></button>
+            </div>
+          ))}
           {files.map((f, i) => (
             <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-[#252D37]">
               <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
               <button onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label="Remove photo" className="absolute top-1 right-1 w-6 h-6 rounded-md bg-black/70 text-white flex items-center justify-center cursor-pointer"><X className="w-3 h-3" /></button>
             </div>
           ))}
-          {files.length < 5 && (
+          {totalPhotos < 5 && (
             <FilePick accept="image/jpeg,image/png,image/webp" multiple onPick={() => {}} onPickMany={(fs) => {
               const good = fs.filter((f) => !checkFile(f, 'image'));
               if (good.length < fs.length) setErr('Some photos were skipped (JPG/PNG/WebP up to 5 MB only).');
-              setFiles([...files, ...good].slice(0, 5));
+              setFiles([...files, ...good].slice(0, 5 - existing.length));
             }} className="aspect-square rounded-xl border-[1.5px] border-dashed border-[#53E6D4] bg-[#53E6D4]/5 text-[#53E6D4] text-[10px] font-bold flex flex-col items-center justify-center gap-1 cursor-pointer">
               <Plus className="w-5 h-5" />Add
             </FilePick>
@@ -292,8 +321,8 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void }> = ({ on
       </div>
       <Field label="Meetup District" icon={MapPin} htmlFor="d-dist"><input id="d-dist" className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Matina, Davao City" /></Field>
       <ErrorNote text={err} />
-      <button onClick={submit} disabled={!ok || busy} className={`${btn.mint} w-full h-12`}><Send className="w-4 h-4" />{busy ? 'Posting…' : 'Post Deal'}</button>
-      <p className="-mt-2 text-center text-[11px] text-[#8E9AA7]">{ok ? 'Your deal will appear at the top of Gear Exchange.' : 'Add a title and price to post.'}</p>
+      <button onClick={submit} disabled={!ok || busy} className={`${btn.mint} w-full h-12`}>{editing ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}{busy ? 'Saving…' : editing ? 'Save Changes' : 'Post Deal'}</button>
+      <p className="-mt-2 text-center text-[11px] text-[#8E9AA7]">{!ok ? 'Add a title and price to post.' : editing ? 'Changes show up right away.' : 'Your deal will appear at the top of Gear Exchange.'}</p>
     </div>
   );
 };
