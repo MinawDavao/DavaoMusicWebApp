@@ -1,0 +1,6 @@
+{
+  "name": "Tugtog Davao",
+  "description": "A modern Davaoeño music and band platform for artists, fans, local gig discovery, and gear marketplace in Davao City.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

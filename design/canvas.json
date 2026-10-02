@@ -1,0 +1,128 @@
+{
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "Audio.dc.html": {
+   "h": 2512,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Audio & Bands",
+   "w": 390,
+   "x": 470,
+   "y": 0
+  },
+  "BandProfile.dc.html": {
+   "h": 2872,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Band Profile",
+   "w": 390,
+   "x": 940,
+   "y": 0
+  },
+  "Connect.dc.html": {
+   "h": 2600,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Connect Feed",
+   "w": 390,
+   "x": 1410,
+   "y": 0
+  },
+  "Deals.dc.html": {
+   "h": 3800,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Deals & Gear Exchange",
+   "w": 390,
+   "x": 2350,
+   "y": 0
+  },
+  "FanProfile.dc.html": {
+   "h": 2048,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Fan Profile",
+   "w": 390,
+   "x": 1880,
+   "y": 0
+  },
+  "Login.dc.html": {
+   "h": 1464,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Log In",
+   "w": 390,
+   "x": 2820,
+   "y": 0
+  },
+  "Main.dc.html": {
+   "h": 2752,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Home",
+   "w": 390,
+   "x": 0,
+   "y": 0
+  },
+  "SetupArtist.dc.html": {
+   "h": 3170,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Profile Setup \u2014 Artist",
+   "w": 390,
+   "x": 4230,
+   "y": 0
+  },
+  "SignUp.dc.html": {
+   "h": 1464,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Sign Up (test mode)",
+   "w": 390,
+   "x": 3290,
+   "y": 0
+  },
+  "Terms.dc.html": {
+   "h": 1824,
+   "is_interactive": true,
+   "radius": 28,
+   "title": "Terms of Agreement",
+   "w": 390,
+   "x": 3760,
+   "y": 0
+  }
+ },
+ "createdOnFiles": {
+  "at": "2026-09-30T08:19:57Z",
+  "v": 1
+ },
+ "designSystems": [],
+ "launch": {
+  "view": "canvas"
+ },
+ "notes": {
+  "t1": {
+   "kind": "title1",
+   "maxW": 4620,
+   "text": "MINAW DVO \u2014 mobile app screens",
+   "w": 240,
+   "x": 0,
+   "y": -260
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Audio.dc.html",
+  "BandProfile.dc.html",
+  "Connect.dc.html",
+  "FanProfile.dc.html",
+  "Deals.dc.html",
+  "Login.dc.html",
+  "SignUp.dc.html",
+  "Terms.dc.html",
+  "SetupArtist.dc.html"
+ ],
+ "pages": [],
+ "title": "MINAW DVO App"
+}
