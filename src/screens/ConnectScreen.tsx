@@ -14,7 +14,7 @@ const REACTIONS: { key: Reaction; label: string; Icon: React.ElementType; color:
   { key: 'orchid', label: 'Love', Icon: Heart, color: '#D6457F' },
 ];
 
-const POST_COLS = '*, profiles(id, display_name, username, avatar_url, role, is_verified)';
+const POST_COLS = '*, profiles!posts_author_id_fkey(id, display_name, username, avatar_url, role, is_verified)';
 
 /** Connect feed. Pass authorId to show only one person’s posts (used on profiles). */
 export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }> = ({ authorId, showComposer = true }) => {
@@ -25,11 +25,13 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
   const [reacts, setReacts] = useState<{ post_id: string; user_id: string; reaction: Reaction }[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [report, setReport] = useState<{ type: 'post' | 'comment'; id: string } | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     let q = supabase.from('posts').select(POST_COLS).order('created_at', { ascending: false }).limit(50);
     if (authorId) q = q.eq('author_id', authorId);
-    const { data } = await q;
+    const { data, error } = await q;
+    setLoadErr(error ? 'Couldn’t load posts: ' + error.message : null);
     const list = (data as Post[]) || [];
     setPosts(list);
     const ids = list.map((p) => p.id);
@@ -85,6 +87,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
         )
       )}
 
+      <ErrorNote text={loadErr} />
       {loading ? <Spinner /> : posts.length === 0 ? (
         <EmptyState icon={MessageCircle} title="No posts yet" text={authorId ? 'Nothing posted here yet.' : 'Be the first to share a gig update or concert photo with the Davao scene.'} />
       ) : posts.map((p) => {
@@ -199,7 +202,7 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('comments').select('*, profiles(id, display_name, avatar_url, role)').eq('post_id', postId).order('created_at');
+    const { data } = await supabase.from('comments').select('*, profiles!comments_author_id_fkey(id, display_name, avatar_url, role)').eq('post_id', postId).order('created_at');
     setList((data as Comment[]) || []);
   }, [postId]);
 
@@ -220,10 +223,10 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
     <div className="space-y-2">
       {list.map((c) => (
         <div key={c.id} className="flex gap-2">
-          <Avatar src={c.profiles?.avatar_url} name={c.profiles?.display_name} size={28} />
+          <button onClick={() => go({ name: 'profile', id: c.author_id })} aria-label={`View ${c.profiles?.display_name || 'member'}’s profile`} className="cursor-pointer self-start"><Avatar src={c.profiles?.avatar_url} name={c.profiles?.display_name} size={28} /></button>
           <div className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[#161B20] border border-white/[0.08]">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-white truncate">{c.profiles?.display_name || 'Member'}</span>
+              <button onClick={() => go({ name: 'profile', id: c.author_id })} className="text-xs font-bold text-white truncate cursor-pointer hover:underline">{c.profiles?.display_name || 'Member'}</button>
               <span className="text-[10px] text-[#8E9AA7] flex-shrink-0">{timeAgo(c.created_at)}</span>
             </div>
             <p className="text-xs text-[#EBEBED] leading-relaxed whitespace-pre-line">{c.content}</p>

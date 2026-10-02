@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArrowLeft, BadgeCheck, Calendar, Camera, Check, Disc3, Flag, Globe, Headphones, Mail, MapPin, Music, Pencil, Phone, Play,
-  Plus, Star, Trash2, UserMinus, UserPlus, Users, X,
+  MessageCircle, Plus, Star, Trash2, UserMinus, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { checkFile, errorMessage, timeAgo, toHandle, uploadImage, type Band, type Gig, type Track } from '../lib/db';
@@ -9,6 +9,9 @@ import { fetchMyRsvps, fetchRsvpCounts, fetchTracks, fetchUpcomingGigs, genreNam
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { GigCard, TrackRow } from '../components/cards';
+import { MembersEditor } from '../components/MembersEditor';
+import { PlaylistModal } from '../components/PlaylistModal';
+import { ConnectFeed } from './ConnectScreen';
 import { ReportModal } from '../components/ReportModal';
 import { MAX_TRACKS, TrackUploadForm } from '../components/TrackUpload';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, Modal, SectionHead, Spinner, btn, inputCls } from '../components/ui';
@@ -35,6 +38,8 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
   const [addGig, setAddGig] = useState(false);
   const [report, setReport] = useState<{ type: 'band' | 'track' | 'review'; id: string; label: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [followerList, setFollowerList] = useState<{ id: string; display_name: string; avatar_url: string | null; role: string }[]>([]);
+  const [playlistFor, setPlaylistFor] = useState<Track | null>(null);
 
   const isOwner = !!user && band?.owner_id === user.id;
 
@@ -42,16 +47,17 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
     const { data: b } = await supabase.from('bands').select('*, band_genres(genre_id, genres(name))').eq('id', id).maybeSingle();
     setBand((b as unknown as Band) || null);
     if (!b) { setLoading(false); return; }
-    const [m, t, p, g, c, my, r, f, amF] = await Promise.all([
+    const [m, t, p, g, c, my, r, f, amF, fl] = await Promise.all([
       supabase.from('band_members').select('id, name, role').eq('band_id', id).order('sort_order'),
       fetchTracks(id),
       supabase.from('band_photos').select('id, image_url, title, tag').eq('band_id', id).order('created_at', { ascending: false }),
       fetchUpcomingGigs(20, id),
       fetchRsvpCounts(),
       user ? fetchMyRsvps(user.id) : Promise.resolve(new Set<string>()),
-      supabase.from('band_reviews').select('id, author_id, rating, message, created_at, profiles(display_name, avatar_url)').eq('band_id', id).order('created_at', { ascending: false }),
+      supabase.from('band_reviews').select('id, author_id, rating, message, created_at, profiles!band_reviews_author_id_fkey(id, display_name, avatar_url)').eq('band_id', id).order('created_at', { ascending: false }),
       supabase.from('follows').select('band_id', { count: 'exact', head: true }).eq('band_id', id),
       user ? supabase.from('follows').select('band_id').eq('band_id', id).eq('follower_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from('follows').select('follower_id, profiles!follows_follower_id_fkey(id, display_name, avatar_url, role)').eq('band_id', id).order('created_at', { ascending: false }).limit(40),
     ]);
     setMembers((m.data as Member[]) || []);
     setTracks(t);
@@ -60,6 +66,7 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
     setReviews((r.data as any) || []);
     setFollowers(f.count || 0);
     setFollowing(!!(amF as any).data);
+    setFollowerList((((fl as any).data as any[]) || []).map((x) => x.profiles).filter(Boolean));
     setLoading(false);
   }, [id, user]);
 
@@ -180,8 +187,8 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
             key={t.id}
             track={t}
             canManage={isOwner}
-            onDelete={() => deleteTrack(t)}
-            onToggleDownload={() => toggleDownload(t)}
+            onChanged={load}
+            onAddToPlaylist={user ? () => setPlaylistFor(t) : undefined}
             onReport={!isOwner ? () => setReport({ type: 'track', id: t.id, label: 'this song' }) : undefined}
           />
         ))}
@@ -194,6 +201,12 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
         {gigs.length === 0
           ? <EmptyState icon={Calendar} title="No upcoming gigs yet" text={isOwner ? 'Add your next show so fans can RSVP.' : 'This band hasn’t posted any shows yet.'} />
           : gigs.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} onDelete={isOwner ? () => deleteGig(g) : undefined} />)}
+      </section>
+
+      {/* POSTS */}
+      <section className="space-y-2.5">
+        <SectionHead icon={MessageCircle} title={isOwner ? 'Our Posts' : 'Posts'} sub={isOwner ? 'Posts you share here also appear on the Connect feed for everyone.' : undefined} />
+        <ConnectFeed authorId={band.owner_id} showComposer={isOwner} />
       </section>
 
       {/* GALLERY */}
@@ -217,7 +230,31 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
       </section>
 
       {/* MEMBERS */}
-      <MembersSection bandId={band.id} members={members} isOwner={isOwner} onChange={load} />
+      {isOwner ? (
+        <section className="space-y-2.5">
+          <SectionHead icon={Users} title="Band Members" />
+          <div className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5"><MembersEditor bandId={band.id} onChange={load} /></div>
+        </section>
+      ) : (
+        <MembersSection bandId={band.id} members={members} isOwner={false} onChange={load} />
+      )}
+
+      {/* FOLLOWERS */}
+      <section className="space-y-2.5">
+        <SectionHead icon={Users} title={`Followers (${followers})`} />
+        {followerList.length === 0 ? (
+          <EmptyState icon={Users} title="No followers yet" text={isOwner ? 'Share your band page so fans can follow you.' : 'Be the first to follow this band.'} />
+        ) : (
+          <div className="grid grid-cols-4 gap-2.5">
+            {followerList.map((f) => (
+              <button key={f.id} onClick={() => go({ name: 'profile', id: f.id })} className="flex flex-col items-center gap-1.5 min-w-0 cursor-pointer" aria-label={`View ${f.display_name}’s profile`}>
+                <Avatar src={f.avatar_url} name={f.display_name} size={52} square={f.role === 'artist'} />
+                <span className="text-[11px] font-bold text-white max-w-full truncate">{f.display_name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* REVIEWS */}
       <section className="space-y-2.5">
@@ -228,9 +265,9 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
           : reviews.map((r) => (
             <div key={r.id} className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5 space-y-2">
               <div className="flex items-center gap-2.5">
-                <Avatar src={r.profiles?.avatar_url} name={r.profiles?.display_name} size={36} />
+                <button onClick={() => go({ name: 'profile', id: r.author_id })} aria-label="View reviewer’s profile" className="cursor-pointer"><Avatar src={r.profiles?.avatar_url} name={r.profiles?.display_name} size={36} /></button>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-bold text-white truncate">{r.profiles?.display_name || 'Fan'}</p>
+                  <button onClick={() => go({ name: 'profile', id: r.author_id })} className="block text-[13px] font-bold text-white truncate cursor-pointer hover:underline">{r.profiles?.display_name || 'Fan'}</button>
                   <p className="text-[10px] text-[#8E9AA7]">{timeAgo(r.created_at)}</p>
                 </div>
                 <span className="flex">{[1, 2, 3, 4, 5].map((n) => <Star key={n} className={`w-3.5 h-3.5 ${n <= r.rating ? 'text-[#FFB800] fill-[#FFB800]' : 'text-[#252D37]'}`} />)}</span>
@@ -247,6 +284,7 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {editing && <EditBandModal band={band} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
       {addGig && <AddGigModal bandId={band.id} onClose={() => setAddGig(false)} onSaved={() => { setAddGig(false); load(); }} />}
+      {playlistFor && <PlaylistModal track={{ ...playlistFor, bands: { id: band.id, name: band.name, handle: band.handle, logo_url: band.logo_url } }} onClose={() => setPlaylistFor(null)} />}
       {report && <ReportModal targetType={report.type} targetId={report.id} label={report.label} onClose={() => setReport(null)} onLogin={() => go({ name: 'auth' })} />}
     </div>
   );
@@ -366,6 +404,7 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
       <Field label="Instagram" icon={Camera} htmlFor="e-ig"><input id="e-ig" className={inputCls} value={f.instagram} onChange={set('instagram')} /></Field>
       <Field label="Spotify / YouTube" icon={Play} htmlFor="e-stream"><input id="e-stream" className={inputCls} value={f.streaming_url} onChange={set('streaming_url')} /></Field>
       <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Open for bookings (show contacts)</label>
+      <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={band.id} /></div>
       <ErrorNote text={err} />
       <div className="flex gap-2">
         <button onClick={onClose} className={`${btn.ghost} flex-1`}>Cancel</button>

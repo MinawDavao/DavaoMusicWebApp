@@ -40,7 +40,7 @@ export const DealsScreen: React.FC = () => {
   const load = useCallback(async () => {
     let query = supabase
       .from('listings')
-      .select('*, profiles(id, display_name, avatar_url, role, instagram, facebook, is_verified), listing_photos(id, image_path, position)')
+      .select('*, profiles!listings_seller_id_fkey(id, display_name, avatar_url, role, instagram, facebook, is_verified), listing_photos(id, image_path, position)')
       .neq('status', 'closed')
       .order('created_at', { ascending: false })
       .limit(60);

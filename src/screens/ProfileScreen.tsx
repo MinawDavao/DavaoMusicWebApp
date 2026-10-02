@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, AtSign, BadgeCheck, Calendar, Camera, Check, Flag, Globe, MapPin, MessageCircle, Music, Pencil, Users, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, formatGigDate, toHandle, uploadImage, type Band, type Profile } from '../lib/db';
-import { BAND_COLS } from '../lib/queries';
+import { checkFile, errorMessage, toHandle, uploadImage, type Band, type Gig, type Profile } from '../lib/db';
+import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { ConnectFeed } from './ConnectScreen';
-import { BandRow } from '../components/cards';
+import { BandRow, GigCard } from '../components/cards';
+import { MembersEditor } from '../components/MembersEditor';
+import { Playlists } from '../components/Playlists';
 import { ReportModal } from '../components/ReportModal';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, SectionHead, Spinner, btn, inputCls } from '../components/ui';
 
@@ -19,25 +21,33 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   const [p, setP] = useState<Profile | null>(null);
   const [theirBand, setTheirBand] = useState<Band | null>(null);
   const [followed, setFollowed] = useState<Band[]>([]);
-  const [rsvps, setRsvps] = useState<{ gig_id: string; gigs: { id: string; title: string; venue: string; starts_at: string } | null }[]>([]);
+  const [rsvps, setRsvps] = useState<Gig[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [mine, setMine] = useState<Set<string>>(new Set());
+  const [postCount, setPostCount] = useState(0);
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [report, setReport] = useState(false);
 
   const load = useCallback(async () => {
     if (!targetId) { setLoading(false); return; }
-    const [{ data: prof }, { data: f }, { data: r }, { data: b }] = await Promise.all([
+    const [{ data: prof }, { data: f }, { data: r }, { data: b }, c, my, pc] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', targetId).maybeSingle(),
       supabase.from('follows').select(`band_id, bands(${BAND_COLS})`).eq('follower_id', targetId),
-      supabase.from('gig_rsvps').select('gig_id, gigs(id, title, venue, starts_at)').eq('user_id', targetId),
+      supabase.from('gig_rsvps').select('gig_id, gigs(*, bands(id, name, logo_url))').eq('user_id', targetId),
       supabase.from('bands').select(BAND_COLS).eq('owner_id', targetId).maybeSingle(),
+      fetchRsvpCounts(),
+      user ? fetchMyRsvps(user.id) : Promise.resolve(new Set<string>()),
+      supabase.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', targetId),
     ]);
     setP((prof as Profile) || null);
     setFollowed(((f as any[]) || []).map((x) => x.bands).filter(Boolean));
-    setRsvps(((r as any[]) || []).filter((x) => x.gigs && new Date(x.gigs.starts_at).getTime() > Date.now() - 6 * 3600e3));
+    setRsvps(((r as any[]) || []).map((x) => x.gigs).filter((g) => g && new Date(g.starts_at).getTime() > Date.now() - 6 * 3600e3)
+      .sort((a: Gig, b: Gig) => a.starts_at.localeCompare(b.starts_at)));
+    setCounts(c); setMine(my); setPostCount(pc.count || 0);
     setTheirBand((b as unknown as Band) || null);
     setLoading(false);
-  }, [targetId]);
+  }, [targetId, user]);
 
   useEffect(() => { setLoading(true); setEditing(false); load(); }, [load]);
 
@@ -60,7 +70,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
 
       <div className="rounded-3xl bg-[#1D232A] border border-white/[0.08] p-4 space-y-3">
         {editing && isMe ? (
-          <EditProfile profile={p} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); setSaved(true); await refresh(); load(); }} />
+          <EditProfile profile={p} bandId={theirBand?.id} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); setSaved(true); await refresh(); load(); }} />
         ) : (
           <>
             <div className="flex items-center justify-between">
@@ -85,7 +95,9 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
             <OkNote text={saved ? 'Profile updated' : null} />
             <div className="grid grid-cols-2 gap-2">
               <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{followed.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">FOLLOWING</p></div>
-              <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{rsvps.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">UPCOMING RSVPS</p></div>
+              {p.role === 'artist'
+                ? <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{postCount}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">POSTS</p></div>
+                : <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{rsvps.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">GOING TO</p></div>}
             </div>
           </>
         )}
@@ -107,23 +119,20 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
           : followed.map((b) => <BandRow key={b.id} band={b} />)}
       </section>
 
-      {(isMe || p.show_rsvps) && (
-        <section className="space-y-2.5">
-          <SectionHead icon={Calendar} title="Going To" />
+      {p.role !== 'artist' && (isMe || p.show_rsvps) && (
+        <section className="space-y-3">
+          <SectionHead icon={Calendar} title={`Going To (${rsvps.length})`} sub={isMe && !p.show_rsvps ? 'Only you can see this — turn on “Show my gig RSVPs” in Edit Profile to share it.' : undefined} />
           {rsvps.length === 0
-            ? <EmptyState icon={Calendar} title="No upcoming RSVPs" text={isMe ? 'RSVP to a gig from Home or a band page.' : undefined} />
-            : rsvps.map((r) => (
-              <div key={r.gig_id} className="p-3 rounded-2xl bg-[#1D232A] border border-white/[0.08]">
-                <p className="text-[13px] font-bold text-white">{r.gigs!.title}</p>
-                <p className="text-[11px] text-[#8E9AA7]">{formatGigDate(r.gigs!.starts_at)} • {r.gigs!.venue}</p>
-              </div>
-            ))}
+            ? <EmptyState icon={Calendar} title="No upcoming RSVPs" text={isMe ? 'RSVP to a gig from Home or a band page.' : 'No upcoming gigs yet.'} />
+            : rsvps.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} />)}
         </section>
       )}
 
+      <Playlists ownerId={p.id} isMe={isMe} />
+
       <section className="space-y-2.5">
-        <SectionHead icon={MessageCircle} title={isMe ? 'My Posts' : 'Posts'} />
-        <ConnectFeed authorId={p.id} showComposer={false} />
+        <SectionHead icon={MessageCircle} title={isMe ? 'My Posts' : 'Posts'} sub={isMe ? 'Everything you post here or on Connect shows up for all fans and artists.' : undefined} />
+        <ConnectFeed authorId={p.id} showComposer={isMe} />
       </section>
 
       {report && <ReportModal targetType="profile" targetId={p.id} label="this profile" onClose={() => setReport(false)} onLogin={() => go({ name: 'auth' })} />}
@@ -131,7 +140,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   );
 };
 
-const EditProfile: React.FC<{ profile: Profile; onCancel: () => void; onSaved: () => void }> = ({ profile, onCancel, onSaved }) => {
+const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () => void; onSaved: () => void }> = ({ profile, bandId, onCancel, onSaved }) => {
   const { user } = useAuth();
   const [f, setF] = useState({
     display_name: profile.display_name, username: profile.username, district: profile.district || '', bio: profile.bio || '',
@@ -178,6 +187,7 @@ const EditProfile: React.FC<{ profile: Profile; onCancel: () => void; onSaved: (
       <Field label="Instagram" icon={Camera} htmlFor="p-ig"><input id="p-ig" className={inputCls} value={f.instagram} onChange={set('instagram')} /></Field>
       <Field label="Facebook" icon={Globe} htmlFor="p-fb"><input id="p-fb" className={inputCls} value={f.facebook} onChange={set('facebook')} /></Field>
       <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={rsvps} onChange={(e) => setRsvps(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Show my gig RSVPs on my profile</label>
+      {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={bandId} /></div>}
       <ErrorNote text={err} />
       <div className="flex gap-2">
         <button onClick={onCancel} className={`${btn.ghost} flex-1`}>Cancel</button>
