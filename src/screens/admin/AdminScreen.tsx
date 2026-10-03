@@ -4,7 +4,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNav } from '../../nav';
-import { EmptyState, btn } from '../../components/ui';
+import { EmptyState, ErrorNote, Field, btn, inputCls } from '../../components/ui';
+import { supabase } from '../../lib/supabase';
+import { Lock, LogIn, Mail } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminReports, AdminUsers } from './AdminPeople';
 import { AdminBands, AdminComments, AdminDeals, AdminGigs, AdminImages, AdminMusic, AdminPosts } from './AdminContent';
@@ -33,9 +35,7 @@ export const AdminScreen: React.FC = () => {
   const [tab, setTab] = useState<string>(() => { try { return sessionStorage.getItem(TAB_KEY) || 'dashboard'; } catch { return 'dashboard'; } });
   useEffect(() => { try { sessionStorage.setItem(TAB_KEY, tab); } catch { /* ignore */ } }, [tab]);
 
-  if (!user) {
-    return <div className="px-3 py-6"><EmptyState icon={ShieldCheck} title="Admin Panel" text="Log in with the admin account to continue." action={<button onClick={() => { try { sessionStorage.setItem('minaw-after-login', 'admin'); } catch { /* ignore */ } go({ name: 'auth', mode: 'login' }); }} className={btn.primary}>Log In</button>} /></div>;
-  }
+  if (!user) return <AdminLogin />;
   if (!isModerator) {
     return <div className="px-3 py-6"><EmptyState icon={ShieldCheck} title="Admins only" text="This account doesn’t have access to the Admin Panel." action={<button onClick={() => go({ name: 'home' })} className={btn.ghost}>Back to Home</button>} /></div>;
   }
@@ -65,6 +65,37 @@ export const AdminScreen: React.FC = () => {
       </nav>
 
       <El key={current.key} openTab={setTab} />
+    </div>
+  );
+};
+
+/** Admin login form, shown right on minawdavao.pages.dev/admin. */
+const AdminLogin: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setErr(null);
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    setBusy(false);
+    if (error) setErr(/Invalid login/i.test(error.message) ? 'Wrong email or password.' : error.message);
+    // on success the Admin Panel appears automatically
+  };
+  return (
+    <div className="px-3 py-8">
+      <form onSubmit={submit} className="max-w-sm mx-auto rounded-3xl bg-[#1D232A] border border-white/[0.08] p-5 space-y-4">
+        <div className="text-center space-y-2">
+          <span className="inline-flex w-12 h-12 rounded-2xl bg-[#6045F4]/20 border border-[#6045F4]/40 text-[#B7A8FF] items-center justify-center"><ShieldCheck className="w-6 h-6" /></span>
+          <h1 className="font-heading font-bold text-xl text-white">Admin Login</h1>
+          <p className="text-xs text-[#8E9AA7]">MINAW DVO Admin Panel</p>
+        </div>
+        <Field label="Email" icon={Mail} htmlFor="adm-email"><input id="adm-email" type="email" required autoComplete="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <Field label="Password" icon={Lock} htmlFor="adm-pw"><input id="adm-pw" type="password" required autoComplete="current-password" className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+        <ErrorNote text={err} />
+        <button type="submit" disabled={busy} className={`${btn.primary} w-full h-11`}><LogIn className="w-4 h-4" />{busy ? 'Logging in…' : 'Log In'}</button>
+      </form>
     </div>
   );
 };
