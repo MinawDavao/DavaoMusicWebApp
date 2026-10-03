@@ -5,6 +5,7 @@ import { PlayerProvider } from './context/PlayerContext';
 import { NavContext, type Route } from './nav';
 import { Avatar, Spinner } from './components/ui';
 import { roleMeta } from './lib/db';
+import { InstallBanner, InstallLink } from './components/InstallApp';
 import { HomeScreen } from './screens/HomeScreen';
 import { AudioScreen } from './screens/AudioScreen';
 import { BandScreen } from './screens/BandScreen';
@@ -180,12 +181,14 @@ const Shell: React.FC = () => {
       <div className="min-h-screen bg-[#07090D] text-[#EBEBED] font-sans">
         <div className="w-full max-w-[480px] mx-auto min-h-screen flex flex-col bg-[#0F1417] sm:border-x sm:border-white/10">
           <Header route={view} go={go} />
+          {view.name !== 'auth' && view.name !== 'onboarding' && <InstallBanner />}
           <main className="flex-1">{screen}</main>
           <footer className="pt-7 pb-36 px-4 border-t border-white/10 bg-[#161B20] text-[#8E9AA7] space-y-3">
             <div className="flex items-center gap-2">
               <img src="/minaw-logo.png.png" alt="" className="h-6 w-auto" />
               <span className="font-heading font-bold text-sm"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DVO</span></span>
             </div>
+            <InstallLink />
             <p className="text-[11px] leading-relaxed">Dedicated local music platform for Davao City &amp; Southern Mindanao. Connect with local bands, discover gigs, and grab gear deals.</p>
             <p className="text-[10px] pt-2 border-t border-white/5">© 2026 MINAW DVO • Made for Davao musicians and fans.</p>
           </footer>
