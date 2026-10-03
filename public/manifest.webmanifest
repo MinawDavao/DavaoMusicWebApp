@@ -23,5 +23,14 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "id": "/",
+  "scope": "/",
+  "orientation": "portrait",
+  "lang": "en",
+  "categories": [
+    "music",
+    "social",
+    "entertainment"
   ]
 }
