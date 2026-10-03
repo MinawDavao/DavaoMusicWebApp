@@ -10,6 +10,7 @@ interface AuthState {
   profile: Profile | null;
   band: Band | null;            // the artist's own band page (if any)
   termsAccepted: boolean;
+  musicRights: boolean;          // agreed they own/may share the music they upload
   isModerator: boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -23,13 +24,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [band, setBand] = useState<Band | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [musicRights, setMusicRights] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
 
   const loadSeq = useRef(0); // ignore results from an older load (e.g. one still running when the user signs out)
   const load = useCallback(async (s: Session | null) => {
     const seq = ++loadSeq.current;
     if (!s?.user) {
-      setProfile(null); setBand(null); setTermsAccepted(false); setIsModerator(false);
+      setProfile(null); setBand(null); setTermsAccepted(false); setMusicRights(false); setIsModerator(false);
       return;
     }
     const uid = s.user.id;
@@ -42,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const [{ data: b }, { data: t }, { data: m }] = await Promise.all([
       supabase.from('bands').select('*, band_genres(genre_id, genres(name))').eq('owner_id', uid).maybeSingle(),
-      supabase.from('terms_acceptances').select('version').eq('user_id', uid).eq('version', CURRENT_TERMS_VERSION).maybeSingle(),
+      supabase.from('terms_acceptances').select('version, accepted_music_rights').eq('user_id', uid).eq('version', CURRENT_TERMS_VERSION).maybeSingle(),
       supabase.from('moderators').select('user_id').eq('user_id', uid).maybeSingle(),
     ]);
     if (seq !== loadSeq.current) return;
@@ -50,6 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(p);
     setBand((b as Band) || null);
     setTermsAccepted(!!t);
+    setMusicRights(!!(t as any)?.accepted_music_rights);
     setIsModerator(!!m);
   }, []);
 
@@ -85,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ loading, session, user: session?.user ?? null, profile, band, termsAccepted, isModerator, refresh, signOut }}
+      value={{ loading, session, user: session?.user ?? null, profile, band, termsAccepted, musicRights, isModerator, refresh, signOut }}
     >
       {children}
     </AuthContext.Provider>

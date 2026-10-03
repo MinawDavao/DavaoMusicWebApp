@@ -56,10 +56,15 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
     let q = supabase.from('posts').select(POST_COLS).order('created_at', { ascending: false }).limit(50);
     if (authorId) q = q.eq('author_id', authorId);
     if (postId) q = q.eq('id', postId);
-    if (taggedVenue) q = q.or(`venue_id.eq.${taggedVenue.id},content.ilike.%@${taggedVenue.username}%`).neq('author_id', taggedVenue.id);
+    if (taggedVenue) q = q.or(`venue_id.eq.${taggedVenue.id},content.ilike.%@${taggedVenue.username.replace(/_/g, '\\_')}%`).neq('author_id', taggedVenue.id);
     const { data, error } = await q;
     setLoadErr(error ? 'Couldn’t load posts: ' + error.message : null);
-    const list = (data as unknown as Post[]) || [];
+    let list = (data as unknown as Post[]) || [];
+    if (taggedVenue) {
+      // exact @username only (not @username_bar), or the post's venue tag
+      const re = new RegExp(`(^|[^a-z0-9_@])@${taggedVenue.username}(?![a-z0-9_])`, 'i');
+      list = list.filter((p) => p.venue_id === taggedVenue.id || re.test(p.content));
+    }
     setPosts(list);
     const ids = list.map((p) => p.id);
     if (ids.length) {
@@ -223,7 +228,7 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
         author_id: user.id, content: text.trim(), image_url, district_tag: profile?.district || null,
         playlist_id: playlist?.id ?? null,
       });
-      if (error) throw error;
+      if (error) { await removeImageByUrl(image_url); throw error; } // don't leave the photo behind
       setText(''); setImage(null); setPreview(null);
       onPosted();
     } catch (e) { setErr(errorMessage(e)); }

@@ -155,7 +155,11 @@ const Shell: React.FC = () => {
   // After logging in: Terms first, then profile setup, then the app.
   useEffect(() => {
     if (!user || !profile) return;
-    if (route.name === 'auth') go(!termsAccepted || !profile.onboarding_completed ? { name: 'onboarding' } : { name: 'home' });
+    if (route.name !== 'auth') return;
+    if (!termsAccepted || !profile.onboarding_completed) return go({ name: 'onboarding' });
+    let back: string | null = null;
+    try { back = sessionStorage.getItem('minaw-after-login'); sessionStorage.removeItem('minaw-after-login'); } catch { /* ignore */ }
+    go(back === 'admin' ? { name: 'admin' } : { name: 'home' });
   }, [user, profile, termsAccepted, route.name, go]);
 
   // Logged out users can't stay on the onboarding screen.

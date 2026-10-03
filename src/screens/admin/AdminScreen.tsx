@@ -34,7 +34,7 @@ export const AdminScreen: React.FC = () => {
   useEffect(() => { try { sessionStorage.setItem(TAB_KEY, tab); } catch { /* ignore */ } }, [tab]);
 
   if (!user) {
-    return <div className="px-3 py-6"><EmptyState icon={ShieldCheck} title="Admin Panel" text="Log in with the admin account to continue." action={<button onClick={() => go({ name: 'auth', mode: 'login' })} className={btn.primary}>Log In</button>} /></div>;
+    return <div className="px-3 py-6"><EmptyState icon={ShieldCheck} title="Admin Panel" text="Log in with the admin account to continue." action={<button onClick={() => { try { sessionStorage.setItem('minaw-after-login', 'admin'); } catch { /* ignore */ } go({ name: 'auth', mode: 'login' }); }} className={btn.primary}>Log In</button>} /></div>;
   }
   if (!isModerator) {
     return <div className="px-3 py-6"><EmptyState icon={ShieldCheck} title="Admins only" text="This account doesn’t have access to the Admin Panel." action={<button onClick={() => go({ name: 'home' })} className={btn.ghost}>Back to Home</button>} /></div>;

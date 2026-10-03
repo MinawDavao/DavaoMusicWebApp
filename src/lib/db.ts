@@ -300,6 +300,8 @@ export function errorMessage(e: any): string {
   if (/price_check/.test(msg)) return 'Price can’t be negative.';
   if (/listings_check/.test(msg)) return 'Please enter a price (only “For Trade” listings can skip it).';
   if (/gigs_check/.test(msg)) return 'The end time must be after the start time.';
+  if (/MUSIC_RIGHTS/.test(msg)) return 'Please tick “I own or have permission to share my music” before uploading.';
+  if (/Accounts with a band page stay Artist/.test(msg)) return 'Accounts with a band page stay Artist accounts.';
   if (/venue_capacity_check/.test(msg)) return 'Capacity should be a number between 1 and 100,000.';
   if (/venue_reviews_check/.test(msg)) return 'You can’t write a testimonial for your own venue.';
   if (/band_reviews_band_id_author_id_key|venue_reviews_venue_id_author_id_key/.test(msg)) return 'You already wrote a testimonial here — you can edit it instead.';

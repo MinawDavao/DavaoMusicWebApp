@@ -78,10 +78,11 @@ export const NotificationBell: React.FC = () => {
     const fresh = rows.filter((n) => !n.read_at).map((n) => n.id);
     setNewIds(new Set(fresh));
     if (fresh.length) {
-      await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', uid).is('read_at', null);
-      setUnread(0);
+      // only mark the ones we actually showed (a new one may have arrived meanwhile)
+      await supabase.from('notifications').update({ read_at: new Date().toISOString() }).in('id', fresh);
+      countUnread();
     }
-  }, [uid]);
+  }, [uid, countUnread]);
 
   // badge: on login, every minute, when the tab comes back, and instantly via realtime
   useEffect(() => {
@@ -90,7 +91,7 @@ export const NotificationBell: React.FC = () => {
     const t = setInterval(countUnread, 60_000);
     const onFocus = () => countUnread();
     window.addEventListener('focus', onFocus);
-    const ch = supabase.channel(`notifications-${uid}`)
+    const ch = supabase.channel(`notifications-${uid}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` }, () => {
         setUnread((u) => u + 1);
       })

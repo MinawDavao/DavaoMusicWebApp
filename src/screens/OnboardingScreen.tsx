@@ -8,7 +8,7 @@ import { checkFile, errorMessage, toHandle, uploadImage, type Role } from '../li
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { TermsText } from '../components/TermsText';
-import { MAX_TRACKS, uploadTrack } from '../components/TrackUpload';
+import { MAX_TRACKS, MusicRightsGate, uploadTrack } from '../components/TrackUpload';
 import { GenrePicker } from '../components/GenrePicker';
 import { MembersEditor } from '../components/MembersEditor';
 import { setBandGenres } from '../lib/genres';
@@ -214,7 +214,7 @@ interface PendingTrack { file: File; title: string; allow: boolean }
 interface MemberRow { key: number; name: string; role: string }
 
 const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }) => {
-  const { user, profile, band, refresh } = useAuth();
+  const { user, profile, band, refresh, musicRights } = useAuth();
   const [genres, setGenres] = useState<{ id: number; name: string }[]>([]);
   const [logo, setLogo] = useState<string | null>(band?.logo_url ?? profile?.avatar_url ?? null);
   const [banner, setBanner] = useState<string | null>(band?.banner_url ?? null);
@@ -378,7 +378,8 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
       </Section>
 
       <Section title="Upload Your Music" sub={`Add up to ${MAX_TRACKS} songs or demos for now`}>
-        <div className="space-y-2">
+        {!musicRights && <MusicRightsGate />}
+        <div className={`space-y-2 ${musicRights ? '' : 'opacity-40 pointer-events-none'}`} aria-disabled={!musicRights}>
           {tracks.map((t, i) => (
             <div key={i} className="p-2.5 rounded-xl bg-[#1D232A] border border-white/[0.08] space-y-2">
               <div className="flex items-center gap-2">

@@ -174,7 +174,20 @@ export const AdminBands: React.FC = () => {
               <HideBtn hidden={b.is_hidden} onToggle={() => patch(b, { is_hidden: !b.is_hidden })} />
               <DeleteBtn onDelete={async () => {
                 if (!confirm(`Delete the band page “${b.name}”? Its songs, gigs and photos are deleted too. This can’t be undone.\n\nTip: “Hide” is safer if you might want it back.`)) return;
-                if (await deleteRow('bands', b.id, err, [b.logo_url, b.banner_url])) list.setRows((r) => r.filter((x) => x.id !== b.id));
+                // collect the band's files first (rows are deleted with the band)
+                const [t, ph, g] = await Promise.all([
+                  supabase.from('tracks').select('audio_path').eq('band_id', b.id),
+                  supabase.from('band_photos').select('image_url').eq('band_id', b.id),
+                  supabase.from('gigs').select('poster_url').eq('band_id', b.id),
+                ]);
+                if (!(await deleteRow('bands', b.id, err))) return;
+                const audio = ((t.data as any[]) || []).map((x) => x.audio_path).filter(Boolean);
+                if (audio.length) await supabase.storage.from('tracks').remove(audio);
+                const keep = [b.owner?.avatar_url]; // the logo is often also the owner's profile photo
+                for (const u of [b.logo_url, b.banner_url, ...((ph.data as any[]) || []).map((x) => x.image_url), ...((g.data as any[]) || []).map((x) => x.poster_url)]) {
+                  await removeImageByUrl(u, keep);
+                }
+                list.setRows((r) => r.filter((x) => x.id !== b.id));
               }} />
             </>}
           />
