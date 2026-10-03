@@ -18,6 +18,7 @@ export const TermsText: React.FC = () => (
     </Sec>
     <Sec n={2} title="Your Account">
       <p>Give accurate information when you sign up and keep your password private. You are responsible for everything posted from your account. One person or band per account; do not pretend to be another artist, band or venue.</p>
+      <p>Venue accounts are for bars, cafés, event places and other spaces that host music. Only the owner, the manager, or someone they have allowed may run a venue’s account.</p>
     </Sec>
     <Sec n={3} title="Music, Copyright & Downloads">
       <p><strong className="text-white">You keep ownership of your music.</strong> Uploading a song does not transfer your copyright to MINAW DVO.</p>
@@ -42,6 +43,7 @@ export const TermsText: React.FC = () => (
     </Sec>
     <Sec n={6} title="Review & Removal">
       <p>Anyone can report a post, track, comment, profile or listing. Our moderators review every report.</p>
+      <p>To keep the feed spam-free, the app limits how often you can post (3 posts every 10 minutes, 20 a day) and reply (no more than 3 replies in a row on the same post), and blocks repeated identical posts. Testimonials only appear on a band or venue page after its owner approves them.</p>
       <p>Content that is found to break these terms is removed. Depending on how serious it is, we may also warn you, suspend your account, or ban it permanently. You can appeal a decision by emailing [SUPPORT EMAIL].</p>
     </Sec>
     <Sec n={7} title="Privacy">

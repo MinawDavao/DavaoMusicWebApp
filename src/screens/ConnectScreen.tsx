@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BadgeCheck, Camera, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Play, Send, Trash2, X, Zap } from 'lucide-react';
+import { BadgeCheck, Building2, Camera, Check, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Pencil, Play, Send, Trash2, X, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, removeImageByUrl, timeAgo, uploadImage, type Comment, type Post } from '../lib/db';
+import { checkFile, errorMessage, removeImageByUrl, timeAgo, uploadImage, type Comment, type Post, roleMeta } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { ZoomImg } from '../components/Zoom';
 import { MentionInput, MentionText } from '../components/Mentions';
 import { ReportModal } from '../components/ReportModal';
+import { VenuePicker, type VenuePick } from '../components/VenuePicker';
 import { Avatar, EmptyState, ErrorNote, FilePick, Spinner, btn, inputCls } from '../components/ui';
 
 type Reaction = 'rock' | 'fire' | 'orchid';
@@ -17,6 +18,7 @@ const REACTIONS: { key: Reaction; label: string; Icon: React.ElementType; color:
 ];
 
 const POST_COLS: string = '*, profiles!posts_author_id_fkey(id, display_name, username, avatar_url, role, is_verified), '
+  + 'venue:profiles!posts_venue_id_fkey(id, display_name, username), '
   + 'playlists(id, name, owner_id, owner:profiles!playlists_owner_id_fkey(id, display_name), playlist_tracks(track_id))';
 
 /** Shared playlist card inside a post. */
@@ -37,8 +39,8 @@ const PlaylistEmbed: React.FC<{ pl: any }> = ({ pl }) => {
   );
 };
 
-/** Connect feed. Pass authorId to show only one person’s posts (used on profiles). */
-export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }> = ({ authorId, showComposer = true }) => {
+/** Connect feed. Pass authorId to show only one person’s posts (used on profiles), or taggedVenue for posts that tag a venue. */
+export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; taggedVenue?: { id: string; username: string } }> = ({ authorId, showComposer = true, taggedVenue }) => {
   const go = useNav();
   const { user, profile, termsAccepted } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -47,10 +49,14 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [report, setReport] = useState<{ type: 'post' | 'comment'; id: string } | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editErr, setEditErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     let q = supabase.from('posts').select(POST_COLS).order('created_at', { ascending: false }).limit(50);
     if (authorId) q = q.eq('author_id', authorId);
+    if (taggedVenue) q = q.or(`venue_id.eq.${taggedVenue.id},content.ilike.%@${taggedVenue.username}%`).neq('author_id', taggedVenue.id);
     const { data, error } = await q;
     setLoadErr(error ? 'Couldn’t load posts: ' + error.message : null);
     const list = (data as unknown as Post[]) || [];
@@ -67,7 +73,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
       setCommentCounts(cc);
     } else { setReacts([]); setCommentCounts({}); }
     setLoading(false);
-  }, [authorId]);
+  }, [authorId, taggedVenue?.id, taggedVenue?.username]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -84,6 +90,15 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
       ({ error } = await supabase.from('post_reactions').insert({ post_id: postId, user_id: user.id, reaction: r }));
     }
     if (error) { setReacts(before); alert(errorMessage(error)); } // undo the instant UI change
+  };
+
+  const saveEdit = async (p: Post) => {
+    if (!editText.trim()) return setEditErr('A post can’t be empty.');
+    setEditErr(null);
+    const { error } = await supabase.from('posts').update({ content: editText.trim() }).eq('id', p.id);
+    if (error) return setEditErr(errorMessage(error));
+    setEditId(null);
+    load();
   };
 
   const remove = async (p: Post) => {
@@ -115,7 +130,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
 
       <ErrorNote text={loadErr} />
       {loading ? <Spinner /> : posts.length === 0 ? (
-        <EmptyState icon={MessageCircle} title="No posts yet" text={authorId ? 'Nothing posted here yet.' : 'Be the first to share a gig update or concert photo with the Davao scene.'} />
+        <EmptyState icon={MessageCircle} title={taggedVenue ? 'No tagged posts yet' : 'No posts yet'} text={taggedVenue ? 'Posts that tag this venue will show up here.' : authorId ? 'Nothing posted here yet.' : 'Be the first to share a gig update or concert photo with the Davao scene.'} />
       ) : posts.map((p) => {
         const mineAll = reacts.filter((x) => x.post_id === p.id);
         const total = mineAll.length;
@@ -123,20 +138,40 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
         return (
           <article key={p.id} className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5 space-y-3">
             <div className="flex items-center gap-2.5">
-              <button onClick={() => go({ name: 'profile', id: p.author_id })} className="cursor-pointer"><Avatar src={p.profiles?.avatar_url} name={p.profiles?.display_name} size={40} /></button>
+              <button onClick={() => go({ name: 'profile', id: p.author_id })} className="cursor-pointer"><Avatar src={p.profiles?.avatar_url} name={p.profiles?.display_name} size={40} square={roleMeta(p.profiles?.role).square} /></button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => go({ name: 'profile', id: p.author_id })} className="text-[13px] font-bold text-white truncate cursor-pointer">{p.profiles?.display_name || 'Member'}</button>
                   {p.profiles?.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-[#53E6D4]" />}
-                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${p.profiles?.role === 'artist' ? 'bg-[#6045F4]/20 text-[#B7A8FF]' : 'bg-white/5 text-[#EBEBED]'}`}>{p.profiles?.role === 'artist' ? 'Band' : 'Fan'}</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${roleMeta(p.profiles?.role).chip}`}>{roleMeta(p.profiles?.role).label}</span>
                 </div>
-                <p className="text-[11px] text-[#8E9AA7]">{timeAgo(p.created_at)}{p.district_tag && <> • <span className="text-[#53E6D4]">{p.district_tag}</span></>}</p>
+                <p className="text-[11px] text-[#8E9AA7]">{timeAgo(p.created_at)}{p.edited_at && ' · edited'}{p.district_tag && <> • <span className="text-[#53E6D4]">{p.district_tag}</span></>}</p>
               </div>
-              {isMine && <button onClick={() => remove(p)} aria-label="Delete post" className={btn.icon}><Trash2 className="w-4 h-4" /></button>}
+              {isMine && editId !== p.id && (
+                <>
+                  <button onClick={() => { setEditId(p.id); setEditText(p.content); setEditErr(null); }} aria-label="Edit post" title="Edit" className={btn.icon}><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => remove(p)} aria-label="Delete post" title="Delete" className={btn.icon}><Trash2 className="w-4 h-4" /></button>
+                </>
+              )}
             </div>
-            <p className="text-[13px] leading-relaxed text-[#EBEBED]"><MentionText text={p.content} /></p>
+            {editId === p.id ? (
+              <div className="space-y-2">
+                <MentionInput ariaLabel="Edit your post" rows={3} value={editText} onChange={setEditText} className="w-full px-3 py-2 rounded-xl bg-[#0F1417] border border-white/15 text-sm text-[#EBEBED] outline-none resize-none" />
+                <ErrorNote text={editErr} />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditId(null)} className={`${btn.ghost} !py-1.5 !px-3 !text-xs`}>Cancel</button>
+                  <button onClick={() => saveEdit(p)} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Check className="w-3.5 h-3.5" />Save</button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[13px] leading-relaxed text-[#EBEBED]"><MentionText text={p.content} /></p>
+            )}
             {(p as any).playlist_id && <PlaylistEmbed pl={(p as any).playlists} />}
-            {p.venue_tag && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/15 text-[10px] font-bold"><MapPin className="w-3 h-3" />{p.venue_tag}</span>}
+            {p.venue ? (
+              <button onClick={() => go({ name: 'profile', id: p.venue!.id })} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFB800]/10 border border-[#FFB800]/40 text-[10px] font-bold text-[#FFC34D] cursor-pointer hover:bg-[#FFB800]/20">
+                <Building2 className="w-3 h-3" />{p.venue.display_name}
+              </button>
+            ) : p.venue_tag && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/15 text-[10px] font-bold"><MapPin className="w-3 h-3" />{p.venue_tag}</span>}
             {p.image_url && <ZoomImg src={p.image_url} alt="Post photo" className="w-full max-h-[420px] object-cover rounded-xl bg-[#252D37]" />}
             <div className="flex items-center justify-between text-[11px] text-[#8E9AA7]">
               <span>{total} reaction{total === 1 ? '' : 's'}</span>
@@ -173,7 +208,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean }
 export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string; name: string; ownerName?: string } }> = ({ onPosted, playlist }) => {
   const { user, profile } = useAuth();
   const [text, setText] = useState(playlist ? 'Check out this playlist: ' : '');
-  const [venue, setVenue] = useState('');
+  const [venue, setVenue] = useState<VenuePick>({ id: null, name: '' });
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
@@ -186,11 +221,11 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
     try {
       const image_url = image ? await uploadImage('post-images', user.id, image) : null;
       const { error } = await supabase.from('posts').insert({
-        author_id: user.id, content: text.trim(), image_url, venue_tag: venue.trim() || null, district_tag: profile?.district || null,
+        author_id: user.id, content: text.trim(), image_url, venue_tag: venue.name.trim() || null, venue_id: venue.id, district_tag: profile?.district || null,
         playlist_id: playlist?.id ?? null,
       });
       if (error) throw error;
-      setText(''); setVenue(''); setImage(null); setPreview(null);
+      setText(''); setVenue({ id: null, name: '' }); setImage(null); setPreview(null);
       onPosted();
     } catch (e) { setErr(errorMessage(e)); }
     setBusy(false);
@@ -199,8 +234,8 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
   return (
     <div className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5 space-y-2.5">
       <div className="flex gap-2.5">
-        <Avatar src={profile?.avatar_url} name={profile?.display_name} size={38} />
-        <MentionInput ariaLabel="Write a post" rows={3} value={text} onChange={setText} placeholder="Share a gig update or a shoutout… type @ to tag a fan or artist" className="w-full px-3 py-2 rounded-xl bg-[#0F1417] border border-white/15 text-sm text-[#EBEBED] outline-none resize-none" />
+        <Avatar src={profile?.avatar_url} name={profile?.display_name} size={38} square={roleMeta(profile?.role).square} />
+        <MentionInput ariaLabel="Write a post" rows={3} value={text} onChange={setText} placeholder="Share a gig update or a shoutout… type @ to tag a fan, artist or venue" className="w-full px-3 py-2 rounded-xl bg-[#0F1417] border border-white/15 text-sm text-[#EBEBED] outline-none resize-none" />
       </div>
       {playlist && (
         <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#2A2160]/60 border border-[#6045F4]/40">
@@ -215,7 +250,7 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
           <button onClick={() => { setImage(null); setPreview(null); }} aria-label="Remove photo" className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-black/70 text-white flex items-center justify-center cursor-pointer"><X className="w-4 h-4" /></button>
         </div>
       )}
-      <input aria-label="Venue tag" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Tag a venue (optional)" className={`${inputCls} !min-h-[38px]`} />
+      <VenuePicker value={venue} onChange={setVenue} />
       <ErrorNote text={err} />
       <div className="flex items-center gap-2">
         <FilePick accept="image/jpeg,image/png,image/webp,image/gif" onPick={(f) => {
@@ -236,6 +271,8 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
   const [list, setList] = useState<Comment[]>([]);
   const [text, setText] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('comments').select('*, profiles!comments_author_id_fkey(id, display_name, avatar_url, role)').eq('post_id', postId).order('created_at');
@@ -252,6 +289,13 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
     if (error) return setErr(errorMessage(error));
     setText(''); load(); onChange();
   };
+  const saveEdit = async (c: Comment) => {
+    if (!editText.trim()) return setErr('A comment can’t be empty.');
+    setErr(null);
+    const { error } = await supabase.from('comments').update({ content: editText.trim() }).eq('id', c.id);
+    if (error) return setErr(errorMessage(error));
+    setEditId(null); load();
+  };
 
   if (!open) return <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 text-xs font-bold text-[#8E9AA7] cursor-pointer"><MessageCircle className="w-4 h-4" />View &amp; write comments</button>;
 
@@ -259,17 +303,26 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
     <div className="space-y-2">
       {list.map((c) => (
         <div key={c.id} className="flex gap-2">
-          <button onClick={() => go({ name: 'profile', id: c.author_id })} aria-label={`View ${c.profiles?.display_name || 'member'}’s profile`} className="cursor-pointer self-start"><Avatar src={c.profiles?.avatar_url} name={c.profiles?.display_name} size={28} /></button>
+          <button onClick={() => go({ name: 'profile', id: c.author_id })} aria-label={`View ${c.profiles?.display_name || 'member'}’s profile`} className="cursor-pointer self-start"><Avatar src={c.profiles?.avatar_url} name={c.profiles?.display_name} size={28} square={roleMeta(c.profiles?.role).square} /></button>
           <div className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-[#161B20] border border-white/[0.08]">
             <div className="flex items-center justify-between gap-2">
               <button onClick={() => go({ name: 'profile', id: c.author_id })} className="text-xs font-bold text-white truncate cursor-pointer hover:underline">{c.profiles?.display_name || 'Member'}</button>
-              <span className="text-[10px] text-[#8E9AA7] flex-shrink-0">{timeAgo(c.created_at)}</span>
+              <span className="text-[10px] text-[#8E9AA7] flex-shrink-0">{timeAgo(c.created_at)}{c.edited_at && ' · edited'}</span>
             </div>
-            <p className="text-xs text-[#EBEBED] leading-relaxed"><MentionText text={c.content} /></p>
+            {editId === c.id ? (
+              <div className="flex gap-1.5 pt-1">
+                <MentionInput single ariaLabel="Edit your comment" value={editText} onChange={setEditText} onEnter={() => saveEdit(c)} className={`${inputCls} !min-h-[34px] !text-xs`} />
+                <button onClick={() => saveEdit(c)} aria-label="Save comment" className={`${btn.mint} !px-2.5 !py-1`}><Check className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setEditId(null)} aria-label="Cancel editing" className={btn.icon}><X className="w-3.5 h-3.5" /></button>
+              </div>
+            ) : <p className="text-xs text-[#EBEBED] leading-relaxed"><MentionText text={c.content} /></p>}
             <div className="flex justify-end gap-3 pt-1">
-              {c.author_id === user?.id
-                ? <button onClick={async () => { const { error } = await supabase.from('comments').delete().eq('id', c.id); if (error) alert(errorMessage(error)); load(); onChange(); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Delete</button>
-                : <button onClick={() => onReport(c.id)} className="text-[10px] text-[#8E9AA7] flex items-center gap-1 cursor-pointer"><Flag className="w-3 h-3" />Report</button>}
+              {c.author_id === user?.id ? (
+                <>
+                  {editId !== c.id && <button onClick={() => { setEditId(c.id); setEditText(c.content); setErr(null); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Edit</button>}
+                  <button onClick={async () => { if (!confirm('Delete this comment?')) return; const { error } = await supabase.from('comments').delete().eq('id', c.id); if (error) alert(errorMessage(error)); load(); onChange(); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Delete</button>
+                </>
+              ) : <button onClick={() => onReport(c.id)} className="text-[10px] text-[#8E9AA7] flex items-center gap-1 cursor-pointer"><Flag className="w-3 h-3" />Report</button>}
             </div>
           </div>
         </div>

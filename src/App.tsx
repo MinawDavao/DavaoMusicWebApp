@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { NavContext, type Route } from './nav';
 import { Avatar, Spinner } from './components/ui';
+import { roleMeta } from './lib/db';
 import { HomeScreen } from './screens/HomeScreen';
 import { AudioScreen } from './screens/AudioScreen';
 import { BandScreen } from './screens/BandScreen';
@@ -85,14 +86,14 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </button>
           ) : (
             <div className="relative flex items-center gap-2" ref={ref}>
-              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${isArtist ? 'bg-[#6045F4]/20 border-[#6045F4]/40 text-[#B7A8FF]' : 'bg-[#53E6D4]/15 border-[#53E6D4]/30 text-[#53E6D4]'}`}>{isArtist ? 'Artist' : 'Fan'}</span>
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 ${roleMeta(profile?.role).chip}`}>{roleMeta(profile?.role).label}</span>
               <button onClick={() => setMenu(!menu)} aria-haspopup="menu" aria-expanded={menu} aria-label="Open profile menu" className="cursor-pointer">
-                <Avatar src={profile?.avatar_url} name={profile?.display_name} size={38} square={isArtist} ring />
+                <Avatar src={profile?.avatar_url} name={profile?.display_name} size={38} square={roleMeta(profile?.role).square} ring />
               </button>
               {menu && (
                 <div role="menu" className="absolute top-12 right-0 w-60 z-50 p-2 rounded-2xl bg-[#161B20] border border-white/15 shadow-2xl">
                   <div className="flex items-center gap-2.5 px-2 pt-1 pb-3 mb-1 border-b border-white/[0.08]">
-                    <Avatar src={profile?.avatar_url} name={profile?.display_name} size={36} square={isArtist} />
+                    <Avatar src={profile?.avatar_url} name={profile?.display_name} size={36} square={roleMeta(profile?.role).square} />
                     <div className="min-w-0">
                       <p className="text-[13px] font-bold text-white truncate">{profile?.display_name}</p>
                       <p className="font-mono text-[10px] text-[#8E9AA7] truncate">@{profile?.username}</p>
@@ -101,7 +102,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
                   {isArtist && (band
                     ? item(Music, 'My Band Page', () => go({ name: 'band', id: band.id }))
                     : item(Music, 'Create Band Page', () => go({ name: 'onboarding' })))}
-                  {item(UserIcon, 'My Profile', () => go({ name: 'profile' }))}
+                  {item(UserIcon, profile?.role === 'venue' ? 'My Venue Page' : 'My Profile', () => go({ name: 'profile' }))}
                   {item(Pencil, isArtist && band ? 'Edit Band Page' : 'Edit Profile', () => go(isArtist && band ? { name: 'band', id: band.id } : { name: 'profile' }))}
                   <div className="h-px bg-white/[0.08] my-1" />
                   {item(LogOut, 'Log Out', async () => { await signOut(); go({ name: 'home' }); }, true)}

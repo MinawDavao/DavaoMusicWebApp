@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   CATEGORY_LABELS, CONDITION_LABELS, DEAL_LABELS, checkFile, errorMessage, peso, publicUrl, timeAgo, uploadFile,
   type DealType, type GearCategory, type GearCondition, type Listing,
+  roleMeta,
 } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
@@ -156,7 +157,7 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-bold text-white truncate">{it.profiles?.display_name || 'Member'}</span>
             {it.profiles?.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-[#53E6D4]" />}
-            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold ${it.profiles?.role === 'artist' ? 'bg-[#6045F4]/20 text-[#B7A8FF]' : 'bg-white/5 text-[#EBEBED]'}`}>{it.profiles?.role === 'artist' ? 'BAND' : 'FAN'}</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase ${roleMeta(it.profiles?.role).chip}`}>{roleMeta(it.profiles?.role).label}</span>
           </div>
           <span className="flex items-center gap-1 text-[10px] text-[#8E9AA7]"><MapPin className="w-2.5 h-2.5 text-[#53E6D4]" />{it.district || 'Davao City'} • {timeAgo(it.created_at)}</span>
         </div>

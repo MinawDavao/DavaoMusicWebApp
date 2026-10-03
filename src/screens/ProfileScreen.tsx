@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, AtSign, BadgeCheck, Calendar, Camera, Check, Flag, Globe, MapPin, MessageCircle, Music, Pencil, UserMinus, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, AtSign, BadgeCheck, Building2, Calendar, Camera, Check, ExternalLink, Flag, Globe, ImageIcon, MapPin, MessageCircle, Music, Pencil, Phone, Tag, Trash2, UserMinus, UserPlus, Users, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, removeImageByUrl, toHandle, uploadImage, type Band, type Gig, type Profile } from '../lib/db';
+import { checkFile, errorMessage, removeImageByUrl, toHandle, uploadImage, type Band, type Gig, type Profile, roleMeta } from '../lib/db';
 import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts, genreNames } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
@@ -13,6 +13,8 @@ import { Playlists } from '../components/Playlists';
 import { GenrePicker } from '../components/GenrePicker';
 import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
+import { Testimonials } from '../components/Testimonials';
+import { VenueFields, checkVenue, venueInfoFrom, venuePatch } from '../components/VenueFields';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, SectionHead, Spinner, btn, inputCls } from '../components/ui';
 
 export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
@@ -36,6 +38,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   const [followingPeople, setFollowingPeople] = useState<Person[]>([]);
   const [iFollow, setIFollow] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const [venueGigs, setVenueGigs] = useState<Gig[]>([]);
 
   const load = useCallback(async () => {
     if (!targetId) { setLoading(false); return; }
@@ -60,6 +63,14 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       .sort((a: Gig, b: Gig) => a.starts_at.localeCompare(b.starts_at)));
     setCounts(c); setMine(my); setPostCount(pc.count || 0);
     setTheirBand((b as unknown as Band) || null);
+    // Venues: upcoming gigs whose venue name matches this place
+    const pr = prof as Profile | null;
+    if (pr?.role === 'venue' && pr.display_name.trim().length >= 3) {
+      const name = pr.display_name.trim().replace(/[%_\\]/g, (m) => '\\' + m);
+      const { data: vg } = await supabase.from('gigs').select('*, bands(id, name, logo_url)').ilike('venue', `%${name}%`)
+        .gte('starts_at', new Date(Date.now() - 6 * 3600e3).toISOString()).order('starts_at').limit(20);
+      setVenueGigs((vg as Gig[]) || []);
+    } else setVenueGigs([]);
     setLoading(false);
   }, [targetId, user?.id]); // id only: a token refresh shouldn't reload the page or close the editor
 
@@ -81,7 +92,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     <div className="grid grid-cols-4 gap-2.5">
       {list.map((x) => (
         <button key={x.id} onClick={() => go({ name: 'profile', id: x.id })} aria-label={`View ${x.display_name}’s profile`} className="flex flex-col items-center gap-1.5 min-w-0 cursor-pointer">
-          <Avatar src={x.avatar_url} name={x.display_name} size={52} square={x.role === 'artist'} />
+          <Avatar src={x.avatar_url} name={x.display_name} size={52} square={roleMeta(x.role).square} />
           <span className="text-[11px] font-bold text-white max-w-full truncate">{x.display_name}</span>
         </button>
       ))}
@@ -102,16 +113,17 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     <div className="px-3 py-4 space-y-6">
       <div className="flex items-center justify-between">
         <button onClick={() => go({ name: 'connect' })} className={`${btn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" /> Back to Feed</button>
-        <span className="px-2 py-0.5 rounded-full bg-[#53E6D4]/10 border border-[#53E6D4]/35 text-[#53E6D4] font-mono text-[10px] font-bold">{p.role === 'artist' ? 'Artist Account' : 'Davao Fan Profile'}</span>
+        <span className="px-2 py-0.5 rounded-full bg-[#53E6D4]/10 border border-[#53E6D4]/35 text-[#53E6D4] font-mono text-[10px] font-bold">{p.role === 'artist' ? 'Artist Account' : p.role === 'venue' ? 'Venue' : 'Davao Fan Profile'}</span>
       </div>
 
-      <div className="rounded-3xl bg-[#1D232A] border border-white/[0.08] p-4 space-y-3">
+      <div className="relative overflow-hidden rounded-3xl bg-[#1D232A] border border-white/[0.08] p-4 space-y-3">
+        {p.card_bg_url && !(editing && isMe) && <CardBackdrop url={p.card_bg_url} />}
         {editing && isMe ? (
           <EditProfile profile={p} bandId={theirBand?.id} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); setSaved(true); await refresh(); load(); }} />
         ) : (
-          <>
+          <div className="relative space-y-3">
             <div className="flex items-center justify-between">
-              {p.avatar_url ? <span className="w-20"><ZoomImg src={p.avatar_url} alt={`${p.display_name}’s photo`} className="w-20 h-20 rounded-full object-cover ring-2 ring-[#53E6D4] bg-[#252D37]" /></span> : <Avatar src={null} name={p.display_name} size={80} ring />}
+              {p.avatar_url ? <span className="w-20"><ZoomImg src={p.avatar_url} alt={`${p.display_name}’s photo`} className={`w-20 h-20 ${roleMeta(p.role).square ? 'rounded-2xl' : 'rounded-full'} object-cover ring-2 ring-[#53E6D4] bg-[#252D37]`} /></span> : <Avatar src={null} name={p.display_name} size={80} square={roleMeta(p.role).square} ring />}
               {isMe
                 ? <button onClick={() => { setSaved(false); setEditing(true); }} className={`${btn.ghost} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Edit Profile</button>
                 : (
@@ -131,6 +143,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
             {p.role === 'artist' && theirBand && genreNames(theirBand).length > 0 && (
               <div className="flex flex-wrap gap-1.5">{genreNames(theirBand).map((g) => <span key={g} className="px-2.5 py-0.5 rounded-full bg-[#6045F4] text-white text-[10px] font-bold">{g}</span>)}</div>
             )}
+            {p.role === 'venue' && p.venue_type && <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFB800]/15 text-[#FFC34D] text-[10px] font-bold"><Building2 className="w-3 h-3" />{p.venue_type}</span>}
             {p.district && <p className="flex items-center gap-1.5 font-mono text-xs"><MapPin className="w-3.5 h-3.5 text-[#53E6D4]" />{p.district}</p>}
             {p.bio ? <p className="text-[13px] text-[#8E9AA7] leading-relaxed whitespace-pre-line">{p.bio}</p> : isMe && <p className="text-[13px] text-[#8E9AA7] italic">Add a short bio so the scene knows who you are.</p>}
             {(p.instagram || p.facebook) && (
@@ -139,15 +152,23 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
                 {p.facebook && <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-[#53E6D4]" />{p.facebook}</span>}
               </div>
             )}
+            {p.role === 'venue' && (p.venue_address || p.venue_capacity || p.venue_contact || p.venue_map_url) && (
+              <div className="space-y-1.5 p-3 rounded-2xl bg-[#161B20]/85 border border-white/[0.08] text-xs">
+                {p.venue_address && <p className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-[#FFC34D] mt-0.5 flex-shrink-0" />{p.venue_address}</p>}
+                {p.venue_capacity && <p className="flex items-center gap-2"><Users className="w-3.5 h-3.5 text-[#FFC34D]" />Fits about {p.venue_capacity.toLocaleString()} people</p>}
+                {p.venue_contact && <a href={`tel:${p.venue_contact.replace(/[^+\d]/g, '')}`} className="flex items-center gap-2 hover:underline"><Phone className="w-3.5 h-3.5 text-[#FFC34D]" />{p.venue_contact}</a>}
+                {p.venue_map_url && /^https?:\/\//i.test(p.venue_map_url) && <a href={p.venue_map_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[#53E6D4] font-bold hover:underline"><ExternalLink className="w-3.5 h-3.5" />Open in Google Maps</a>}
+              </div>
+            )}
             <OkNote text={saved ? 'Profile updated' : null} />
             <div className="grid grid-cols-3 gap-2">
               <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{fans.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">FOLLOWERS</p></div>
               <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{followed.length + followingPeople.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">FOLLOWING</p></div>
-              {p.role === 'artist'
+              {p.role !== 'fan'
                 ? <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{postCount}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">POSTS</p></div>
                 : <div className="py-3 rounded-2xl bg-[#161B20] border border-white/[0.08] text-center"><p className="font-heading font-bold text-xl text-white">{rsvps.length}</p><p className="font-mono text-[9px] tracking-widest text-[#8E9AA7]">GOING TO</p></div>}
             </div>
-          </>
+          </div>
         )}
       </div>
 
@@ -179,7 +200,20 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
         </section>
       )}
 
-      {p.role !== 'artist' && (isMe || p.show_rsvps) && (
+      {p.role === 'venue' && (
+        <section className="space-y-3">
+          <SectionHead icon={Calendar} title={`Upcoming Gigs Here (${venueGigs.length})`} sub="Gigs whose venue matches this place’s name" />
+          {venueGigs.length === 0
+            ? <EmptyState icon={Calendar} title="No upcoming gigs listed here yet" text={isMe ? 'When bands add a gig with your venue’s name, it shows up here.' : undefined} />
+            : venueGigs.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} />)}
+        </section>
+      )}
+
+      {p.role === 'venue' && (
+        <Testimonials kind="venue" targetId={p.id} isOwner={isMe} />
+      )}
+
+      {p.role === 'fan' && (isMe || p.show_rsvps) && (
         <section className="space-y-3">
           <SectionHead icon={Calendar} title={`Going To (${rsvps.length})`} sub={isMe && !p.show_rsvps ? 'Only you can see this — turn on “Show my gig RSVPs” in Edit Profile to share it.' : undefined} />
           {rsvps.length === 0
@@ -189,6 +223,13 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       )}
 
       <Playlists ownerId={p.id} isMe={isMe} />
+
+      {p.role === 'venue' && (
+        <section className="space-y-2.5">
+          <SectionHead icon={Tag} title="Tagged Posts" sub="Posts where people tagged this venue" />
+          <ConnectFeed taggedVenue={{ id: p.id, username: p.username }} showComposer={false} />
+        </section>
+      )}
 
       <section className="space-y-2.5">
         <SectionHead icon={MessageCircle} title={isMe ? 'My Posts' : 'Posts'} sub={isMe ? 'Everything you post here or on Connect shows up for all fans and artists.' : undefined} />
@@ -207,6 +248,10 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
     instagram: profile.instagram || '', facebook: profile.facebook || '',
   });
   const [avatar, setAvatar] = useState(profile.avatar_url);
+  const [cardBg, setCardBg] = useState(profile.card_bg_url);
+  const [bgBusy, setBgBusy] = useState(false);
+  const [vinfo, setVinfo] = useState(venueInfoFrom(profile));
+  const isVenue = profile.role === 'venue';
   const [rsvps, setRsvps] = useState(profile.show_rsvps);
   const [genres, setGenres] = useState<string[]>([]);
   const [genresLoaded, setGenresLoaded] = useState(false);
@@ -217,10 +262,12 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
 
   const save = async () => {
     if (!f.display_name.trim()) return setErr('Display name can’t be empty.');
+    if (isVenue) { const bad = checkVenue(vinfo); if (bad) return setErr(bad); }
     setBusy(true); setErr(null);
     const { error } = await supabase.from('profiles').update({
       display_name: f.display_name.trim(), username: toHandle(f.username), district: f.district.trim() || null, bio: f.bio.trim() || null,
       instagram: f.instagram.trim() || null, facebook: f.facebook.trim() || null, avatar_url: avatar, show_rsvps: rsvps,
+      card_bg_url: cardBg, ...(isVenue ? venuePatch(vinfo) : {}),
     }).eq('id', user!.id);
     if (!error && bandId) {
       try { if (genresLoaded) await setBandGenres(bandId, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
@@ -228,6 +275,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
     setBusy(false);
     if (error) return setErr(errorMessage(error));
     if (profile.avatar_url !== avatar) await removeImageByUrl(profile.avatar_url, [avatar, authBand?.logo_url]); // keep it if it's also the band logo
+    if (profile.card_bg_url !== cardBg) await removeImageByUrl(profile.card_bg_url, [cardBg]);
     onSaved();
   };
 
@@ -238,9 +286,9 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
         <button onClick={onCancel} aria-label="Close without saving" className={btn.icon}><X className="w-4 h-4" /></button>
       </div>
       <div className="flex items-center gap-3.5">
-        <Avatar src={avatar} name={f.display_name} size={80} ring />
+        <Avatar src={avatar} name={f.display_name} size={80} square={roleMeta(profile.role).square} ring />
         <div className="space-y-1.5">
-          <p className="text-[13px] font-bold text-white">Profile photo</p>
+          <p className="text-[13px] font-bold text-white">{isVenue ? 'Venue photo / logo' : 'Profile photo'}</p>
           <p className="text-[11px] text-[#8E9AA7]">JPG or PNG, square, max 5 MB</p>
           <FilePick accept="image/jpeg,image/png,image/webp" onPick={async (file) => {
             const bad = checkFile(file, 'image'); if (bad) return setErr(bad);
@@ -248,13 +296,35 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
           }} className={`${btn.ghost} !py-1.5 !text-xs`}><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />Change photo</FilePick>
         </div>
       </div>
-      <Field label="Display Name" icon={Pencil} htmlFor="p-name"><input id="p-name" className={inputCls} value={f.display_name} onChange={set('display_name')} /></Field>
+      <div className="space-y-2 p-3 rounded-2xl bg-[#0F1417] border border-white/15">
+        <p className="flex items-center gap-1.5 text-[13px] font-bold text-white"><ImageIcon className="w-4 h-4 text-[#53E6D4]" />Card background</p>
+        <p className="text-[11px] text-[#8E9AA7]">A photo that softly fades in behind the right side of your profile card. Landscape photos look best.</p>
+        <div className="relative h-24 rounded-xl overflow-hidden bg-[#1D232A] border border-white/10">
+          {cardBg ? <CardBackdrop url={cardBg} /> : <span className="absolute inset-0 flex items-center justify-center text-[11px] text-[#8E9AA7]">No background yet</span>}
+          <span className="absolute left-3 top-1/2 -translate-y-1/2"><Avatar src={avatar} name={f.display_name} size={44} square={roleMeta(profile.role).square} /></span>
+        </div>
+        <div className="flex gap-2">
+          <FilePick accept="image/jpeg,image/png,image/webp" disabled={bgBusy} onPick={async (file) => {
+            const bad = checkFile(file, 'image'); if (bad) return setErr(bad);
+            setBgBusy(true); setErr(null);
+            try {
+              const url = await uploadImage('banners', user!.id, file);
+              if (cardBg && cardBg !== profile.card_bg_url) await removeImageByUrl(cardBg); // an unsaved earlier pick
+              setCardBg(url);
+            } catch (e) { setErr(errorMessage(e)); }
+            setBgBusy(false);
+          }} className={`${btn.ghost} !py-1.5 !text-xs`}><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />{bgBusy ? 'Uploading…' : cardBg ? 'Change image' : 'Upload image'}</FilePick>
+          {cardBg && <button type="button" onClick={() => setCardBg(null)} className={`${btn.ghost} !py-1.5 !text-xs`}><Trash2 className="w-3.5 h-3.5" />Remove</button>}
+        </div>
+      </div>
+      <Field label={isVenue ? 'Venue Name' : 'Display Name'} icon={Pencil} htmlFor="p-name"><input id="p-name" className={inputCls} value={f.display_name} onChange={set('display_name')} /></Field>
       <Field label="Username" icon={AtSign} htmlFor="p-user" hint="lowercase, numbers, _"><input id="p-user" className={inputCls} value={f.username} onChange={(e) => setF({ ...f, username: toHandle(e.target.value) })} /></Field>
-      <Field label="Home District" icon={MapPin} htmlFor="p-dist"><input id="p-dist" className={inputCls} value={f.district} onChange={set('district')} /></Field>
-      <Field label="About Me" icon={Pencil} htmlFor="p-bio" hint={`${f.bio.length} / 280`}><textarea id="p-bio" rows={4} maxLength={280} className={`${inputCls} py-3 resize-none`} value={f.bio} onChange={set('bio')} /></Field>
+      <Field label={isVenue ? 'District' : 'Home District'} icon={MapPin} htmlFor="p-dist"><input id="p-dist" className={inputCls} value={f.district} onChange={set('district')} /></Field>
+      <Field label={isVenue ? 'Description' : 'About Me'} icon={Pencil} htmlFor="p-bio" hint={`${f.bio.length} / 280`}><textarea id="p-bio" rows={4} maxLength={280} className={`${inputCls} py-3 resize-none`} value={f.bio} onChange={set('bio')} /></Field>
       <Field label="Instagram" icon={Camera} htmlFor="p-ig"><input id="p-ig" className={inputCls} value={f.instagram} onChange={set('instagram')} /></Field>
       <Field label="Facebook" icon={Globe} htmlFor="p-fb"><input id="p-fb" className={inputCls} value={f.facebook} onChange={set('facebook')} /></Field>
-      <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={rsvps} onChange={(e) => setRsvps(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Show my gig RSVPs on my profile</label>
+      {isVenue && <div className="space-y-3.5 p-3 rounded-2xl bg-[#0F1417] border border-white/15"><VenueFields value={vinfo} onChange={setVinfo} /></div>}
+      {profile.role === 'fan' && <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={rsvps} onChange={(e) => setRsvps(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Show my gig RSVPs on my profile</label>}
       {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><GenrePicker value={genres} onChange={setGenres} /></div>}
       {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={bandId} /></div>}
       <ErrorNote text={err} />
@@ -262,6 +332,23 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
         <button onClick={onCancel} className={`${btn.ghost} flex-1`}>Cancel</button>
         <button onClick={save} disabled={busy} className={`${btn.mint} flex-1`}><Check className="w-4 h-4" />{busy ? 'Saving…' : 'Save Changes'}</button>
       </div>
+    </div>
+  );
+};
+
+/** Soft background photo on the right side of a profile card, fading out toward the avatar and the bottom. */
+const CardBackdrop: React.FC<{ url: string }> = ({ url }) => {
+  const fadeLeft = 'linear-gradient(to left, #000 25%, transparent 95%)';
+  const fadeDown = 'linear-gradient(to bottom, #000 40%, transparent 100%)';
+  return (
+    <div aria-hidden="true" className="absolute top-0 right-0 h-64 w-[75%] pointer-events-none" style={{ maskImage: fadeDown, WebkitMaskImage: fadeDown }}>
+      <div
+        className="w-full h-full"
+        style={{
+          backgroundImage: `url("${url.replace(/"/g, '%22')}")`, backgroundSize: 'cover', backgroundPosition: 'center',
+          opacity: 0.32, maskImage: fadeLeft, WebkitMaskImage: fadeLeft,
+        }}
+      />
     </div>
   );
 };

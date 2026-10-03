@@ -4,12 +4,13 @@ import {
   MessageCircle, Plus, Star, Trash2, UserMinus, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, timeAgo, toHandle, uploadImage, type Band, type Gig, type Track, removeImageByUrl } from '../lib/db';
+import { checkFile, errorMessage, timeAgo, toHandle, uploadImage, type Band, type Gig, type Track, removeImageByUrl, roleMeta } from '../lib/db';
 import { fetchMyRsvps, fetchRsvpCounts, fetchTracks, fetchUpcomingGigs, genreNames } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { GigCard, TrackRow } from '../components/cards';
 import { MembersEditor } from '../components/MembersEditor';
+import { Testimonials } from '../components/Testimonials';
 import { GenrePicker } from '../components/GenrePicker';
 import { ZoomImg } from '../components/Zoom';
 import { setBandGenres } from '../lib/genres';
@@ -21,7 +22,6 @@ import { Avatar, EmptyState, ErrorNote, Field, FilePick, Modal, SectionHead, Spi
 
 interface Member { id: string; name: string; role: string | null }
 interface Photo { id: string; image_url: string; title: string | null; tag: string | null }
-interface Review { id: string; author_id: string; rating: number; message: string; created_at: string; profiles?: { display_name: string; avatar_url: string | null } | null }
 
 export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
   const go = useNav();
@@ -34,7 +34,6 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [mine, setMine] = useState<Set<string>>(new Set());
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -50,14 +49,13 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
     const { data: b } = await supabase.from('bands').select('*, band_genres(genre_id, genres(name))').eq('id', id).maybeSingle();
     setBand((b as unknown as Band) || null);
     if (!b) { setLoading(false); return; }
-    const [m, t, p, g, c, my, r, f, amF, fl] = await Promise.all([
+    const [m, t, p, g, c, my, f, amF, fl] = await Promise.all([
       supabase.from('band_members').select('id, name, role').eq('band_id', id).order('sort_order'),
       fetchTracks(id),
       supabase.from('band_photos').select('id, image_url, title, tag').eq('band_id', id).order('created_at', { ascending: false }),
       fetchUpcomingGigs(20, id),
       fetchRsvpCounts(),
       user ? fetchMyRsvps(user.id) : Promise.resolve(new Set<string>()),
-      supabase.from('band_reviews').select('id, author_id, rating, message, created_at, profiles!band_reviews_author_id_fkey(id, display_name, avatar_url)').eq('band_id', id).order('created_at', { ascending: false }),
       supabase.from('follows').select('band_id', { count: 'exact', head: true }).eq('band_id', id),
       user ? supabase.from('follows').select('band_id').eq('band_id', id).eq('follower_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from('follows').select('follower_id, profiles!follows_follower_id_fkey(id, display_name, avatar_url, role)').eq('band_id', id).order('created_at', { ascending: false }).limit(40),
@@ -66,7 +64,6 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
     setTracks(t);
     setPhotos((p.data as Photo[]) || []);
     setGigs(g); setCounts(c); setMine(my);
-    setReviews((r.data as any) || []);
     setFollowers(f.count || 0);
     setFollowing(!!(amF as any).data);
     setFollowerList((((fl as any).data as any[]) || []).map((x) => x.profiles).filter(Boolean));
@@ -122,7 +119,6 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
 
   const genres = genreNames(band);
   const totalPlays = tracks.reduce((s, t) => s + t.play_count, 0);
-  const myReview = reviews.find((r) => r.author_id === user?.id);
 
   return (
     <div className="px-3 py-4 space-y-6">
@@ -245,7 +241,7 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
           <div className="grid grid-cols-4 gap-2.5">
             {followerList.map((f) => (
               <button key={f.id} onClick={() => go({ name: 'profile', id: f.id })} className="flex flex-col items-center gap-1.5 min-w-0 cursor-pointer" aria-label={`View ${f.display_name}’s profile`}>
-                <Avatar src={f.avatar_url} name={f.display_name} size={52} square={f.role === 'artist'} />
+                <Avatar src={f.avatar_url} name={f.display_name} size={52} square={roleMeta(f.role).square} />
                 <span className="text-[11px] font-bold text-white max-w-full truncate">{f.display_name}</span>
               </button>
             ))}
@@ -253,31 +249,8 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
         )}
       </section>
 
-      {/* REVIEWS */}
-      <section className="space-y-2.5">
-        <SectionHead icon={Star} title="Fan Testimonials" />
-        {user && !isOwner && !myReview && <ReviewForm bandId={band.id} userId={user.id} onDone={load} />}
-        {reviews.length === 0
-          ? <EmptyState icon={Star} title="No testimonials yet" text={!user ? 'Log in to leave the first review.' : isOwner ? 'Fans’ reviews will appear here.' : 'Be the first to leave a review.'} />
-          : reviews.map((r) => (
-            <div key={r.id} className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5 space-y-2">
-              <div className="flex items-center gap-2.5">
-                <button onClick={() => go({ name: 'profile', id: r.author_id })} aria-label="View reviewer’s profile" className="cursor-pointer"><Avatar src={r.profiles?.avatar_url} name={r.profiles?.display_name} size={36} /></button>
-                <div className="flex-1 min-w-0">
-                  <button onClick={() => go({ name: 'profile', id: r.author_id })} className="block text-[13px] font-bold text-white truncate cursor-pointer hover:underline">{r.profiles?.display_name || 'Fan'}</button>
-                  <p className="text-[10px] text-[#8E9AA7]">{timeAgo(r.created_at)}</p>
-                </div>
-                <span className="flex">{[1, 2, 3, 4, 5].map((n) => <Star key={n} className={`w-3.5 h-3.5 ${n <= r.rating ? 'text-[#FFB800] fill-[#FFB800]' : 'text-[#252D37]'}`} />)}</span>
-              </div>
-              <p className="text-xs italic text-[#8E9AA7] leading-relaxed">“{r.message}”</p>
-              <div className="flex justify-end gap-2">
-                {r.author_id === user?.id
-                  ? <button onClick={async () => { const { error } = await supabase.from('band_reviews').delete().eq('id', r.id); if (error) setErr(errorMessage(error)); load(); }} className="text-[11px] text-[#8E9AA7] underline cursor-pointer">Delete my review</button>
-                  : <button onClick={() => setReport({ type: 'review', id: r.id, label: 'this review' })} className="text-[11px] text-[#8E9AA7] flex items-center gap-1 cursor-pointer"><Flag className="w-3 h-3" />Report</button>}
-              </div>
-            </div>
-          ))}
-      </section>
+      {/* TESTIMONIALS (need the owner's approval) */}
+      <Testimonials kind="band" targetId={band.id} isOwner={isOwner} onReport={(rid) => setReport({ type: 'review', id: rid, label: 'this testimonial' })} />
 
       {editing && <EditBandModal band={band} onClose={() => { setEditing(false); load(); }} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
       {addGig && <AddGigModal bandId={band.id} onClose={() => setAddGig(false)} onSaved={() => { setAddGig(false); load(); }} />}
@@ -315,33 +288,6 @@ const MembersSection: React.FC<{ bandId: string; members: Member[]; isOwner: boo
         </div>
       )}
     </section>
-  );
-};
-
-// ---------------------------------------------------------------- review form
-const ReviewForm: React.FC<{ bandId: string; userId: string; onDone: () => void }> = ({ bandId, userId, onDone }) => {
-  const [rating, setRating] = useState(5);
-  const [msg, setMsg] = useState('');
-  const [err, setErr] = useState<string | null>(null);
-  const submit = async () => {
-    if (!msg.trim()) return;
-    const { error } = await supabase.from('band_reviews').insert({ band_id: bandId, author_id: userId, rating, message: msg.trim() });
-    if (error) setErr(errorMessage(error)); else { setMsg(''); onDone(); }
-  };
-  return (
-    <div className="rounded-2xl bg-[#161B20] border border-white/[0.08] p-3.5 space-y-2.5">
-      <p className="text-[13px] font-bold text-white">Leave a testimonial</p>
-      <div className="flex gap-1" role="radiogroup" aria-label="Rating">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} role="radio" aria-checked={rating === n} aria-label={`${n} stars`} onClick={() => setRating(n)} className="cursor-pointer">
-            <Star className={`w-6 h-6 ${n <= rating ? 'text-[#FFB800] fill-[#FFB800]' : 'text-[#252D37]'}`} />
-          </button>
-        ))}
-      </div>
-      <textarea aria-label="Your review" rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="What do you love about their live shows or music?" className={`${inputCls} py-2.5 resize-none`} />
-      <ErrorNote text={err} />
-      <button onClick={submit} disabled={!msg.trim()} className={`${btn.primary} w-full`}>Post Review</button>
-    </div>
   );
 };
 

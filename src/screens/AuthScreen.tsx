@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, Headphones, Lock, LogIn, Mail, Music, User, UserPlus, Zap } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Headphones, Lock, LogIn, Mail, MapPin, Music, User, UserPlus, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, type Role } from '../lib/db';
 import { useNav } from '../nav';
 import { ErrorNote, Field, btn, inputCls } from '../components/ui';
+
+const ROLE_HINT: Record<Role, string> = {
+  fan: 'Follow bands, make playlists, RSVP to gigs and join the feed.',
+  artist: 'Get a band page, upload your music and post your gigs.',
+  venue: 'For bars, cafés and event places — people can tag you as the venue with @.',
+};
 
 export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ initialMode = 'login' }) => {
   const go = useNav();
@@ -21,7 +27,7 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
     e.preventDefault();
     setErr(null);
     if (mode === 'signup') {
-      if (!name.trim()) return setErr(role === 'fan' ? 'Please enter your name.' : 'Please enter your band or artist name.');
+      if (!name.trim()) return setErr(role === 'fan' ? 'Please enter your name.' : role === 'venue' ? 'Please enter your venue’s name.' : 'Please enter your band or artist name.');
       if (password.length < 8) return setErr('Password must be at least 8 characters.');
       if (password !== confirm) return setErr('Passwords don’t match.');
     }
@@ -92,7 +98,7 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
         <div className="text-center space-y-1.5">
           <h1 className="font-heading font-bold text-2xl text-white">{mode === 'login' ? 'Welcome back' : 'Create Your Account'}</h1>
           <p className="text-xs text-[#8E9AA7]">
-            {mode === 'login' ? 'Log in to post, upload music and join the Davao scene.' : 'Join as a Fan to follow bands and RSVP to gigs, or as an Artist to share your music.'}
+            {mode === 'login' ? 'Log in to post, upload music and join the Davao scene.' : 'Join as a Fan, an Artist, or a Venue that hosts gigs.'}
           </p>
         </div>
 
@@ -103,11 +109,13 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
               <span><strong className="text-[#FFB800]">Test mode:</strong> email verification is bypassed. New accounts are accepted instantly.</span>
             </div>
             <div role="group" aria-label="Account type" className="flex gap-1 p-1 rounded-2xl bg-[#161B20] border border-white/[0.08]">
-              {roleBtn('fan', 'I’m a Fan', Headphones)}
-              {roleBtn('artist', 'I’m an Artist', Music)}
+              {roleBtn('fan', 'Fan', Headphones)}
+              {roleBtn('artist', 'Artist', Music)}
+              {roleBtn('venue', 'Venue', MapPin)}
             </div>
-            <Field label={role === 'fan' ? 'Full Name' : 'Band / Artist Name'} icon={User} htmlFor="su-name">
-              <input id="su-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder={role === 'fan' ? 'e.g. Juan Dela Cruz' : 'e.g. Your band name'} autoComplete="name" />
+            <p className="-mt-2 text-[11px] text-[#8E9AA7] text-center">{ROLE_HINT[role]}</p>
+            <Field label={role === 'fan' ? 'Full Name' : role === 'venue' ? 'Venue / Business Name' : 'Band / Artist Name'} icon={User} htmlFor="su-name">
+              <input id="su-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder={role === 'fan' ? 'e.g. Juan Dela Cruz' : role === 'venue' ? 'e.g. Matina Music Bar' : 'e.g. Your band name'} autoComplete={role === 'fan' ? 'name' : 'organization'} />
             </Field>
           </>
         )}

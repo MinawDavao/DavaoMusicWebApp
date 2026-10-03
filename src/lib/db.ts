@@ -1,7 +1,17 @@
 import { supabase } from './supabase';
 
 // ---------- Row types (mirror supabase/migrations) ----------
-export type Role = 'fan' | 'artist';
+export type Role = 'fan' | 'artist' | 'venue';
+
+/** Label + colours for each account type (fans mint, artists purple, venues amber). */
+export const ROLE_META: Record<Role, { label: string; text: string; chip: string; square: boolean }> = {
+  fan:    { label: 'Fan',    text: 'text-[#53E6D4]', chip: 'bg-[#53E6D4]/15 text-[#53E6D4]', square: false },
+  artist: { label: 'Artist', text: 'text-[#B7A8FF]', chip: 'bg-[#6045F4]/25 text-[#B7A8FF]', square: true },
+  venue:  { label: 'Venue',  text: 'text-[#FFC34D]', chip: 'bg-[#FFB800]/15 text-[#FFC34D]', square: true },
+};
+export const roleMeta = (r?: string | null) => ROLE_META[(r as Role) in ROLE_META ? (r as Role) : 'fan'];
+
+export const VENUE_TYPES = ['Bar / Pub', 'Café', 'Restaurant', 'Events Place', 'Concert Hall', 'Club', 'Studio', 'Outdoor / Park', 'Other'];
 
 export interface Profile {
   id: string;
@@ -20,6 +30,12 @@ export interface Profile {
   is_verified: boolean;
   is_suspended: boolean;
   created_at: string;
+  card_bg_url: string | null;
+  venue_type: string | null;
+  venue_address: string | null;
+  venue_capacity: number | null;
+  venue_contact: string | null;
+  venue_map_url: string | null;
 }
 
 export interface Band {
@@ -82,8 +98,11 @@ export interface Post {
   content: string;
   image_url: string | null;
   venue_tag: string | null;
+  venue_id: string | null;
   district_tag: string | null;
   created_at: string;
+  edited_at: string | null;
+  venue?: Pick<Profile, 'id' | 'display_name' | 'username'> | null;
   profiles?: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url' | 'role' | 'is_verified'> | null;
 }
 
@@ -93,6 +112,7 @@ export interface Comment {
   author_id: string;
   content: string;
   created_at: string;
+  edited_at: string | null;
   profiles?: Pick<Profile, 'id' | 'display_name' | 'avatar_url' | 'role'> | null;
 }
 
@@ -257,6 +277,9 @@ export function errorMessage(e: any): string {
   if (/price_check/.test(msg)) return 'Price can’t be negative.';
   if (/listings_check/.test(msg)) return 'Please enter a price (only “For Trade” listings can skip it).';
   if (/gigs_check/.test(msg)) return 'The end time must be after the start time.';
+  if (/venue_capacity_check/.test(msg)) return 'Capacity should be a number between 1 and 100,000.';
+  if (/venue_reviews_check/.test(msg)) return 'You can’t write a testimonial for your own venue.';
+  if (/band_reviews_band_id_author_id_key|venue_reviews_venue_id_author_id_key/.test(msg)) return 'You already wrote a testimonial here — you can edit it instead.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'Network problem — check your connection and try again.';
   return msg;
 }

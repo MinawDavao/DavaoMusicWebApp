@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowLeftRight, AtSign, Calendar, Camera, Check, Disc3, Eye, Globe, Headphones, Lock, Mail, MapPin, Music, Pencil, Phone,
+  ArrowLeftRight, AtSign, Building2, Calendar, Camera, Check, Disc3, Eye, Globe, Headphones, Lock, Mail, MapPin, Music, Pencil, Phone,
   Play, Plus, ShieldCheck, Sparkles, Users, X,
 } from 'lucide-react';
 import { supabase, CURRENT_TERMS_VERSION } from '../lib/supabase';
-import { checkFile, errorMessage, toHandle, uploadImage } from '../lib/db';
+import { checkFile, errorMessage, toHandle, uploadImage, type Role } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { TermsText } from '../components/TermsText';
@@ -13,6 +13,7 @@ import { GenrePicker } from '../components/GenrePicker';
 import { MembersEditor } from '../components/MembersEditor';
 import { setBandGenres } from '../lib/genres';
 import { Avatar, ErrorNote, Field, FilePick, btn, inputCls } from '../components/ui';
+import { VenueFields, checkVenue, venueInfoFrom, venuePatch } from '../components/VenueFields';
 
 const Steps: React.FC<{ at: 'terms' | 'setup' }> = ({ at }) => {
   const item = (n: number, label: string, state: 'done' | 'now' | 'todo') => (
@@ -68,12 +69,13 @@ const Section: React.FC<{ title: string; sub: string; children: React.ReactNode 
 const TermsStep: React.FC = () => {
   const { user, profile, refresh, signOut } = useAuth();
   const isArtist = profile?.role === 'artist';
+  const isVenue = profile?.role === 'venue';
   const [c1, setC1] = useState(false);
   const [c2, setC2] = useState(false);
   const [c3, setC3] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const ok = c1 && c2 && (!isArtist || c3);
+  const ok = c1 && c2 && (!(isArtist || isVenue) || c3);
 
   const accept = async () => {
     if (!ok || !user) return;
@@ -116,6 +118,7 @@ const TermsStep: React.FC = () => {
         <Check2 on={c1} onToggle={() => setC1(!c1)}>I have read and agree to the MINAW DVO Terms of Agreement and Privacy policy.</Check2>
         <Check2 on={c2} onToggle={() => setC2(!c2)}>I will follow the Community Guidelines: no nudity, violence or political posts. I understand reported content is reviewed and removed if it breaks the rules.</Check2>
         {isArtist && <Check2 on={c3} onToggle={() => setC3(!c3)}>I own or have permission to share every song I upload, and I’ll choose whether fans can download it.</Check2>}
+        {isVenue && <Check2 on={c3} onToggle={() => setC3(!c3)}>I own, manage or am allowed to represent this venue, and the details I share about it are accurate.</Check2>}
       </div>
       <ErrorNote text={err} />
       <button onClick={accept} disabled={!ok || busy} className={`${btn.mint} w-full h-12`}><Check className="w-4 h-4" /> {busy ? 'Saving…' : 'Agree & Continue'}</button>
@@ -126,8 +129,9 @@ const TermsStep: React.FC = () => {
 };
 
 // ===================================================================== FAN SETUP
-const FanSetup: React.FC<{ onDone: () => void }> = ({ onDone }) => {
+const FanSetup: React.FC<{ onDone: () => void; venue?: boolean }> = ({ onDone, venue = false }) => {
   const { user, profile, refresh } = useAuth();
+  const [vinfo, setVinfo] = useState(venueInfoFrom(profile));
   const [avatar, setAvatar] = useState<string | null>(profile?.avatar_url ?? null);
   const [name, setName] = useState(profile?.display_name ?? '');
   const [username, setUsername] = useState(profile?.username ?? '');
@@ -149,8 +153,10 @@ const FanSetup: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   };
 
   const save = async (skip = false) => {
+    if (!skip && venue) { const bad = checkVenue(vinfo); if (bad) return setErr(bad); }
     setBusy(true); setErr(null);
     const patch: any = { onboarding_completed: true };
+    if (!skip && venue) Object.assign(patch, venuePatch(vinfo));
     if (!skip) Object.assign(patch, {
       avatar_url: avatar, display_name: name.trim() || profile?.display_name, username: toHandle(username) || profile?.username,
       district: district.trim() || null, bio: bio.trim() || null, instagram: ig.trim() || null, facebook: fb.trim() || null,
@@ -165,11 +171,11 @@ const FanSetup: React.FC<{ onDone: () => void }> = ({ onDone }) => {
 
   return (
     <div className="space-y-3.5">
-      <Section title="Profile Photo" sub="Shown on your Fan Profile and next to your posts">
+      <Section title={venue ? 'Venue Photo / Logo' : 'Profile Photo'} sub={venue ? 'Shown on your venue page and whenever people tag you' : 'Shown on your Fan Profile and next to your posts'}>
         <div className="flex items-center gap-3.5">
-          <Avatar src={avatar} name={name} size={80} ring />
+          <Avatar src={avatar} name={name} size={80} square={venue} ring />
           <div className="space-y-1.5">
-            <p className="text-[13px] font-bold text-white">Profile photo</p>
+            <p className="text-[13px] font-bold text-white">{venue ? 'Logo or photo of the place' : 'Profile photo'}</p>
             <p className="text-[11px] text-[#8E9AA7]">JPG or PNG, square, max 5 MB</p>
             <FilePick accept="image/jpeg,image/png,image/webp" onPick={pickAvatar} className={`${btn.ghost} !py-1.5 !text-xs`} disabled={uploading}>
               <Camera className="w-3.5 h-3.5 text-[#53E6D4]" /> {uploading ? 'Uploading…' : 'Upload image'}
@@ -177,18 +183,23 @@ const FanSetup: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           </div>
         </div>
       </Section>
-      <Section title="About You" sub="The basics fans and bands will see">
-        <Field label="Display Name" icon={Pencil} htmlFor="f-name"><input id="f-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+      <Section title={venue ? 'About the Venue' : 'About You'} sub={venue ? 'Help bands and fans find your place' : 'The basics fans and bands will see'}>
+        <Field label={venue ? 'Venue Name' : 'Display Name'} icon={Pencil} htmlFor="f-name"><input id="f-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Username" icon={AtSign} htmlFor="f-user" hint="lowercase, numbers, _"><input id="f-user" className={inputCls} value={username} onChange={(e) => setUsername(toHandle(e.target.value))} /></Field>
-        <Field label="Home District" icon={MapPin} htmlFor="f-dist"><input id="f-dist" className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Matina, Davao City" /></Field>
-        <Field label="About Me" icon={Pencil} htmlFor="f-bio" hint={`${bio.length} / 280`}>
-          <textarea id="f-bio" rows={4} maxLength={280} className={`${inputCls} py-3 resize-none`} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Gig regular? Collector? Tell people what the local scene means to you." />
+        <Field label={venue ? 'District' : 'Home District'} icon={MapPin} htmlFor="f-dist"><input id="f-dist" className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Matina, Davao City" /></Field>
+        <Field label={venue ? 'Description' : 'About Me'} icon={Pencil} htmlFor="f-bio" hint={`${bio.length} / 280`}>
+          <textarea id="f-bio" rows={4} maxLength={280} className={`${inputCls} py-3 resize-none`} value={bio} onChange={(e) => setBio(e.target.value)} placeholder={venue ? 'What kind of shows do you host? Open mic nights, band gigs, DJ sets…' : 'Gig regular? Collector? Tell people what the local scene means to you.'} />
         </Field>
       </Section>
+      {venue && (
+        <Section title="Venue Details" sub="Shown on your venue page">
+          <VenueFields value={vinfo} onChange={setVinfo} />
+        </Section>
+      )}
       <Section title="Socials & Privacy" sub="Optional links and what shows on your profile">
         <Field label="Instagram" icon={Camera} htmlFor="f-ig"><input id="f-ig" className={inputCls} value={ig} onChange={(e) => setIg(e.target.value)} placeholder="@yourhandle" /></Field>
         <Field label="Facebook" icon={Globe} htmlFor="f-fb"><input id="f-fb" className={inputCls} value={fb} onChange={(e) => setFb(e.target.value)} placeholder="facebook.com/yourname" /></Field>
-        <Toggle on={rsvps} onToggle={() => setRsvps(!rsvps)} label="Show my gig RSVPs" sub="Let others see which gigs you’re going to" />
+        {!venue && <Toggle on={rsvps} onToggle={() => setRsvps(!rsvps)} label="Show my gig RSVPs" sub="Let others see which gigs you’re going to" />}
         <Toggle on={playlists} onToggle={() => setPlaylists(!playlists)} label="Show my playlists" sub="Display your playlists on your profile" />
       </Section>
       <ErrorNote text={err} />
@@ -417,7 +428,7 @@ export const OnboardingScreen: React.FC = () => {
   const isArtist = profile?.role === 'artist';
   const [switching, setSwitching] = useState(false);
 
-  const setRole = async (role: 'fan' | 'artist') => {
+  const setRole = async (role: Role) => {
     if (!user || profile?.role === role || band) return;
     setSwitching(true);
     const { error } = await supabase.from('profiles').update({ role }).eq('id', user.id);
@@ -425,7 +436,7 @@ export const OnboardingScreen: React.FC = () => {
     await refresh();
     setSwitching(false);
   };
-  const roleBtn = (r: 'fan' | 'artist', label: string, Icon: React.ElementType) => (
+  const roleBtn = (r: Role, label: string, Icon: React.ElementType) => (
     <button
       type="button"
       aria-pressed={profile?.role === r}
@@ -451,16 +462,17 @@ export const OnboardingScreen: React.FC = () => {
               <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#6045F4]/20 border border-[#6045F4]/40 text-[#B7A8FF] text-[10px] font-bold">STEP 4 OF 4</span>
               <h1 className="font-heading font-bold text-2xl text-white">{band ? 'Edit Your Band Page' : 'Complete Your Profile'}</h1>
               <p className="text-xs text-[#8E9AA7]">
-                {isArtist ? 'Set up your band page so fans can find, follow and stream you.' : 'Tell the Davao scene who you are.'}
+                {isArtist ? 'Set up your band page so fans can find, follow and stream you.' : profile.role === 'venue' ? 'Set up your venue page so people can find and tag your place.' : 'Tell the Davao scene who you are.'}
               </p>
             </div>
             <div role="group" aria-label="Account type" className="flex gap-1 p-1 rounded-2xl bg-[#161B20] border border-white/[0.08]">
-              {roleBtn('fan', 'I’m a Fan', Headphones)}
-              {roleBtn('artist', 'I’m an Artist', Music)}
+              {roleBtn('fan', 'Fan', Headphones)}
+              {roleBtn('artist', 'Artist', Music)}
+              {roleBtn('venue', 'Venue', Building2)}
             </div>
             {isArtist
               ? <ArtistSetup key="artist" onDone={(id) => go(id ? { name: 'band', id } : { name: 'profile' })} />
-              : <FanSetup key="fan" onDone={() => go({ name: 'profile' })} />}
+              : <FanSetup key={profile.role} venue={profile.role === 'venue'} onDone={() => go({ name: 'profile' })} />}
           </>
         )}
       </div>

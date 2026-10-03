@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNav } from '../nav';
 import { Avatar } from './ui';
+import { roleMeta, type Role } from '../lib/db';
 
 // ---------------------------------------------------------------- username lookup (cached)
-type Who = { id: string; username: string; display_name: string; role: 'fan' | 'artist' };
+type Who = { id: string; username: string; display_name: string; role: Role };
 const cache = new Map<string, Who | null>();
 let pending: Set<string> = new Set();
 let waiters: (() => void)[] = [];
@@ -54,8 +55,8 @@ export const MentionText: React.FC<{ text: string; className?: string }> = ({ te
           key={start}
           type="button"
           onClick={(e) => { e.stopPropagation(); go({ name: 'profile', id: who.id }); }}
-          title={`${who.display_name} · ${who.role === 'artist' ? 'Artist' : 'Fan'}`}
-          className={`font-bold hover:underline cursor-pointer ${who.role === 'artist' ? 'text-[#B7A8FF]' : 'text-[#53E6D4]'}`}
+          title={`${who.display_name} · ${roleMeta(who.role).label}`}
+          className={`font-bold hover:underline cursor-pointer ${roleMeta(who.role).text}`}
         >
           @{who.username}
         </button>,
@@ -149,12 +150,12 @@ export const MentionInput: React.FC<{
               onMouseDown={(e) => { e.preventDefault(); pick(s); }}
               className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left cursor-pointer ${i === hi ? 'bg-white/10' : ''}`}
             >
-              <Avatar src={s.avatar_url} name={s.display_name} size={28} square={s.role === 'artist'} />
+              <Avatar src={s.avatar_url} name={s.display_name} size={28} square={roleMeta(s.role).square} />
               <span className="min-w-0 flex-1">
                 <span className="block text-[13px] font-bold text-white truncate">{s.display_name}</span>
                 <span className="block font-mono text-[10px] text-[#8E9AA7]">@{s.username}</span>
               </span>
-              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${s.role === 'artist' ? 'bg-[#6045F4]/25 text-[#B7A8FF]' : 'bg-[#53E6D4]/15 text-[#53E6D4]'}`}>{s.role === 'artist' ? 'Artist' : 'Fan'}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${roleMeta(s.role).chip}`}>{roleMeta(s.role).label}</span>
             </button>
           ))}
         </div>
