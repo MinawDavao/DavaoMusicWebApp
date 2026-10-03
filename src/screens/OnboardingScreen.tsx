@@ -118,7 +118,7 @@ const TermsStep: React.FC = () => {
         <Check2 on={c1} onToggle={() => setC1(!c1)}>I have read and agree to the MINAW DVO Terms of Agreement and Privacy policy.</Check2>
         <Check2 on={c2} onToggle={() => setC2(!c2)}>I will follow the Community Guidelines: no nudity, violence or political posts. I understand reported content is reviewed and removed if it breaks the rules.</Check2>
         {isArtist && <Check2 on={c3} onToggle={() => setC3(!c3)}>I own or have permission to share every song I upload, and I’ll choose whether fans can download it.</Check2>}
-        {isVenue && <Check2 on={c3} onToggle={() => setC3(!c3)}>I own, manage or am allowed to represent this venue, and the details I share about it are accurate.</Check2>}
+        {isVenue && <Check2 on={c3} onToggle={() => setC3(!c3)}>I own, manage or am allowed to represent this venue or business, and the details I share about it are accurate.</Check2>}
       </div>
       <ErrorNote text={err} />
       <button onClick={accept} disabled={!ok || busy} className={`${btn.mint} w-full h-12`}><Check className="w-4 h-4" /> {busy ? 'Saving…' : 'Agree & Continue'}</button>
@@ -183,7 +183,7 @@ const FanSetup: React.FC<{ onDone: () => void; venue?: boolean }> = ({ onDone, v
           </div>
         </div>
       </Section>
-      <Section title={venue ? 'About the Venue' : 'About You'} sub={venue ? 'Help bands and fans find your place' : 'The basics fans and bands will see'}>
+      <Section title={venue ? 'About the Venue/Business' : 'About You'} sub={venue ? 'Help bands and fans find your place' : 'The basics fans and bands will see'}>
         <Field label={venue ? 'Venue Name' : 'Display Name'} icon={Pencil} htmlFor="f-name"><input id="f-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Username" icon={AtSign} htmlFor="f-user" hint="lowercase, numbers, _"><input id="f-user" className={inputCls} value={username} onChange={(e) => setUsername(toHandle(e.target.value))} /></Field>
         <Field label={venue ? 'District' : 'Home District'} icon={MapPin} htmlFor="f-dist"><input id="f-dist" className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Matina, Davao City" /></Field>
@@ -462,13 +462,13 @@ export const OnboardingScreen: React.FC = () => {
               <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#6045F4]/20 border border-[#6045F4]/40 text-[#B7A8FF] text-[10px] font-bold">STEP 4 OF 4</span>
               <h1 className="font-heading font-bold text-2xl text-white">{band ? 'Edit Your Band Page' : 'Complete Your Profile'}</h1>
               <p className="text-xs text-[#8E9AA7]">
-                {isArtist ? 'Set up your band page so fans can find, follow and stream you.' : profile.role === 'venue' ? 'Set up your venue page so people can find and tag your place.' : 'Tell the Davao scene who you are.'}
+                {isArtist ? 'Set up your band page so fans can find, follow and stream you.' : profile.role === 'venue' ? 'Set up your Venue/Business page so people can find and tag you.' : 'Tell the Davao scene who you are.'}
               </p>
             </div>
             <div role="group" aria-label="Account type" className="flex gap-1 p-1 rounded-2xl bg-[#161B20] border border-white/[0.08]">
               {roleBtn('fan', 'Fan', Headphones)}
               {roleBtn('artist', 'Artist', Music)}
-              {roleBtn('venue', 'Venue', Building2)}
+              {roleBtn('venue', 'Venue/Business', Building2)}
             </div>
             {isArtist
               ? <ArtistSetup key="artist" onDone={(id) => go(id ? { name: 'band', id } : { name: 'profile' })} />

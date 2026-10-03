@@ -8,7 +8,7 @@ import { ErrorNote, Field, btn, inputCls } from '../components/ui';
 const ROLE_HINT: Record<Role, string> = {
   fan: 'Follow bands, make playlists, RSVP to gigs and join the feed.',
   artist: 'Get a band page, upload your music and post your gigs.',
-  venue: 'For bars, cafés and event places — people can tag you as the venue with @.',
+  venue: 'For bars, cafés, event places, studios and music shops. People can tag your business with @.',
 };
 
 export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ initialMode = 'login' }) => {
@@ -27,7 +27,7 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
     e.preventDefault();
     setErr(null);
     if (mode === 'signup') {
-      if (!name.trim()) return setErr(role === 'fan' ? 'Please enter your name.' : role === 'venue' ? 'Please enter your venue’s name.' : 'Please enter your band or artist name.');
+      if (!name.trim()) return setErr(role === 'fan' ? 'Please enter your name.' : role === 'venue' ? 'Please enter your venue or business name.' : 'Please enter your band or artist name.');
       if (password.length < 8) return setErr('Password must be at least 8 characters.');
       if (password !== confirm) return setErr('Passwords don’t match.');
     }
@@ -98,7 +98,7 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
         <div className="text-center space-y-1.5">
           <h1 className="font-heading font-bold text-2xl text-white">{mode === 'login' ? 'Welcome back' : 'Create Your Account'}</h1>
           <p className="text-xs text-[#8E9AA7]">
-            {mode === 'login' ? 'Log in to post, upload music and join the Davao scene.' : 'Join as a Fan, an Artist, or a Venue that hosts gigs.'}
+            {mode === 'login' ? 'Log in to post, upload music and join the Davao scene.' : 'Join as a Fan, an Artist, or a Venue/Business.'}
           </p>
         </div>
 
@@ -111,7 +111,7 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
             <div role="group" aria-label="Account type" className="flex gap-1 p-1 rounded-2xl bg-[#161B20] border border-white/[0.08]">
               {roleBtn('fan', 'Fan', Headphones)}
               {roleBtn('artist', 'Artist', Music)}
-              {roleBtn('venue', 'Venue', MapPin)}
+              {roleBtn('venue', 'Venue/Business', MapPin)}
             </div>
             <p className="-mt-2 text-[11px] text-[#8E9AA7] text-center">{ROLE_HINT[role]}</p>
             <Field label={role === 'fan' ? 'Full Name' : role === 'venue' ? 'Venue / Business Name' : 'Band / Artist Name'} icon={User} htmlFor="su-name">

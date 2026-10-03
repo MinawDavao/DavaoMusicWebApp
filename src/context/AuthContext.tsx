@@ -46,6 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabase.from('moderators').select('user_id').eq('user_id', uid).maybeSingle(),
     ]);
     if (seq !== loadSeq.current) return;
+    supabase.rpc('touch_seen').then(() => {}, () => {}); // "active today" statistics
     setProfile(p);
     setBand((b as Band) || null);
     setTermsAccepted(!!t);

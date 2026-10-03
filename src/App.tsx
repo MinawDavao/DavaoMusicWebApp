@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Headphones, House, LogIn, LogOut, Music, Pencil, Radio, Tag, User as UserIcon } from 'lucide-react';
+import { Headphones, House, LogIn, LogOut, Music, Pencil, Radio, ShieldCheck, Tag, User as UserIcon } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { NavContext, type Route } from './nav';
 import { Avatar, Spinner } from './components/ui';
 import { roleMeta } from './lib/db';
 import { InstallBanner, InstallLink } from './components/InstallApp';
+import { AdminScreen } from './screens/admin/AdminScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { AudioScreen } from './screens/AudioScreen';
 import { BandScreen } from './screens/BandScreen';
@@ -31,6 +32,8 @@ function parseHash(): Route {
     case 'login': return { name: 'auth', mode: 'login' };
     case 'signup': return { name: 'auth', mode: 'signup' };
     case 'welcome': return { name: 'onboarding' };
+    case 'admin': return { name: 'admin' };
+    case 'home': return b === 'admin' ? { name: 'admin' } : { name: 'home' };
     default: return { name: 'home' };
   }
 }
@@ -42,6 +45,7 @@ function toHash(r: Route): string {
     case 'profile': return r.id ? `#/profile/${r.id}` : '#/profile';
     case 'auth': return r.mode === 'signup' ? '#/signup' : '#/login';
     case 'onboarding': return '#/welcome';
+    case 'admin': return '#/home/admin';
     default: return `#/${r.name}`;
   }
 }
@@ -53,10 +57,10 @@ const TABS: { key: Route['name']; label: string; Icon: React.ElementType; route:
   { key: 'deals', label: 'Deals', Icon: Tag, route: { name: 'deals' } },
 ];
 const activeTab = (r: Route): Route['name'] =>
-  r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' || r.name === 'post' ? 'connect' : r.name;
+  r.name === 'admin' ? 'home' : r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' || r.name === 'post' ? 'connect' : r.name;
 
 const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
-  const { user, profile, band, signOut } = useAuth();
+  const { user, profile, band, isModerator, signOut } = useAuth();
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isArtist = profile?.role === 'artist';
@@ -107,6 +111,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
                     : item(Music, 'Create Band Page', () => go({ name: 'onboarding' })))}
                   {item(UserIcon, profile?.role === 'venue' ? 'My Venue Page' : 'My Profile', () => go({ name: 'profile' }))}
                   {item(Pencil, isArtist && band ? 'Edit Band Page' : 'Edit Profile', () => go(isArtist && band ? { name: 'band', id: band.id } : { name: 'profile' }))}
+                  {isModerator && item(ShieldCheck, 'Admin Panel', () => go({ name: 'admin' }))}
                   <div className="h-px bg-white/[0.08] my-1" />
                   {item(LogOut, 'Log Out', async () => { await signOut(); go({ name: 'home' }); }, true)}
                 </div>
@@ -172,6 +177,7 @@ const Shell: React.FC = () => {
     case 'deals': screen = <DealsScreen />; break;
     case 'playlist': screen = <PlaylistScreen key={view.id} id={view.id} />; break;
     case 'post': screen = <PostScreen key={view.id} id={view.id} />; break;
+    case 'admin': screen = <AdminScreen />; break;
     case 'auth': screen = <AuthScreen key={view.mode} initialMode={view.mode} />; break;
     case 'onboarding': screen = user ? <OnboardingScreen /> : <Spinner />; break;
   }

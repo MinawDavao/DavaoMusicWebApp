@@ -114,7 +114,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     <div className="px-3 py-4 space-y-6">
       <div className="flex items-center justify-between">
         <button onClick={() => go({ name: 'connect' })} className={`${btn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" /> Back to Feed</button>
-        <span className="px-2 py-0.5 rounded-full bg-[#53E6D4]/10 border border-[#53E6D4]/35 text-[#53E6D4] font-mono text-[10px] font-bold">{p.role === 'artist' ? 'Artist Account' : p.role === 'venue' ? 'Venue' : 'Davao Fan Profile'}</span>
+        <span className="px-2 py-0.5 rounded-full bg-[#53E6D4]/10 border border-[#53E6D4]/35 text-[#53E6D4] font-mono text-[10px] font-bold">{p.role === 'artist' ? 'Artist Account' : p.role === 'venue' ? 'Venue/Business' : 'Davao Fan Profile'}</span>
       </div>
 
       <div className="relative overflow-hidden rounded-3xl bg-[#1D232A] border border-white/[0.08] p-4 space-y-3">
@@ -318,7 +318,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
           {cardBg && <button type="button" onClick={() => setCardBg(null)} className={`${btn.ghost} !py-1.5 !text-xs`}><Trash2 className="w-3.5 h-3.5" />Remove</button>}
         </div>
       </div>
-      <Field label={isVenue ? 'Venue Name' : 'Display Name'} icon={Pencil} htmlFor="p-name"><input id="p-name" className={inputCls} value={f.display_name} onChange={set('display_name')} /></Field>
+      <Field label={isVenue ? 'Venue/Business Name' : 'Display Name'} icon={Pencil} htmlFor="p-name"><input id="p-name" className={inputCls} value={f.display_name} onChange={set('display_name')} /></Field>
       <Field label="Username" icon={AtSign} htmlFor="p-user" hint="lowercase, numbers, _"><input id="p-user" className={inputCls} value={f.username} onChange={(e) => setF({ ...f, username: toHandle(e.target.value) })} /></Field>
       <Field label={isVenue ? 'District' : 'Home District'} icon={MapPin} htmlFor="p-dist"><input id="p-dist" className={inputCls} value={f.district} onChange={set('district')} /></Field>
       <Field label={isVenue ? 'Description' : 'About Me'} icon={Pencil} htmlFor="p-bio" hint={`${f.bio.length} / 280`}><textarea id="p-bio" rows={4} maxLength={280} className={`${inputCls} py-3 resize-none`} value={f.bio} onChange={set('bio')} /></Field>
