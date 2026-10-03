@@ -7,11 +7,11 @@ export type Role = 'fan' | 'artist' | 'venue';
 export const ROLE_META: Record<Role, { label: string; text: string; chip: string; square: boolean }> = {
   fan:    { label: 'Fan',    text: 'text-[#53E6D4]', chip: 'bg-[#53E6D4]/15 text-[#53E6D4]', square: false },
   artist: { label: 'Artist', text: 'text-[#B7A8FF]', chip: 'bg-[#6045F4]/25 text-[#B7A8FF]', square: true },
-  venue:  { label: 'Venue',  text: 'text-[#FFC34D]', chip: 'bg-[#FFB800]/15 text-[#FFC34D]', square: true },
+  venue:  { label: 'Venue/Business',  text: 'text-[#FFC34D]', chip: 'bg-[#FFB800]/15 text-[#FFC34D]', square: true },
 };
 export const roleMeta = (r?: string | null) => ROLE_META[(r as Role) in ROLE_META ? (r as Role) : 'fan'];
 
-export const VENUE_TYPES = ['Bar / Pub', 'Café', 'Restaurant', 'Events Place', 'Concert Hall', 'Club', 'Studio', 'Outdoor / Park', 'Other'];
+export const VENUE_TYPES = ['Bar / Pub', 'Café', 'Restaurant', 'Events Place', 'Concert Hall', 'Club', 'Studio', 'Music Store', 'Lights & Sound', 'Event Organizer', 'Outdoor / Park', 'Other'];
 
 export interface Profile {
   id: string;
@@ -37,6 +37,28 @@ export interface Profile {
   venue_capacity: number | null;
   venue_contact: string | null;
   venue_map_url: string | null;
+}
+
+export interface Sponsor {
+  id: string;
+  title: string;
+  sponsor_name: string;
+  badge: string | null;
+  tagline: string | null;
+  details: string | null;
+  image_url: string | null;
+  cta_text: string;
+  promo_code: string | null;
+  link_url: string | null;
+  contact: string | null;
+  venue_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  clicks: number;
+  created_at: string;
+  venue?: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url'> | null;
 }
 
 export interface Band {
@@ -174,7 +196,7 @@ export const REPORT_REASONS: { key: ReportReason; label: string; sub: string }[]
 ];
 
 // ---------- Storage ----------
-export type ImageBucket = 'avatars' | 'banners' | 'band-photos' | 'post-images' | 'gear-photos';
+export type ImageBucket = 'avatars' | 'banners' | 'band-photos' | 'post-images' | 'gear-photos' | 'sponsors';
 
 const safeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9.\-_]/g, '-').slice(-60);
 

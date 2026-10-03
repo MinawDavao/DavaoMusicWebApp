@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Headphones, House, LogIn, LogOut, Music, Pencil, Radio, Tag, User as UserIcon } from 'lucide-react';
+import { Headphones, House, LogIn, LogOut, Music, Pencil, Radio, ShieldCheck, Tag, User as UserIcon } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { NavContext, type Route } from './nav';
 import { Avatar, Spinner } from './components/ui';
 import { roleMeta } from './lib/db';
+import { InstallBanner, InstallLink } from './components/InstallApp';
+import { AdminScreen } from './screens/admin/AdminScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { AudioScreen } from './screens/AudioScreen';
 import { BandScreen } from './screens/BandScreen';
@@ -30,6 +32,8 @@ function parseHash(): Route {
     case 'login': return { name: 'auth', mode: 'login' };
     case 'signup': return { name: 'auth', mode: 'signup' };
     case 'welcome': return { name: 'onboarding' };
+    case 'admin': return { name: 'admin' };
+    case 'home': return b === 'admin' ? { name: 'admin' } : { name: 'home' };
     default: return { name: 'home' };
   }
 }
@@ -41,6 +45,7 @@ function toHash(r: Route): string {
     case 'profile': return r.id ? `#/profile/${r.id}` : '#/profile';
     case 'auth': return r.mode === 'signup' ? '#/signup' : '#/login';
     case 'onboarding': return '#/welcome';
+    case 'admin': return '#/home/admin';
     default: return `#/${r.name}`;
   }
 }
@@ -52,10 +57,10 @@ const TABS: { key: Route['name']; label: string; Icon: React.ElementType; route:
   { key: 'deals', label: 'Deals', Icon: Tag, route: { name: 'deals' } },
 ];
 const activeTab = (r: Route): Route['name'] =>
-  r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' || r.name === 'post' ? 'connect' : r.name;
+  r.name === 'admin' ? 'home' : r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' || r.name === 'post' ? 'connect' : r.name;
 
 const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
-  const { user, profile, band, signOut } = useAuth();
+  const { user, profile, band, isModerator, signOut } = useAuth();
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isArtist = profile?.role === 'artist';
@@ -77,9 +82,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
       <div className="px-3.5 pt-3 pb-2.5 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <button onClick={() => go({ name: 'home' })} className="flex items-center gap-2.5 cursor-pointer" aria-label="MINAW DVO home">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#6045F4] to-[#53E6D4] p-0.5">
-              <div className="w-full h-full bg-[#0F1417] rounded-[10px] flex items-center justify-center"><Music className="w-4 h-4 text-[#53E6D4]" /></div>
-            </div>
+            <img src="/minaw-logo.png.png" alt="" className="h-9 w-auto" />
             <span className="font-heading font-extrabold text-base tracking-wider"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DVO</span></span>
           </button>
 
@@ -108,6 +111,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
                     : item(Music, 'Create Band Page', () => go({ name: 'onboarding' })))}
                   {item(UserIcon, profile?.role === 'venue' ? 'My Venue Page' : 'My Profile', () => go({ name: 'profile' }))}
                   {item(Pencil, isArtist && band ? 'Edit Band Page' : 'Edit Profile', () => go(isArtist && band ? { name: 'band', id: band.id } : { name: 'profile' }))}
+                  {isModerator && item(ShieldCheck, 'Admin Panel', () => go({ name: 'admin' }))}
                   <div className="h-px bg-white/[0.08] my-1" />
                   {item(LogOut, 'Log Out', async () => { await signOut(); go({ name: 'home' }); }, true)}
                 </div>
@@ -173,6 +177,7 @@ const Shell: React.FC = () => {
     case 'deals': screen = <DealsScreen />; break;
     case 'playlist': screen = <PlaylistScreen key={view.id} id={view.id} />; break;
     case 'post': screen = <PostScreen key={view.id} id={view.id} />; break;
+    case 'admin': screen = <AdminScreen />; break;
     case 'auth': screen = <AuthScreen key={view.mode} initialMode={view.mode} />; break;
     case 'onboarding': screen = user ? <OnboardingScreen /> : <Spinner />; break;
   }
@@ -182,12 +187,14 @@ const Shell: React.FC = () => {
       <div className="min-h-screen bg-[#07090D] text-[#EBEBED] font-sans">
         <div className="w-full max-w-[480px] mx-auto min-h-screen flex flex-col bg-[#0F1417] sm:border-x sm:border-white/10">
           <Header route={view} go={go} />
+          {view.name !== 'auth' && view.name !== 'onboarding' && <InstallBanner />}
           <main className="flex-1">{screen}</main>
           <footer className="pt-7 pb-36 px-4 border-t border-white/10 bg-[#161B20] text-[#8E9AA7] space-y-3">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-[#6045F4] flex items-center justify-center text-white"><Music className="w-3.5 h-3.5" /></div>
+              <img src="/minaw-logo.png.png" alt="" className="h-6 w-auto" />
               <span className="font-heading font-bold text-sm"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DVO</span></span>
             </div>
+            <InstallLink />
             <p className="text-[11px] leading-relaxed">Dedicated local music platform for Davao City &amp; Southern Mindanao. Connect with local bands, discover gigs, and grab gear deals.</p>
             <p className="text-[10px] pt-2 border-t border-white/5">© 2026 MINAW DVO • Made for Davao musicians and fans.</p>
           </footer>

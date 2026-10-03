@@ -10,7 +10,8 @@ export type Route =
   | { name: 'playlist'; id: string }
   | { name: 'post'; id: string }
   | { name: 'auth'; mode?: 'login' | 'signup' }
-  | { name: 'onboarding' };
+  | { name: 'onboarding' }
+  | { name: 'admin' };
 
 export const NavContext = createContext<(r: Route) => void>(() => {});
 export const useNav = () => useContext(NavContext);
