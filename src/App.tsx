@@ -8,7 +8,8 @@ import { roleMeta } from './lib/db';
 import { HomeScreen } from './screens/HomeScreen';
 import { AudioScreen } from './screens/AudioScreen';
 import { BandScreen } from './screens/BandScreen';
-import { ConnectScreen } from './screens/ConnectScreen';
+import { ConnectScreen, PostScreen } from './screens/ConnectScreen';
+import { NotificationBell } from './components/Notifications';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { DealsScreen } from './screens/DealsScreen';
 import { AuthScreen } from './screens/AuthScreen';
@@ -25,6 +26,7 @@ function parseHash(): Route {
     case 'profile': return { name: 'profile', id: b || undefined };
     case 'deals': return { name: 'deals' };
     case 'playlist': return b ? { name: 'playlist', id: b } : { name: 'audio' };
+    case 'post': return b ? { name: 'post', id: b } : { name: 'connect' };
     case 'login': return { name: 'auth', mode: 'login' };
     case 'signup': return { name: 'auth', mode: 'signup' };
     case 'welcome': return { name: 'onboarding' };
@@ -35,6 +37,7 @@ function toHash(r: Route): string {
   switch (r.name) {
     case 'band': return `#/band/${r.id}`;
     case 'playlist': return `#/playlist/${r.id}`;
+    case 'post': return `#/post/${r.id}`;
     case 'profile': return r.id ? `#/profile/${r.id}` : '#/profile';
     case 'auth': return r.mode === 'signup' ? '#/signup' : '#/login';
     case 'onboarding': return '#/welcome';
@@ -49,7 +52,7 @@ const TABS: { key: Route['name']; label: string; Icon: React.ElementType; route:
   { key: 'deals', label: 'Deals', Icon: Tag, route: { name: 'deals' } },
 ];
 const activeTab = (r: Route): Route['name'] =>
-  r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' ? 'connect' : r.name;
+  r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' || r.name === 'post' ? 'connect' : r.name;
 
 const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
   const { user, profile, band, signOut } = useAuth();
@@ -86,6 +89,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </button>
           ) : (
             <div className="relative flex items-center gap-2" ref={ref}>
+              <NotificationBell />
               <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 ${roleMeta(profile?.role).chip}`}>{roleMeta(profile?.role).label}</span>
               <button onClick={() => setMenu(!menu)} aria-haspopup="menu" aria-expanded={menu} aria-label="Open profile menu" className="cursor-pointer">
                 <Avatar src={profile?.avatar_url} name={profile?.display_name} size={38} square={roleMeta(profile?.role).square} ring />
@@ -168,6 +172,7 @@ const Shell: React.FC = () => {
     case 'profile': screen = <ProfileScreen key={view.id || 'me'} id={view.id} />; break;
     case 'deals': screen = <DealsScreen />; break;
     case 'playlist': screen = <PlaylistScreen key={view.id} id={view.id} />; break;
+    case 'post': screen = <PostScreen key={view.id} id={view.id} />; break;
     case 'auth': screen = <AuthScreen key={view.mode} initialMode={view.mode} />; break;
     case 'onboarding': screen = user ? <OnboardingScreen /> : <Spinner />; break;
   }

@@ -7,7 +7,6 @@ import { useNav } from '../nav';
 import { ZoomImg } from '../components/Zoom';
 import { MentionInput, MentionText } from '../components/Mentions';
 import { ReportModal } from '../components/ReportModal';
-import { VenuePicker, type VenuePick } from '../components/VenuePicker';
 import { Avatar, EmptyState, ErrorNote, FilePick, Spinner, btn, inputCls } from '../components/ui';
 
 type Reaction = 'rock' | 'fire' | 'orchid';
@@ -40,7 +39,7 @@ const PlaylistEmbed: React.FC<{ pl: any }> = ({ pl }) => {
 };
 
 /** Connect feed. Pass authorId to show only one person’s posts (used on profiles), or taggedVenue for posts that tag a venue. */
-export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; taggedVenue?: { id: string; username: string } }> = ({ authorId, showComposer = true, taggedVenue }) => {
+export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; taggedVenue?: { id: string; username: string }; postId?: string }> = ({ authorId, showComposer = true, taggedVenue, postId }) => {
   const go = useNav();
   const { user, profile, termsAccepted } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -56,6 +55,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
   const load = useCallback(async () => {
     let q = supabase.from('posts').select(POST_COLS).order('created_at', { ascending: false }).limit(50);
     if (authorId) q = q.eq('author_id', authorId);
+    if (postId) q = q.eq('id', postId);
     if (taggedVenue) q = q.or(`venue_id.eq.${taggedVenue.id},content.ilike.%@${taggedVenue.username}%`).neq('author_id', taggedVenue.id);
     const { data, error } = await q;
     setLoadErr(error ? 'Couldn’t load posts: ' + error.message : null);
@@ -73,7 +73,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
       setCommentCounts(cc);
     } else { setReacts([]); setCommentCounts({}); }
     setLoading(false);
-  }, [authorId, taggedVenue?.id, taggedVenue?.username]);
+  }, [authorId, taggedVenue?.id, taggedVenue?.username, postId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -130,7 +130,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
 
       <ErrorNote text={loadErr} />
       {loading ? <Spinner /> : posts.length === 0 ? (
-        <EmptyState icon={MessageCircle} title={taggedVenue ? 'No tagged posts yet' : 'No posts yet'} text={taggedVenue ? 'Posts that tag this venue will show up here.' : authorId ? 'Nothing posted here yet.' : 'Be the first to share a gig update or concert photo with the Davao scene.'} />
+        <EmptyState icon={MessageCircle} title={postId ? 'This post isn’t available' : taggedVenue ? 'No tagged posts yet' : 'No posts yet'} text={postId ? 'It may have been deleted or removed by moderators.' : taggedVenue ? 'Posts that tag this venue will show up here.' : authorId ? 'Nothing posted here yet.' : 'Be the first to share a gig update or concert photo with the Davao scene.'} />
       ) : posts.map((p) => {
         const mineAll = reacts.filter((x) => x.post_id === p.id);
         const total = mineAll.length;
@@ -193,7 +193,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
                 </button>
               )}
             </div>
-            <Comments postId={p.id} onReport={(id) => setReport({ type: 'comment', id })} onChange={load} />
+            <Comments postId={p.id} startOpen={!!postId} onReport={(id) => setReport({ type: 'comment', id })} onChange={load} />
           </article>
         );
       })}
@@ -208,7 +208,6 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
 export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string; name: string; ownerName?: string } }> = ({ onPosted, playlist }) => {
   const { user, profile } = useAuth();
   const [text, setText] = useState(playlist ? 'Check out this playlist: ' : '');
-  const [venue, setVenue] = useState<VenuePick>({ id: null, name: '' });
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
@@ -221,11 +220,11 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
     try {
       const image_url = image ? await uploadImage('post-images', user.id, image) : null;
       const { error } = await supabase.from('posts').insert({
-        author_id: user.id, content: text.trim(), image_url, venue_tag: venue.name.trim() || null, venue_id: venue.id, district_tag: profile?.district || null,
+        author_id: user.id, content: text.trim(), image_url, district_tag: profile?.district || null,
         playlist_id: playlist?.id ?? null,
       });
       if (error) throw error;
-      setText(''); setVenue({ id: null, name: '' }); setImage(null); setPreview(null);
+      setText(''); setImage(null); setPreview(null);
       onPosted();
     } catch (e) { setErr(errorMessage(e)); }
     setBusy(false);
@@ -250,7 +249,6 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
           <button onClick={() => { setImage(null); setPreview(null); }} aria-label="Remove photo" className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-black/70 text-white flex items-center justify-center cursor-pointer"><X className="w-4 h-4" /></button>
         </div>
       )}
-      <VenuePicker value={venue} onChange={setVenue} />
       <ErrorNote text={err} />
       <div className="flex items-center gap-2">
         <FilePick accept="image/jpeg,image/png,image/webp,image/gif" onPick={(f) => {
@@ -264,10 +262,10 @@ export const Composer: React.FC<{ onPosted: () => void; playlist?: { id: string;
   );
 };
 
-const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onChange: () => void }> = ({ postId, onReport, onChange }) => {
+const Comments: React.FC<{ postId: string; startOpen?: boolean; onReport: (id: string) => void; onChange: () => void }> = ({ postId, startOpen = false, onReport, onChange }) => {
   const go = useNav();
   const { user, termsAccepted } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [list, setList] = useState<Comment[]>([]);
   const [text, setText] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -336,6 +334,17 @@ const Comments: React.FC<{ postId: string; onReport: (id: string) => void; onCha
         <button onClick={() => go({ name: user ? 'onboarding' : 'auth' })} className="text-xs text-[#53E6D4] underline cursor-pointer">{user ? 'Accept the Terms to comment' : 'Log in to comment'}</button>
       )}
       <ErrorNote text={err} />
+    </div>
+  );
+};
+
+/** One post on its own page (opened from a notification or a shared link). */
+export const PostScreen: React.FC<{ id: string }> = ({ id }) => {
+  const go = useNav();
+  return (
+    <div className="px-3 py-4 space-y-3">
+      <button onClick={() => go({ name: 'connect' })} className={`${btn.ghost} !py-2 !text-xs`}>← Back to Feed</button>
+      <ConnectFeed postId={id} showComposer={false} />
     </div>
   );
 };

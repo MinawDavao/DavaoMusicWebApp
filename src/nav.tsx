@@ -8,6 +8,7 @@ export type Route =
   | { name: 'profile'; id?: string }
   | { name: 'deals' }
   | { name: 'playlist'; id: string }
+  | { name: 'post'; id: string }
   | { name: 'auth'; mode?: 'login' | 'signup' }
   | { name: 'onboarding' };
 

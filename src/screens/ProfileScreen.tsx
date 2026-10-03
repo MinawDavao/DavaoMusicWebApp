@@ -14,6 +14,7 @@ import { GenrePicker } from '../components/GenrePicker';
 import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
 import { Testimonials } from '../components/Testimonials';
+import { CardBackdrop, CardBackgroundAdjuster, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { VenueFields, checkVenue, venueInfoFrom, venuePatch } from '../components/VenueFields';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, SectionHead, Spinner, btn, inputCls } from '../components/ui';
 
@@ -117,7 +118,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       </div>
 
       <div className="relative overflow-hidden rounded-3xl bg-[#1D232A] border border-white/[0.08] p-4 space-y-3">
-        {p.card_bg_url && !(editing && isMe) && <CardBackdrop url={p.card_bg_url} />}
+        {p.card_bg_url && !(editing && isMe) && <CardBackdrop url={p.card_bg_url} crop={p.card_bg_crop} />}
         {editing && isMe ? (
           <EditProfile profile={p} bandId={theirBand?.id} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); setSaved(true); await refresh(); load(); }} />
         ) : (
@@ -249,6 +250,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
   });
   const [avatar, setAvatar] = useState(profile.avatar_url);
   const [cardBg, setCardBg] = useState(profile.card_bg_url);
+  const [crop, setCrop] = useState<CardCrop>(cropOf(profile.card_bg_crop));
   const [bgBusy, setBgBusy] = useState(false);
   const [vinfo, setVinfo] = useState(venueInfoFrom(profile));
   const isVenue = profile.role === 'venue';
@@ -267,7 +269,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
     const { error } = await supabase.from('profiles').update({
       display_name: f.display_name.trim(), username: toHandle(f.username), district: f.district.trim() || null, bio: f.bio.trim() || null,
       instagram: f.instagram.trim() || null, facebook: f.facebook.trim() || null, avatar_url: avatar, show_rsvps: rsvps,
-      card_bg_url: cardBg, ...(isVenue ? venuePatch(vinfo) : {}),
+      card_bg_url: cardBg, card_bg_crop: cardBg ? crop : null, ...(isVenue ? venuePatch(vinfo) : {}),
     }).eq('id', user!.id);
     if (!error && bandId) {
       try { if (genresLoaded) await setBandGenres(bandId, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
@@ -298,11 +300,10 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
       </div>
       <div className="space-y-2 p-3 rounded-2xl bg-[#0F1417] border border-white/15">
         <p className="flex items-center gap-1.5 text-[13px] font-bold text-white"><ImageIcon className="w-4 h-4 text-[#53E6D4]" />Card background</p>
-        <p className="text-[11px] text-[#8E9AA7]">A photo that softly fades in behind the right side of your profile card. Landscape photos look best.</p>
-        <div className="relative h-24 rounded-xl overflow-hidden bg-[#1D232A] border border-white/10">
-          {cardBg ? <CardBackdrop url={cardBg} /> : <span className="absolute inset-0 flex items-center justify-center text-[11px] text-[#8E9AA7]">No background yet</span>}
-          <span className="absolute left-3 top-1/2 -translate-y-1/2"><Avatar src={avatar} name={f.display_name} size={44} square={roleMeta(profile.role).square} /></span>
-        </div>
+        <p className="text-[11px] text-[#8E9AA7]">A photo that softly fades in behind the right side of your profile card. {cardBg ? 'Drag the photo to choose which part shows, and zoom with the slider.' : 'Landscape photos look best.'}</p>
+        {cardBg
+          ? <CardBackgroundAdjuster url={cardBg} crop={crop} onChange={setCrop} avatar={avatar} name={f.display_name} square={roleMeta(profile.role).square} />
+          : <div className="h-16 rounded-xl bg-[#1D232A] border border-dashed border-white/15 flex items-center justify-center text-[11px] text-[#8E9AA7]">No background yet</div>}
         <div className="flex gap-2">
           <FilePick accept="image/jpeg,image/png,image/webp" disabled={bgBusy} onPick={async (file) => {
             const bad = checkFile(file, 'image'); if (bad) return setErr(bad);
@@ -310,7 +311,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
             try {
               const url = await uploadImage('banners', user!.id, file);
               if (cardBg && cardBg !== profile.card_bg_url) await removeImageByUrl(cardBg); // an unsaved earlier pick
-              setCardBg(url);
+              setCardBg(url); setCrop(DEFAULT_CROP);
             } catch (e) { setErr(errorMessage(e)); }
             setBgBusy(false);
           }} className={`${btn.ghost} !py-1.5 !text-xs`}><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />{bgBusy ? 'Uploading…' : cardBg ? 'Change image' : 'Upload image'}</FilePick>
@@ -332,23 +333,6 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
         <button onClick={onCancel} className={`${btn.ghost} flex-1`}>Cancel</button>
         <button onClick={save} disabled={busy} className={`${btn.mint} flex-1`}><Check className="w-4 h-4" />{busy ? 'Saving…' : 'Save Changes'}</button>
       </div>
-    </div>
-  );
-};
-
-/** Soft background photo on the right side of a profile card, fading out toward the avatar and the bottom. */
-const CardBackdrop: React.FC<{ url: string }> = ({ url }) => {
-  const fadeLeft = 'linear-gradient(to left, #000 25%, transparent 95%)';
-  const fadeDown = 'linear-gradient(to bottom, #000 40%, transparent 100%)';
-  return (
-    <div aria-hidden="true" className="absolute top-0 right-0 h-64 w-[75%] pointer-events-none" style={{ maskImage: fadeDown, WebkitMaskImage: fadeDown }}>
-      <div
-        className="w-full h-full"
-        style={{
-          backgroundImage: `url("${url.replace(/"/g, '%22')}")`, backgroundSize: 'cover', backgroundPosition: 'center',
-          opacity: 0.32, maskImage: fadeLeft, WebkitMaskImage: fadeLeft,
-        }}
-      />
     </div>
   );
 };

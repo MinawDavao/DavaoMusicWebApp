@@ -31,6 +31,7 @@ export interface Profile {
   is_suspended: boolean;
   created_at: string;
   card_bg_url: string | null;
+  card_bg_crop: { x: number; y: number; zoom: number } | null;
   venue_type: string | null;
   venue_address: string | null;
   venue_capacity: number | null;
