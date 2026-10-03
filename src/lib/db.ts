@@ -287,7 +287,7 @@ export function errorMessage(e: any): string {
   if (/duplicate key.*username/i.test(msg) || /profiles_username_key/.test(msg)) return 'That username is already taken.';
   if (/bands_handle_key/.test(msg)) return 'That band username is already taken.';
   if (/bands_owner_id_key/.test(msg)) return 'You already have a band page — refresh the page to edit it.';
-  if (/row-level security/i.test(msg)) return 'You don’t have permission to do that yet. Make sure you’ve accepted the Terms and are logged in.';
+  if (/row-level security/i.test(msg)) return 'You can’t do that here. This can happen if one of you has blocked the other, or if you haven’t accepted the Terms yet.';
   if (/Upload limit reached/i.test(msg)) return 'Upload limit reached: 3 tracks max for now.';
   if (/check constraint.*username/i.test(msg)) return 'Username must be 3–30 characters: lowercase letters, numbers or _.';
   if (/check constraint.*handle/i.test(msg)) return 'Band username must be 3–30 characters: lowercase letters, numbers or _.';

@@ -75,15 +75,47 @@ export const MentionText: React.FC<{ text: string; className?: string; plain?: b
 // ---------------------------------------------------------------- input with @ suggestions
 type Suggest = { id: string; username: string; display_name: string; avatar_url: string | null; role: string };
 
-/** Textarea / input that suggests fans & artists when you type “@”. */
+const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Saved text uses @username (unique); the box shows @Display Name. These convert between the two. */
+function toDisplay(stored: string, names: Map<string, string>): string {
+  return stored.replace(MENTION_RE, (all, pre: string, uname: string) => {
+    const who = cache.get(uname.toLowerCase());
+    if (!who) return all;
+    names.set(who.display_name, who.username);
+    return `${pre}@${who.display_name}`;
+  });
+}
+function toStored(shown: string, names: Map<string, string>): string {
+  let out = shown;
+  // longest names first so "@Juan Dela Cruz" wins over "@Juan"
+  [...names.keys()].sort((x, y) => y.length - x.length).forEach((name) => {
+    out = out.replace(new RegExp(`(^|[^\\w@])@${escapeRe(name)}(?![\\w])`, 'g'), `$1@${names.get(name)}`);
+  });
+  return out;
+}
+
+/** Textarea / input that suggests fans, artists and venues when you type “@”. Shows names; saves @username. */
 export const MentionInput: React.FC<{
   value: string; onChange: (v: string) => void; placeholder?: string; rows?: number; single?: boolean;
   className?: string; ariaLabel: string; onEnter?: () => void;
 }> = ({ value, onChange, placeholder, rows = 3, single = false, className = '', ariaLabel, onEnter }) => {
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
+  const names = useRef(new Map<string, string>());       // "Merkaba" -> "derwelleumbao_c9420"
+  const [shown, setShown] = useState(() => toDisplay(value, names.current));
   const [query, setQuery] = useState<string | null>(null);
   const [list, setList] = useState<Suggest[]>([]);
   const [hi, setHi] = useState(0);
+
+  // Keep the box in sync when the saved value changes from outside (cleared after posting, loaded for editing…)
+  useEffect(() => {
+    if (toStored(shown, names.current) === value) return;
+    setShown(toDisplay(value, names.current));
+    const unames = [...value.matchAll(MENTION_RE)].map((m) => m[2].toLowerCase());
+    if (unames.length) resolve(unames).then(() => setShown(toDisplay(value, names.current)));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = (v: string) => { setShown(v); onChange(toStored(v, names.current)); };
 
   const detect = (v: string, caret: number) => {
     const before = v.slice(0, caret);
@@ -107,11 +139,11 @@ export const MentionInput: React.FC<{
 
   const pick = (s: Suggest) => {
     const el = ref.current;
-    const caret = el?.selectionStart ?? value.length;
-    const before = value.slice(0, caret).replace(/@([a-z0-9_]{0,30})$/i, `@${s.username} `);
-    const next = before + value.slice(caret);
-    onChange(next);
+    const caret = el?.selectionStart ?? shown.length;
+    names.current.set(s.display_name, s.username);
     cache.set(s.username, { id: s.id, username: s.username, display_name: s.display_name, role: s.role as any });
+    const before = shown.slice(0, caret).replace(/@([a-z0-9_]{0,30})$/i, `@${s.display_name} `);
+    update(before + shown.slice(caret));
     setQuery(null);
     requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(before.length, before.length); });
   };
@@ -129,10 +161,10 @@ export const MentionInput: React.FC<{
   const common = {
     ref,
     'aria-label': ariaLabel,
-    value,
+    value: shown,
     placeholder,
     onKeyDown: onKey,
-    onChange: (e: any) => { onChange(e.target.value); detect(e.target.value, e.target.selectionStart ?? e.target.value.length); },
+    onChange: (e: any) => { update(e.target.value); detect(e.target.value, e.target.selectionStart ?? e.target.value.length); },
     onClick: (e: any) => detect(e.target.value, e.target.selectionStart ?? 0),
     onBlur: () => setTimeout(() => setQuery(null), 150),
     className,

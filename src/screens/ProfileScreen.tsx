@@ -14,6 +14,7 @@ import { GenrePicker } from '../components/GenrePicker';
 import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
 import { Testimonials } from '../components/Testimonials';
+import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
 import { CardBackdrop, CardBackgroundAdjuster, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { VenueFields, checkVenue, venueInfoFrom, venuePatch } from '../components/VenueFields';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, SectionHead, Spinner, btn, inputCls } from '../components/ui';
@@ -34,6 +35,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [report, setReport] = useState(false);
+  const { block, reload: reloadBlock } = useMyBlock(targetId && targetId !== user?.id ? targetId : undefined);
   type Person = { id: string; display_name: string; avatar_url: string | null; role: string };
   const [fans, setFans] = useState<Person[]>([]);       // people who follow this profile
   const [followingPeople, setFollowingPeople] = useState<Person[]>([]);
@@ -117,6 +119,8 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
         <span className="px-2 py-0.5 rounded-full bg-[#53E6D4]/10 border border-[#53E6D4]/35 text-[#53E6D4] font-mono text-[10px] font-bold">{p.role === 'artist' ? 'Artist Account' : p.role === 'venue' ? 'Venue/Business' : 'Davao Fan Profile'}</span>
       </div>
 
+      {block && !isMe && <BlockedBanner block={block} name={p.display_name} onChange={() => { reloadBlock(); load(); }} />}
+
       <div className="relative overflow-hidden rounded-3xl bg-[#1D232A] border border-white/[0.08] p-4 space-y-3">
         {p.card_bg_url && !(editing && isMe) && <CardBackdrop url={p.card_bg_url} crop={p.card_bg_crop} />}
         {editing && isMe ? (
@@ -129,10 +133,11 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
                 ? <button onClick={() => { setSaved(false); setEditing(true); }} className={`${btn.ghost} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Edit Profile</button>
                 : (
                   <div className="flex gap-1.5">
-                    <button onClick={toggleFollow} disabled={followBusy} className={`${iFollow ? btn.ghost : btn.primary} !py-2 !text-xs`}>
+                    <button onClick={toggleFollow} disabled={followBusy || !!block} className={`${iFollow ? btn.ghost : btn.primary} !py-2 !text-xs`}>
                       {iFollow ? <><UserMinus className="w-3.5 h-3.5" />Following</> : <><UserPlus className="w-3.5 h-3.5" />Follow</>}
                     </button>
                     {user && <button onClick={() => setReport(true)} aria-label="Report profile" className={btn.icon}><Flag className="w-4 h-4" /></button>}
+                    {user && <BlockMenu targetId={p.id} name={p.display_name} onChange={() => { reloadBlock(); load(); }} />}
                   </div>
                 )}
             </div>
@@ -224,6 +229,8 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       )}
 
       <Playlists ownerId={p.id} isMe={isMe} />
+
+      {isMe && <BlockedList />}
 
       {p.role === 'venue' && (
         <section className="space-y-2.5">
