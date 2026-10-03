@@ -11,6 +11,7 @@ import { useNav } from '../nav';
 import { GigCard, TrackRow } from '../components/cards';
 import { MembersEditor } from '../components/MembersEditor';
 import { Testimonials } from '../components/Testimonials';
+import { CoverField, CoverPhoto, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { GenrePicker } from '../components/GenrePicker';
 import { ZoomImg } from '../components/Zoom';
 import { setBandGenres } from '../lib/genres';
@@ -129,9 +130,9 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {/* HERO */}
       <div className="rounded-3xl bg-[#1D232A] border border-white/[0.08] overflow-hidden">
-        <div className="h-36 bg-[#252D37] overflow-hidden">{band.banner_url && <ZoomImg src={band.banner_url} alt={`${band.name} banner`} className="w-full h-36 object-cover" />}</div>
+        <CoverPhoto url={band.banner_url} crop={band.banner_crop} alt={`${band.name} cover photo`} />
         <div className="px-4 pb-4 space-y-3">
-          <div className="flex items-end justify-between gap-3 -mt-10">
+          <div className="relative z-10 flex items-end justify-between gap-3 -mt-10">
             {band.logo_url ? <span className="relative z-10 w-20"><ZoomImg src={band.logo_url} alt={`${band.name} logo`} className="w-20 h-20 rounded-xl object-cover ring-2 ring-[#53E6D4] bg-[#252D37]" /></span> : <Avatar src={null} name={band.name} size={80} square ring />}
             {isOwner ? (
               <button onClick={() => setEditing(true)} className={`${btn.ghost} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" /> Edit Profile</button>
@@ -302,6 +303,8 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
   });
   const [logo, setLogo] = useState(band.logo_url);
   const [banner, setBanner] = useState(band.banner_url);
+  const [bannerCrop, setBannerCrop] = useState<CardCrop>(cropOf(band.banner_crop));
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [open, setOpen] = useState(band.open_for_bookings);
   const [genres, setGenres] = useState<string[]>(genreNames(band));
   const [busy, setBusy] = useState(false);
@@ -320,7 +323,7 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
       name: f.name.trim(), handle: toHandle(f.handle), home_base: f.home_base.trim() || null, year_formed: f.year_formed ? Number(f.year_formed) : null,
       bio: f.bio.trim() || null, influences: f.influences.trim() || null, booking_email: f.booking_email.trim() || null, mobile: f.mobile.trim() || null,
       facebook: f.facebook.trim() || null, instagram: f.instagram.trim() || null, streaming_url: f.streaming_url.trim() || null,
-      open_for_bookings: open, logo_url: logo, banner_url: banner,
+      open_for_bookings: open, logo_url: logo, banner_url: banner, banner_crop: banner ? bannerCrop : null,
     }).eq('id', band.id);
     if (error) { setBusy(false); return setErr(errorMessage(error)); }
     try { await setBandGenres(band.id, genres); } catch (e) { setBusy(false); return setErr(errorMessage(e)); }
@@ -334,9 +337,20 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
 
   return (
     <Modal title="Edit Band Profile" onClose={onClose}>
-      <FilePick accept="image/jpeg,image/png,image/webp" onPick={img('banners', setBanner)} className="block w-full h-24 rounded-2xl border-[1.5px] border-dashed border-white/15 bg-[#0F1417] overflow-hidden cursor-pointer">
-        {banner ? <img src={banner} alt="Banner" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center gap-1.5 text-xs font-bold text-[#8E9AA7]"><Camera className="w-4 h-4" />Change banner</span>}
-      </FilePick>
+      <CoverField
+        url={banner} crop={bannerCrop} onCrop={setBannerCrop} uploading={uploadingCover} logo={logo} name={f.name}
+        onRemove={() => setBanner(null)}
+        onPick={async (file) => {
+          const bad = checkFile(file, 'image'); if (bad) return setErr(bad);
+          setUploadingCover(true); setErr(null);
+          try {
+            const url = await uploadImage('banners', user!.id, file);
+            if (banner && banner !== band.banner_url) await removeImageByUrl(banner); // an unsaved earlier pick
+            setBanner(url); setBannerCrop(DEFAULT_CROP);
+          } catch (e) { setErr(errorMessage(e)); }
+          setUploadingCover(false);
+        }}
+      />
       <div className="flex items-center gap-3">
         <Avatar src={logo} name={f.name} size={64} square ring />
         <FilePick accept="image/jpeg,image/png,image/webp" onPick={img('avatars', setLogo)} className={`${btn.ghost} !py-1.5 !text-xs`}><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />Change image</FilePick>

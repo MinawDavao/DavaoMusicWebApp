@@ -11,6 +11,7 @@ import { TermsText } from '../components/TermsText';
 import { MAX_TRACKS, MusicRightsGate, uploadTrack } from '../components/TrackUpload';
 import { GenrePicker } from '../components/GenrePicker';
 import { MembersEditor } from '../components/MembersEditor';
+import { CoverField, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { setBandGenres } from '../lib/genres';
 import { Avatar, ErrorNote, Field, FilePick, btn, inputCls } from '../components/ui';
 import { VenueFields, checkVenue, venueInfoFrom, venuePatch } from '../components/VenueFields';
@@ -218,6 +219,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
   const [genres, setGenres] = useState<{ id: number; name: string }[]>([]);
   const [logo, setLogo] = useState<string | null>(band?.logo_url ?? profile?.avatar_url ?? null);
   const [banner, setBanner] = useState<string | null>(band?.banner_url ?? null);
+  const [bannerCrop, setBannerCrop] = useState<CardCrop>(cropOf(band?.banner_crop));
   const [name, setName] = useState(band?.name ?? profile?.display_name ?? '');
   const [handle, setHandle] = useState(band?.handle ?? toHandle(profile?.display_name ?? ''));
   const [base, setBase] = useState(band?.home_base ?? '');
@@ -260,7 +262,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
     try {
       setStatus('Saving band page…');
       const row = {
-        owner_id: user.id, name: name.trim(), handle: toHandle(handle), logo_url: logo, banner_url: banner,
+        owner_id: user.id, name: name.trim(), handle: toHandle(handle), logo_url: logo, banner_url: banner, banner_crop: banner ? bannerCrop : null,
         home_base: base.trim() || null, year_formed: year ? Number(year) : null, bio: bio.trim() || null,
         influences: influences.trim() || null, booking_email: email.trim() || null, mobile: mobile.trim() || null,
         facebook: fb.trim() || null, instagram: ig.trim() || null, streaming_url: stream.trim() || null, open_for_bookings: bookings,
@@ -317,11 +319,12 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
   return (
     <div className="space-y-3.5">
       <Section title="Band Image" sub="Your logo or band photo, plus a banner for your page">
-        <FilePick accept="image/jpeg,image/png,image/webp" onPick={pickImage('banners', setBanner)} className="block w-full h-28 rounded-2xl border-[1.5px] border-dashed border-white/15 bg-[#0F1417] overflow-hidden cursor-pointer">
-          {banner ? <img src={banner} alt="Banner" className="w-full h-full object-cover" /> : (
-            <span className="w-full h-full flex flex-col items-center justify-center gap-1 text-[#8E9AA7] text-xs font-bold"><Camera className="w-5 h-5" />Add cover banner</span>
-          )}
-        </FilePick>
+        <CoverField
+          url={banner} crop={bannerCrop} onCrop={setBannerCrop} uploading={uploading} logo={logo} name={name}
+          onRemove={() => setBanner(null)}
+          onPick={pickImage('banners', (u) => { setBanner(u); setBannerCrop(DEFAULT_CROP); })}
+        />
+        <div className="h-4" />
         <div className="flex items-center gap-3.5">
           <Avatar src={logo} name={name} size={80} square ring />
           <div className="space-y-1.5">

@@ -68,6 +68,7 @@ export interface Band {
   handle: string;
   logo_url: string | null;
   banner_url: string | null;
+  banner_crop?: { x: number; y: number; zoom: number } | null;
   home_base: string | null;
   year_formed: number | null;
   bio: string | null;

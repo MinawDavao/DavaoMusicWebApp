@@ -6,6 +6,7 @@ import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts, fetchTopBands, fetchUpcomingG
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { SponsoredSpotlight } from '../components/SponsoredSpotlight';
+import { Photo, cropOf } from '../components/CardBackground';
 import { BandRow, GigCard } from '../components/cards';
 import { EmptyState, SectionHead, Spinner, btn } from '../components/ui';
 
@@ -72,8 +73,10 @@ export const HomeScreen: React.FC = () => {
         ) : (
           <div className="rounded-3xl bg-[#1D232A] border border-white/[0.08] overflow-hidden">
             <div className="relative h-48 bg-[#252D37]">
-              {band.banner_url || band.logo_url
-                ? <img src={band.banner_url || band.logo_url!} alt="" className="w-full h-full object-cover" />
+              {band.banner_url
+                ? <div className="absolute inset-0 overflow-hidden"><Photo url={band.banner_url} crop={cropOf(band.banner_crop)} /></div>
+                : band.logo_url
+                ? <img src={band.logo_url} alt="" className="w-full h-full object-cover" />
                 : <div className="w-full h-full flex items-center justify-center text-[#8E9AA7]"><Music className="w-8 h-8" /></div>}
               {band.home_base && (
                 <span className="absolute top-3 left-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/70 border border-white/15 text-[10px] font-bold"><MapPin className="w-3 h-3" />{band.home_base}</span>
