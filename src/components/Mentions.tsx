@@ -33,7 +33,7 @@ function resolve(usernames: string[]): Promise<void> {
 const MENTION_RE = /(^|[^a-z0-9_@])@([a-z0-9_]{3,30})/gi;
 
 /** Post / comment text with @username tags shown bold and colored (fans mint, artists purple). */
-export const MentionText: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
+export const MentionText: React.FC<{ text: string; className?: string; plain?: boolean }> = ({ text, className = '', plain = false }) => {
   const go = useNav();
   const [, force] = useState(0);
   const names = [...text.matchAll(MENTION_RE)].map((m) => m[2].toLowerCase());
@@ -49,16 +49,18 @@ export const MentionText: React.FC<{ text: string; className?: string }> = ({ te
     const uname = m[2].toLowerCase();
     parts.push(text.slice(last, start));
     const who = cache.get(uname);
-    if (who) {
+    if (who && plain) {
+      parts.push(<strong key={start} className={roleMeta(who.role).text}>{who.display_name}</strong>);  // no link (e.g. inside a notification button)
+    } else if (who) {
       parts.push(
         <button
           key={start}
           type="button"
           onClick={(e) => { e.stopPropagation(); go({ name: 'profile', id: who.id }); }}
-          title={`${who.display_name} · ${roleMeta(who.role).label}`}
+          title={`@${who.username} · ${roleMeta(who.role).label}`}
           className={`font-bold hover:underline cursor-pointer ${roleMeta(who.role).text}`}
         >
-          @{who.username}
+          {who.display_name}
         </button>,
       );
     } else {

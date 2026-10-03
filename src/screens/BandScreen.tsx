@@ -183,6 +183,7 @@ export const BandScreen: React.FC<{ id: string }> = ({ id }) => {
             onChanged={load}
             onAddToPlaylist={user ? () => setPlaylistFor(t) : undefined}
             onReport={!isOwner ? () => setReport({ type: 'track', id: t.id, label: 'this song' }) : undefined}
+            queue={tracks.map((x) => ({ ...x, bands: x.bands || { id: band.id, name: band.name, handle: band.handle, logo_url: band.logo_url } }))}
           />
         ))}
         {isOwner && <TrackUploadForm userId={user!.id} bandId={band.id} used={tracks.length} onUploaded={load} />}

@@ -58,28 +58,40 @@ export const AdminPosts: React.FC = () => {
 export const AdminComments: React.FC = () => {
   const [search, setSearch] = useState('');
   const [vis, setVis] = useState('all');
+  const [kind, setKind] = useState('post');
+  const table = kind === 'song' ? 'track_comments' : 'comments';
   const list = usePaged<any>(async (from, to) => {
-    let q = supabase.from('comments').select(`*, profiles!comments_author_id_fkey(${PERSON})`).order('created_at', { ascending: false }).range(from, to);
+    let q = supabase.from(table)
+      .select(kind === 'song'
+        ? `*, profiles!track_comments_author_id_fkey(${PERSON}), tracks(title, band_id)`
+        : `*, profiles!comments_author_id_fkey(${PERSON})`)
+      .order('created_at', { ascending: false }).range(from, to);
     if (search) q = q.ilike('content', like(search));
     q = applyVis(q, vis);
     const r = await q; return { data: r.data as any, error: r.error };
-  }, [search, vis]);
+  }, [search, vis, kind]);
   const err = (m: string) => list.setErr(m);
   return (
     <div className="space-y-3">
       <SearchBar value={search} onChange={setSearch} placeholder="Search comment text">
+        <Select label="Comment type" value={kind} onChange={setKind} options={[['post', 'Post comments'], ['song', 'Song comments']]} />
         <Select label="Filter comments" value={vis} onChange={setVis} options={visibility} />
       </SearchBar>
       <ListBody loading={list.loading} err={list.err} empty="No comments found" count={list.rows.length} more={list.more} onMore={list.loadMore}>
         {list.rows.map((c) => (
           <Row key={c.id} dim={c.is_hidden}
             title={<span className="font-normal text-[#EBEBED]">{c.content}</span>}
-            sub={<Owner p={c.profiles} at={c.created_at} />}
+            sub={<>
+              {kind === 'song' && c.tracks && <p className="text-[11px] text-[#8E9AA7]">on the song “{c.tracks.title}”</p>}
+              <Owner p={c.profiles} at={c.created_at} />
+            </>}
             chips={c.is_hidden ? <Chip tone="red">Hidden</Chip> : undefined}
             actions={<>
-              <OpenBtn to={{ name: 'post', id: c.post_id }} label="Open post" />
-              <HideBtn hidden={c.is_hidden} onToggle={async () => { if (await updateRow('comments', c.id, { is_hidden: !c.is_hidden }, err)) list.setRows((r) => r.map((x) => x.id === c.id ? { ...x, is_hidden: !c.is_hidden } : x)); }} />
-              <DeleteBtn onDelete={async () => { if (confirmDelete('this comment') && await deleteRow('comments', c.id, err)) list.setRows((r) => r.filter((x) => x.id !== c.id)); }} />
+              {kind === 'song'
+                ? c.tracks && <OpenBtn to={{ name: 'band', id: c.tracks.band_id }} label="Open band page" />
+                : <OpenBtn to={{ name: 'post', id: c.post_id }} label="Open post" />}
+              <HideBtn hidden={c.is_hidden} onToggle={async () => { if (await updateRow(table, c.id, { is_hidden: !c.is_hidden }, err)) list.setRows((r) => r.map((x) => x.id === c.id ? { ...x, is_hidden: !c.is_hidden } : x)); }} />
+              <DeleteBtn onDelete={async () => { if (confirmDelete('this comment') && await deleteRow(table, c.id, err)) list.setRows((r) => r.filter((x) => x.id !== c.id)); }} />
             </>}
           />
         ))}

@@ -29,7 +29,7 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
   const go = useNav();
   const { user, termsAccepted } = useAuth();
   const [feedShare, setFeedShare] = useState<PL | null>(null);
-  const { current, playing, play } = usePlayer();
+  const { current, playing, play, playAll } = usePlayer();
   const [lists, setLists] = useState<PL[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState<string | null>(playlistId || null);
@@ -133,7 +133,8 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
                 <button onClick={() => go({ name: 'profile', id: pl.original!.id })} className="truncate cursor-pointer hover:text-white">• originally by <strong className="text-[#53E6D4]">{pl.original.display_name}</strong></button>
               )}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {songs.length > 0 && <button onClick={() => { setOpen(pl.id); playAll(songs.map((x) => x.tracks!)); }} aria-label={`Play all songs in ${pl.name}`} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Play className="w-3.5 h-3.5 fill-current" />Play</button>}
               <button onClick={() => like(pl)} aria-pressed={liked} className={`${btn.ghost} !py-1.5 !px-3 !text-xs`} style={liked ? { color: '#FF6B9A' } : undefined}>
                 <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-[#FF6B9A]' : ''}`} />{liked ? 'Liked' : 'Like'}
               </button>
@@ -149,7 +150,7 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
               return (
                 <div key={t.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl bg-[#161B20] border border-white/[0.08]">
                   <span className="w-3 font-mono text-[10px] text-[#8E9AA7]">{i + 1}</span>
-                  <button onClick={() => play(t)} aria-label={on ? `Pause ${t.title}` : `Play ${t.title}`} className="w-8 h-8 rounded-lg bg-[#6045F4] text-white flex items-center justify-center flex-shrink-0 cursor-pointer">
+                  <button onClick={() => play(t, songs.map((x) => x.tracks!))} aria-label={on ? `Pause ${t.title}` : `Play ${t.title}`} className="w-8 h-8 rounded-lg bg-[#6045F4] text-white flex items-center justify-center flex-shrink-0 cursor-pointer">
                     {on ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-white" />}
                   </button>
                   <div className="flex-1 min-w-0">

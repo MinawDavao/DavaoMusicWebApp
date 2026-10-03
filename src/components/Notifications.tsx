@@ -7,10 +7,12 @@ import { roleMeta, timeAgo } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav, type Route } from '../nav';
 import { Avatar, Spinner } from './ui';
+import { MentionText } from './Mentions';
 
 type NType =
   | 'comment' | 'mention_post' | 'mention_comment' | 'reaction' | 'follow' | 'band_follow'
-  | 'review_pending' | 'review_approved' | 'rsvp' | 'playlist_like' | 'playlist_copy' | 'venue_tag';
+  | 'review_pending' | 'review_approved' | 'rsvp' | 'playlist_like' | 'playlist_copy' | 'venue_tag'
+  | 'track_like' | 'track_comment' | 'mention_track_comment';
 
 interface Notif {
   id: string; type: NType; actor_id: string | null; post_id: string | null; band_id: string | null;
@@ -31,6 +33,9 @@ const META: Record<NType, { Icon: React.ElementType; color: string; text: (n: No
   playlist_like:   { Icon: Heart, color: '#FF6B9A', text: (n) => `liked your playlist${n.snippet ? ` “${n.snippet}”` : ''}` },
   playlist_copy:   { Icon: Copy, color: '#53E6D4', text: (n) => `saved a copy of your playlist${n.snippet ? ` “${n.snippet}”` : ''}` },
   venue_tag:       { Icon: Tag, color: '#FFC34D', text: () => 'tagged your venue in a post', quote: true },
+  track_like:      { Icon: Heart, color: '#FF6B9A', text: (n) => `liked your song${n.snippet ? ` “${n.snippet}”` : ''}` },
+  track_comment:   { Icon: MessageCircle, color: '#53E6D4', text: () => 'commented on your song', quote: true },
+  mention_track_comment: { Icon: AtSign, color: '#B7A8FF', text: () => 'tagged you in a song comment', quote: true },
 };
 
 /** Where tapping a notification takes you. */
@@ -38,7 +43,7 @@ function routeFor(n: Notif, myId: string): Route {
   switch (n.type) {
     case 'comment': case 'mention_post': case 'mention_comment': case 'reaction': case 'venue_tag':
       return n.post_id ? { name: 'post', id: n.post_id } : { name: 'connect' };
-    case 'band_follow': case 'rsvp':
+    case 'band_follow': case 'rsvp': case 'track_like': case 'track_comment': case 'mention_track_comment':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile' };
     case 'review_pending':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile', id: myId };
@@ -166,7 +171,7 @@ export const NotificationBell: React.FC = () => {
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block text-[13px] leading-snug text-[#EBEBED]"><strong className="text-white">{name}</strong> {m.text(n)}</span>
-                    {m.quote && n.snippet && <span className="block mt-0.5 text-[11px] text-[#8E9AA7] truncate">“{n.snippet}”</span>}
+                    {m.quote && n.snippet && <span className="block mt-0.5 text-[11px] text-[#8E9AA7] truncate">“<MentionText plain text={n.snippet} className="!whitespace-nowrap" />”</span>}
                     <span className="block mt-0.5 text-[10px] text-[#8E9AA7]">{timeAgo(n.created_at)}</span>
                   </span>
                   {newIds.has(n.id) && <span className="w-2 h-2 mt-1.5 rounded-full bg-[#53E6D4] flex-shrink-0" aria-label="New" />}

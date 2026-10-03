@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BadgeCheck, Building2, Camera, Check, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Pencil, Play, Send, Trash2, X, Zap } from 'lucide-react';
+import { BadgeCheck, Building2, Camera, Check, Search, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Pencil, Play, Send, Trash2, X, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { checkFile, errorMessage, removeImageByUrl, timeAgo, uploadImage, type Comment, type Post, roleMeta } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
@@ -354,6 +354,73 @@ export const PostScreen: React.FC<{ id: string }> = ({ id }) => {
   );
 };
 
-export const ConnectScreen: React.FC = () => (
-  <div className="px-3 py-4"><ConnectFeed /></div>
-);
+type Person = { id: string; display_name: string; username: string; avatar_url: string | null; role: string; district: string | null; is_verified: boolean; venue_type: string | null };
+
+/** Search fans, artists and venues/businesses by name or @username. */
+const PeopleSearch: React.FC<{ q: string; setQ: (v: string) => void }> = ({ q, setQ }) => {
+  const go = useNav();
+  const [role, setRole] = useState('');
+  const [res, setRes] = useState<Person[] | null>(null);
+  useEffect(() => {
+    const term = q.trim().replace(/^@/, '').replace(/[%_,()\\]/g, ' ').trim();
+    if (!term) { setRes(null); return; }
+    const t = setTimeout(async () => {
+      let req = supabase.from('profiles').select('id, display_name, username, avatar_url, role, district, is_verified, venue_type')
+        .or(`display_name.ilike.%${term}%,username.ilike.%${term}%`).order('display_name').limit(30);
+      if (role) req = req.eq('role', role);
+      const { data } = await req;
+      setRes((data as Person[]) || []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q, role]);
+
+  const chip = (v: string, label: string) => (
+    <button key={v} onClick={() => setRole(v)} aria-pressed={role === v}
+      className={`h-8 px-3 rounded-full text-[11px] font-bold cursor-pointer border ${role === v ? 'bg-[#6045F4] border-[#6045F4] text-white' : 'border-white/15 text-[#C9D1D9]'}`}>{label}</button>
+  );
+
+  return (
+    <div className="space-y-2.5">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E9AA7] pointer-events-none" />
+        <input type="text" inputMode="search" enterKeyHint="search" aria-label="Search people" value={q} onChange={(e) => setQ(e.target.value)}
+          placeholder="Search fans, artists, venues/businesses…" className={`${inputCls} !pl-9 !pr-9`} />
+        {q && <button onClick={() => setQ('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-[#8E9AA7] hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>}
+      </div>
+      {q.trim() && (
+        <>
+          <div className="flex flex-wrap gap-1.5">{chip('', 'Everyone')}{chip('fan', 'Fans')}{chip('artist', 'Artists')}{chip('venue', 'Venues/Businesses')}</div>
+          {res === null ? <Spinner /> : res.length === 0 ? (
+            <p className="text-xs text-[#8E9AA7] px-1">No one found for “{q.trim()}”.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {res.map((p) => (
+                <button key={p.id} onClick={() => go({ name: 'profile', id: p.id })} className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#1D232A] border border-white/[0.08] text-left cursor-pointer hover:border-white/25">
+                  <Avatar src={p.avatar_url} name={p.display_name} size={44} square={roleMeta(p.role).square} />
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-[13px] font-bold text-white truncate">{p.display_name}</span>
+                      {p.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-[#53E6D4] flex-shrink-0" />}
+                    </span>
+                    <span className="block font-mono text-[10px] text-[#8E9AA7] truncate">@{p.username}{p.role === 'venue' && p.venue_type ? ` · ${p.venue_type}` : p.district ? ` · ${p.district}` : ''}</span>
+                  </span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0 ${roleMeta(p.role).chip}`}>{roleMeta(p.role).label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export const ConnectScreen: React.FC = () => {
+  const [q, setQ] = useState('');
+  return (
+    <div className="px-3 py-4 space-y-4">
+      <PeopleSearch q={q} setQ={setQ} />
+      {!q.trim() && <ConnectFeed />}
+    </div>
+  );
+};

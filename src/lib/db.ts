@@ -161,7 +161,7 @@ export interface Listing {
   listing_photos?: { id: string; image_path: string; position: number }[];
 }
 
-export type ReportTarget = 'post' | 'comment' | 'listing' | 'track' | 'band' | 'review' | 'profile';
+export type ReportTarget = 'post' | 'comment' | 'listing' | 'track' | 'band' | 'review' | 'profile' | 'track_comment';
 export type ReportReason = 'nudity' | 'violence' | 'political' | 'hate' | 'scam' | 'copyright' | 'other';
 
 // ---------- Labels ----------
