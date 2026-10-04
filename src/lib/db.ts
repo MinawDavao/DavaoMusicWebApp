@@ -287,6 +287,11 @@ export function errorMessage(e: any): string {
   const msg: string = e?.message || String(e);
   if (/duplicate key.*username/i.test(msg) || /profiles_username_key/.test(msg)) return 'That username is already taken.';
   if (/bands_handle_key/.test(msg)) return 'That band username is already taken.';
+  if (/bands_name_norm_uniq/.test(msg)) return 'A band page with this name already exists. Please choose a different name.';
+  if (/venues_name_norm_uniq/.test(msg)) return 'A venue/business with this name already exists. Please choose a different name.';
+  if (/Database error saving new user/i.test(msg)) return 'Couldn’t create the account. If you chose Venue/Business, that name may already be taken — try a different one.';
+  if (/band_members_band_profile_uniq/.test(msg)) return 'That account is already linked to another member of this band.';
+  if (/BAND_ADMIN: /.test(msg)) return msg.replace(/^.*BAND_ADMIN: /, '');
   if (/bands_owner_id_key/.test(msg)) return 'You already have a band page — refresh the page to edit it.';
   if (/row-level security/i.test(msg)) return 'You can’t do that here. This can happen if one of you has blocked the other, or if you haven’t accepted the Terms yet.';
   if (/Upload limit reached/i.test(msg)) return 'Upload limit reached: 3 tracks max for now.';

@@ -13,6 +13,7 @@ import { Playlists } from '../components/Playlists';
 import { GenrePicker } from '../components/GenrePicker';
 import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
+import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { Testimonials } from '../components/Testimonials';
 import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
 import { CardBackdrop, CardBackgroundAdjuster, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
@@ -268,9 +269,12 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const nameCheck = useNameCheck('name', f.display_name, { bandId, current: profile.display_name });
+  const userCheck = useNameCheck('username', f.username, { current: profile.username });
 
   const save = async () => {
     if (!f.display_name.trim()) return setErr('Display name can’t be empty.');
+    if (nameBlocked('name', profile.role, nameCheck.result) || nameBlocked('username', profile.role, userCheck.result)) return setErr('That name or username is already taken — please choose a different one.');
     if (isVenue) { const bad = checkVenue(vinfo); if (bad) return setErr(bad); }
     setBusy(true); setErr(null);
     const { error } = await supabase.from('profiles').update({
@@ -326,7 +330,9 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
         </div>
       </div>
       <Field label={isVenue ? 'Venue/Business Name' : 'Display Name'} icon={Pencil} htmlFor="p-name"><input id="p-name" className={inputCls} value={f.display_name} onChange={set('display_name')} /></Field>
+      <NameHint kind="name" role={profile.role} value={f.display_name} {...nameCheck} onPick={(x) => setF({ ...f, display_name: x })} />
       <Field label="Username" icon={AtSign} htmlFor="p-user" hint="lowercase, numbers, _"><input id="p-user" className={inputCls} value={f.username} onChange={(e) => setF({ ...f, username: toHandle(e.target.value) })} /></Field>
+      <NameHint kind="username" role={profile.role} value={f.username} {...userCheck} onPick={(x) => setF({ ...f, username: toHandle(x) })} />
       <Field label={isVenue ? 'District' : 'Home District'} icon={MapPin} htmlFor="p-dist"><input id="p-dist" className={inputCls} value={f.district} onChange={set('district')} /></Field>
       <Field label={isVenue ? 'Description' : 'About Me'} icon={Pencil} htmlFor="p-bio" hint={`${f.bio.length} / 280`}><textarea id="p-bio" rows={4} maxLength={280} className={`${inputCls} py-3 resize-none`} value={f.bio} onChange={set('bio')} /></Field>
       <Field label="Instagram" icon={Camera} htmlFor="p-ig"><input id="p-ig" className={inputCls} value={f.instagram} onChange={set('instagram')} /></Field>
@@ -334,7 +340,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
       {isVenue && <div className="space-y-3.5 p-3 rounded-2xl bg-[#0F1417] border border-white/15"><VenueFields value={vinfo} onChange={setVinfo} /></div>}
       {profile.role === 'fan' && <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={rsvps} onChange={(e) => setRsvps(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Show my gig RSVPs on my profile</label>}
       {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><GenrePicker value={genres} onChange={setGenres} /></div>}
-      {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={bandId} /></div>}
+      {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={bandId} ownerId={profile.id} /></div>}
       <ErrorNote text={err} />
       <div className="flex gap-2">
         <button onClick={onCancel} className={`${btn.ghost} flex-1`}>Cancel</button>

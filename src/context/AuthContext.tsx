@@ -9,12 +9,15 @@ interface AuthState {
   user: User | null;
   profile: Profile | null;
   band: Band | null;            // the artist's own band page (if any)
+  adminBands: AdminBand[];      // band pages this person helps manage as an admin
   termsAccepted: boolean;
   musicRights: boolean;          // agreed they own/may share the music they upload
   isModerator: boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 }
+
+export interface AdminBand { id: string; name: string; handle: string; logo_url: string | null }
 
 const AuthContext = createContext<AuthState | null>(null);
 
@@ -23,6 +26,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [band, setBand] = useState<Band | null>(null);
+  const [adminBands, setAdminBands] = useState<AdminBand[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [musicRights, setMusicRights] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
@@ -31,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const load = useCallback(async (s: Session | null) => {
     const seq = ++loadSeq.current;
     if (!s?.user) {
-      setProfile(null); setBand(null); setTermsAccepted(false); setMusicRights(false); setIsModerator(false);
+      setProfile(null); setBand(null); setAdminBands([]); setTermsAccepted(false); setMusicRights(false); setIsModerator(false);
       return;
     }
     const uid = s.user.id;
@@ -42,15 +46,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       p = (data as Profile) || null;
       if (!p) await new Promise((r) => setTimeout(r, 400));
     }
-    const [{ data: b }, { data: t }, { data: m }] = await Promise.all([
+    const [{ data: b }, { data: t }, { data: m }, { data: ab }] = await Promise.all([
       supabase.from('bands').select('*, band_genres(genre_id, genres(name))').eq('owner_id', uid).maybeSingle(),
       supabase.from('terms_acceptances').select('version, accepted_music_rights').eq('user_id', uid).eq('version', CURRENT_TERMS_VERSION).maybeSingle(),
       supabase.from('moderators').select('user_id').eq('user_id', uid).maybeSingle(),
+      supabase.from('band_members').select('bands(id, name, handle, logo_url)').eq('profile_id', uid).eq('is_admin', true),
     ]);
     if (seq !== loadSeq.current) return;
     supabase.rpc('touch_seen').then(() => {}, () => {}); // "active today" statistics
     setProfile(p);
     setBand((b as Band) || null);
+    setAdminBands((((ab as any[]) || []).map((x) => x.bands).filter((x: AdminBand | null) => x && x.id !== (b as Band | null)?.id)) as AdminBand[]);
     setTermsAccepted(!!t);
     setMusicRights(!!(t as any)?.accepted_music_rights);
     setIsModerator(!!m);
@@ -88,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ loading, session, user: session?.user ?? null, profile, band, termsAccepted, musicRights, isModerator, refresh, signOut }}
+      value={{ loading, session, user: session?.user ?? null, profile, band, adminBands, termsAccepted, musicRights, isModerator, refresh, signOut }}
     >
       {children}
     </AuthContext.Provider>

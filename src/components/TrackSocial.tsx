@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { MentionInput, MentionText } from './Mentions';
 import { ReportModal } from './ReportModal';
+import { useShare } from './Share';
 import { Avatar, ErrorNote, btn, inputCls } from './ui';
 
 interface TComment {
@@ -20,7 +21,6 @@ export const TrackSocial: React.FC<{ track: Track; bandId: string }> = ({ track,
   const [likes, setLikes] = useState<string[]>([]);
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const loadCounts = useCallback(async () => {
@@ -45,15 +45,12 @@ export const TrackSocial: React.FC<{ track: Track; bandId: string }> = ({ track,
     if (error) { setLikes(before); setErr(errorMessage(error)); }
   };
 
-  const share = async () => {
-    const url = `${window.location.origin}/#/band/${bandId}`;
-    const text = `Listen to “${track.title}”${track.bands?.name ? ` by ${track.bands.name}` : ''} on MINAW DVO`;
-    try {
-      if (navigator.share) { await navigator.share({ title: track.title, text, url }); return; }
-      await navigator.clipboard.writeText(`${text} ${url}`);
-      setNote('Link copied, paste it anywhere to share.'); setTimeout(() => setNote(null), 2500);
-    } catch { /* cancelled */ }
-  };
+  const { share: openShare, sheet } = useShare();
+  const share = () => openShare({
+    title: track.title,
+    text: `Listen to “${track.title}”${track.bands?.name ? ` by ${track.bands.name}` : ''} on MINAW DVO`,
+    url: `${window.location.origin}/#/band/${bandId}/song/${track.id}`,
+  });
 
   const item = 'flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold cursor-pointer hover:bg-white/5';
   return (
@@ -67,7 +64,7 @@ export const TrackSocial: React.FC<{ track: Track; bandId: string }> = ({ track,
         </button>
         <button onClick={share} className={`${item} text-[#8E9AA7]`}><Share2 className="w-4 h-4" />Share</button>
       </div>
-      {note && <p role="status" className="text-[11px] text-[#53E6D4]">{note}</p>}
+      {sheet}
       <ErrorNote text={err} />
       {open && <TrackComments trackId={track.id} onCount={setCount} />}
     </div>

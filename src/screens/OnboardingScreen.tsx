@@ -11,6 +11,7 @@ import { TermsText } from '../components/TermsText';
 import { MAX_TRACKS, MusicRightsGate, uploadTrack } from '../components/TrackUpload';
 import { GenrePicker } from '../components/GenrePicker';
 import { MembersEditor } from '../components/MembersEditor';
+import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { CoverField, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { setBandGenres } from '../lib/genres';
 import { Avatar, ErrorNote, Field, FilePick, btn, inputCls } from '../components/ui';
@@ -145,6 +146,9 @@ const FanSetup: React.FC<{ onDone: () => void; venue?: boolean }> = ({ onDone, v
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const role = venue ? 'venue' : 'fan';
+  const nameCheck = useNameCheck('name', name, { current: profile?.role === role ? profile?.display_name : null });
+  const userCheck = useNameCheck('username', username, { current: profile?.username });
 
   const pickAvatar = async (f: File) => {
     const bad = checkFile(f, 'image'); if (bad) return setErr(bad);
@@ -155,6 +159,7 @@ const FanSetup: React.FC<{ onDone: () => void; venue?: boolean }> = ({ onDone, v
 
   const save = async (skip = false) => {
     if (!skip && venue) { const bad = checkVenue(vinfo); if (bad) return setErr(bad); }
+    if (!skip && (nameBlocked('name', role, nameCheck.result) || nameBlocked('username', role, userCheck.result))) return setErr('That name or username is already taken — please choose a different one.');
     setBusy(true); setErr(null);
     const patch: any = { onboarding_completed: true };
     if (!skip && venue) Object.assign(patch, venuePatch(vinfo));
@@ -186,7 +191,9 @@ const FanSetup: React.FC<{ onDone: () => void; venue?: boolean }> = ({ onDone, v
       </Section>
       <Section title={venue ? 'About the Venue/Business' : 'About You'} sub={venue ? 'Help bands and fans find your place' : 'The basics fans and bands will see'}>
         <Field label={venue ? 'Venue Name' : 'Display Name'} icon={Pencil} htmlFor="f-name"><input id="f-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <NameHint kind="name" role={role} value={name} {...nameCheck} onPick={setName} />
         <Field label="Username" icon={AtSign} htmlFor="f-user" hint="lowercase, numbers, _"><input id="f-user" className={inputCls} value={username} onChange={(e) => setUsername(toHandle(e.target.value))} /></Field>
+        <NameHint kind="username" role={role} value={username} {...userCheck} onPick={(x) => setUsername(toHandle(x))} />
         <Field label={venue ? 'District' : 'Home District'} icon={MapPin} htmlFor="f-dist"><input id="f-dist" className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Matina, Davao City" /></Field>
         <Field label={venue ? 'Description' : 'About Me'} icon={Pencil} htmlFor="f-bio" hint={`${bio.length} / 280`}>
           <textarea id="f-bio" rows={4} maxLength={280} className={`${inputCls} py-3 resize-none`} value={bio} onChange={(e) => setBio(e.target.value)} placeholder={venue ? 'What kind of shows do you host? Open mic nights, band gigs, DJ sets…' : 'Gig regular? Collector? Tell people what the local scene means to you.'} />
@@ -241,6 +248,8 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
   const [err, setErr] = useState<string | null>(null);
   // Remembers a band created during this visit, so retrying after a failed step updates it instead of inserting a duplicate.
   const createdId = useRef<string | undefined>(undefined);
+  const nameCheck = useNameCheck('name', name, { bandId: band?.id, current: band?.name });
+  const handleCheck = useNameCheck('handle', handle, { bandId: band?.id, current: band?.handle });
 
   useEffect(() => {
     supabase.from('genres').select('id, name').order('name').then(({ data }) => setGenres((data as any) || []));
@@ -257,6 +266,8 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
     if (!user) return;
     if (!name.trim()) return setErr('Please enter your band or artist name.');
     if (toHandle(handle).length < 3) return setErr('Band username must be at least 3 characters (lowercase letters, numbers or _).');
+    if (nameBlocked('name', 'artist', nameCheck.result)) return setErr('A band page with this name already exists — please choose a different name.');
+    if (nameBlocked('handle', 'artist', handleCheck.result)) return setErr('That band username is already taken — please choose a different one.');
     if (year && (Number(year) < 1950 || Number(year) > 2100)) return setErr('Year formed should be between 1950 and 2100.');
     setBusy(true); setErr(null);
     try {
@@ -339,7 +350,9 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
 
       <Section title="About the Band" sub="How fans will discover and recognise you">
         <Field label="Band / Artist Name" icon={Music} htmlFor="a-name"><input id="a-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <NameHint kind="name" role="artist" value={name} {...nameCheck} onPick={setName} />
         <Field label="Band Username" icon={AtSign} htmlFor="a-handle" hint="lowercase, numbers, _"><input id="a-handle" className={inputCls} value={handle} onChange={(e) => setHandle(toHandle(e.target.value))} placeholder="yourband" /></Field>
+        <NameHint kind="handle" role="artist" value={handle} {...handleCheck} onPick={(x) => setHandle(toHandle(x))} />
         <div className="grid grid-cols-2 gap-2.5">
           <Field label="Home Base" icon={MapPin} htmlFor="a-base"><input id="a-base" className={inputCls} value={base} onChange={(e) => setBase(e.target.value)} placeholder="e.g. Matina" /></Field>
           <Field label="Year Formed" icon={Calendar} htmlFor="a-year"><input id="a-year" inputMode="numeric" className={inputCls} value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="2019" /></Field>
@@ -355,7 +368,7 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
       </Section>
 
       <Section title="Members" sub="Who’s in the band (optional)">
-        {(band?.id || createdId.current) ? <MembersEditor bandId={(band?.id || createdId.current)!} /> : (
+        {(band?.id || createdId.current) ? <MembersEditor bandId={(band?.id || createdId.current)!} ownerId={user!.id} /> : (
         <div className="space-y-2">
           {members.map((m, i) => (
             <div key={m.key} className="flex gap-2">
@@ -417,9 +430,12 @@ const ArtistSetup: React.FC<{ onDone: (bandId?: string) => void }> = ({ onDone }
         </div>
       </Section>
 
-      <ErrorNote text={err} />
-      {status && <p className="text-xs text-[#53E6D4] text-center">{status}</p>}
-      <button onClick={save} disabled={busy || uploading} className={`${btn.mint} w-full h-12`}><Check className="w-4 h-4" /> {busy ? 'Saving…' : 'Save & Finish'}</button>
+      {/* pinned to the bottom of the screen so Save is always in reach while adjusting the cover etc. */}
+      <div className="sticky bottom-[84px] z-30 -mx-2 p-2 rounded-2xl bg-[#1D232A]/95 backdrop-blur border border-white/10 shadow-[0_-8px_24px_rgba(0,0,0,0.45)] space-y-2">
+        <ErrorNote text={err} />
+        {status && <p className="text-xs text-[#53E6D4] text-center">{status}</p>}
+        <button onClick={save} disabled={busy || uploading} className={`${btn.mint} w-full h-12`}><Check className="w-4 h-4" /> {busy ? 'Saving…' : 'Save & Finish'}</button>
+      </div>
       <button onClick={skip} disabled={busy} className="w-full h-10 text-[13px] font-bold text-[#8E9AA7] cursor-pointer">Skip for now — I’ll finish later</button>
     </div>
   );

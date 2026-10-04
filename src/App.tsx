@@ -22,10 +22,10 @@ import { PlaylistScreen } from './components/Playlists';
 function parseHash(): Route {
   // minawdavao.pages.dev/admin (a real path, no #) opens the Admin Panel
   if (/^\/admin\/?$/i.test(window.location.pathname) && (!window.location.hash || window.location.hash === '#/' || /^#\/(home\/)?admin/.test(window.location.hash))) return { name: 'admin' };
-  const [, a, b] = window.location.hash.replace(/^#/, '').split('/');
+  const [, a, b, c, d] = window.location.hash.replace(/^#/, '').split('/');
   switch (a) {
     case 'audio': return { name: 'audio' };
-    case 'band': return b ? { name: 'band', id: b } : { name: 'audio' };
+    case 'band': return b ? { name: 'band', id: b, song: c === 'song' && d ? d : undefined } : { name: 'audio' };
     case 'connect': return { name: 'connect' };
     case 'profile': return { name: 'profile', id: b || undefined };
     case 'deals': return { name: 'deals' };
@@ -41,7 +41,7 @@ function parseHash(): Route {
 }
 function toHash(r: Route): string {
   switch (r.name) {
-    case 'band': return `#/band/${r.id}`;
+    case 'band': return r.song ? `#/band/${r.id}/song/${r.song}` : `#/band/${r.id}`;
     case 'playlist': return `#/playlist/${r.id}`;
     case 'post': return `#/post/${r.id}`;
     case 'profile': return r.id ? `#/profile/${r.id}` : '#/profile';
@@ -62,7 +62,7 @@ const activeTab = (r: Route): Route['name'] =>
   r.name === 'admin' ? 'home' : r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' || r.name === 'post' ? 'connect' : r.name;
 
 const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
-  const { user, profile, band, isModerator, signOut } = useAuth();
+  const { user, profile, band, adminBands, isModerator, signOut } = useAuth();
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isArtist = profile?.role === 'artist';
@@ -113,6 +113,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
                     : item(Music, 'Create Band Page', () => go({ name: 'onboarding' })))}
                   {item(UserIcon, profile?.role === 'venue' ? 'My Venue Page' : 'My Profile', () => go({ name: 'profile' }))}
                   {item(Pencil, isArtist && band ? 'Edit Band Page' : 'Edit Profile', () => go(isArtist && band ? { name: 'band', id: band.id } : { name: 'profile' }))}
+                  {adminBands.map((ab) => <React.Fragment key={ab.id}>{item(Music, `Manage ${ab.name}`, () => go({ name: 'band', id: ab.id }))}</React.Fragment>)}
                   {isModerator && item(ShieldCheck, 'Admin Panel', () => go({ name: 'admin' }))}
                   <div className="h-px bg-white/[0.08] my-1" />
                   {item(LogOut, 'Log Out', async () => { await signOut(); go({ name: 'home' }); }, true)}
@@ -177,7 +178,7 @@ const Shell: React.FC = () => {
   else switch (view.name) {
     case 'home': screen = <HomeScreen />; break;
     case 'audio': screen = <AudioScreen />; break;
-    case 'band': screen = <BandScreen key={view.id} id={view.id} />; break;
+    case 'band': screen = <BandScreen key={view.id} id={view.id} song={view.song} />; break;
     case 'connect': screen = <ConnectScreen />; break;
     case 'profile': screen = <ProfileScreen key={view.id || 'me'} id={view.id} />; break;
     case 'deals': screen = <DealsScreen />; break;

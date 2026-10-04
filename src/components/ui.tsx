@@ -93,7 +93,8 @@ export const ErrorNote: React.FC<{ text?: string | null }> = ({ text }) =>
 export const OkNote: React.FC<{ text?: string | null }> = ({ text }) =>
   text ? <p role="status" className="text-xs text-[#53E6D4] bg-[#53E6D4]/10 border border-[#53E6D4]/30 rounded-xl px-3 py-2">{text}</p> : null;
 
-export const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => (
+/** Pop-up sheet. `footer` (e.g. Save / Cancel) stays pinned at the bottom so it’s always in reach without scrolling. */
+export const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode }> = ({ title, onClose, children, footer }) => (
   <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
     <div
       role="dialog"
@@ -107,6 +108,11 @@ export const Modal: React.FC<{ title: string; onClose: () => void; children: Rea
         <button onClick={onClose} aria-label="Close" className={btn.icon}><X className="w-4 h-4" /></button>
       </div>
       {children}
+      {footer && (
+        <div className="sticky -bottom-5 z-20 -mx-5 -mb-5 px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] bg-[#161B20]/95 backdrop-blur border-t border-white/10 space-y-2">
+          {footer}
+        </div>
+      )}
     </div>
   </div>
 );

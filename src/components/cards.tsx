@@ -95,7 +95,8 @@ export const BandRow: React.FC<{ band: Band; rank?: number; plays?: number }> = 
 export const TrackRow: React.FC<{
   track: Track; canManage?: boolean; onChanged?: () => void; onReport?: () => void; onAddToPlaylist?: () => void;
   queue?: Track[];  // the other songs on the page, so the next one plays automatically
-}> = ({ track, canManage, onChanged, onReport, onAddToPlaylist, queue }) => {
+  highlight?: boolean; // opened from a shared song link
+}> = ({ track, canManage, onChanged, onReport, onAddToPlaylist, queue, highlight }) => {
   const { current, playing, play } = usePlayer();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(track.title);
@@ -131,7 +132,7 @@ export const TrackRow: React.FC<{
   };
 
   return (
-    <div className="p-2.5 rounded-2xl bg-[#1D232A] border border-white/[0.08] space-y-2">
+    <div id={`track-${track.id}`} className={`p-2.5 rounded-2xl bg-[#1D232A] border space-y-2 transition-colors duration-700 ${highlight ? 'border-[#53E6D4] shadow-[0_0_0_3px_rgba(83,230,212,0.25)]' : 'border-white/[0.08]'}`}>
       <div className="flex items-center gap-2">
         <button onClick={() => play(track, queue)} aria-label={isCurrent && playing ? `Pause ${track.title}` : `Play ${track.title}`} className="w-10 h-10 rounded-full bg-[#6045F4] text-white flex items-center justify-center flex-shrink-0 cursor-pointer">
           {isCurrent && playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}

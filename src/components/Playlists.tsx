@@ -7,6 +7,7 @@ import { usePlayer } from '../context/PlayerContext';
 import { useNav } from '../nav';
 import { Avatar, EmptyState, ErrorNote, Modal, SectionHead, btn, inputCls } from './ui';
 import { Composer } from '../screens/ConnectScreen';
+import { useShare } from './Share';
 
 type Person = { id: string; display_name: string; avatar_url: string | null } | null;
 interface PL {
@@ -75,15 +76,12 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
     if (error) return setErr(errorMessage(error));
     load();
   };
-  const share = async (pl: PL) => {
-    const url = playlistLink(pl.id);
-    const text = `Listen to “${pl.name}” by ${pl.owner?.display_name || 'a fan'} on MINAW DVO`;
-    try {
-      if (navigator.share) { await navigator.share({ title: pl.name, text, url }); return; }
-      await navigator.clipboard.writeText(url);
-      flash('Playlist link copied — paste it anywhere to share.');
-    } catch { /* user cancelled */ }
-  };
+  const { share: openShare, sheet: shareSheet } = useShare();
+  const share = (pl: PL) => openShare({
+    title: pl.name,
+    text: `Listen to “${pl.name}” by ${pl.owner?.display_name || 'a fan'} on MINAW DVO`,
+    url: playlistLink(pl.id),
+  });
   const saveCopy = async (pl: PL) => {
     if (!user) return go({ name: 'auth' });
     setErr(null);
@@ -172,6 +170,7 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
       )}
       {note && <p role="status" className="text-xs text-[#53E6D4]">{note}</p>}
       <ErrorNote text={err} />
+      {shareSheet}
       {feedShare && (
         <Modal title="Post Playlist to Connect" onClose={() => setFeedShare(null)}>
           <Composer

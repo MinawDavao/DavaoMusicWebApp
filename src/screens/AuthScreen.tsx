@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { errorMessage, type Role } from '../lib/db';
 import { useNav } from '../nav';
 import { ErrorNote, Field, btn, inputCls } from '../components/ui';
+import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 
 const ROLE_HINT: Record<Role, string> = {
   fan: 'Follow bands, make playlists, RSVP to gigs and join the feed.',
@@ -22,12 +23,14 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const nameCheck = useNameCheck('name', mode === 'signup' ? name : '');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
     if (mode === 'signup') {
       if (!name.trim()) return setErr(role === 'fan' ? 'Please enter your name.' : role === 'venue' ? 'Please enter your venue or business name.' : 'Please enter your band or artist name.');
+      if (nameBlocked('name', role, nameCheck.result)) return setErr('That name is already taken — please choose a different one.');
       if (password.length < 8) return setErr('Password must be at least 8 characters.');
       if (password !== confirm) return setErr('Passwords don’t match.');
     }
@@ -117,6 +120,7 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
             <Field label={role === 'fan' ? 'Full Name' : role === 'venue' ? 'Venue / Business Name' : 'Band / Artist Name'} icon={User} htmlFor="su-name">
               <input id="su-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder={role === 'fan' ? 'e.g. Juan Dela Cruz' : role === 'venue' ? 'e.g. Matina Music Bar' : 'e.g. Your band name'} autoComplete={role === 'fan' ? 'name' : 'organization'} />
             </Field>
+            <NameHint kind="name" role={role} value={name} {...nameCheck} onPick={setName} />
           </>
         )}
 

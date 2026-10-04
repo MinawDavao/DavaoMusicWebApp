@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react';
 export type Route =
   | { name: 'home' }
   | { name: 'audio' }
-  | { name: 'band'; id: string }
+  | { name: 'band'; id: string; song?: string }
   | { name: 'connect' }
   | { name: 'profile'; id?: string }
   | { name: 'deals' }

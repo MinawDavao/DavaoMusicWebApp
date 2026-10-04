@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AtSign, Bell, CalendarCheck, CheckCheck, Copy, Heart, MessageCircle, Music, Star, Tag, Trash2, UserPlus, Zap,
+  AtSign, Bell, CalendarCheck, CheckCheck, Copy, Heart, MessageCircle, Music, ShieldCheck, Star, Tag, Trash2, UserPlus, Users, Zap,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { roleMeta, timeAgo } from '../lib/db';
@@ -12,7 +12,7 @@ import { MentionText } from './Mentions';
 type NType =
   | 'comment' | 'mention_post' | 'mention_comment' | 'reaction' | 'follow' | 'band_follow'
   | 'review_pending' | 'review_approved' | 'rsvp' | 'playlist_like' | 'playlist_copy' | 'venue_tag'
-  | 'track_like' | 'track_comment' | 'mention_track_comment';
+  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin';
 
 interface Notif {
   id: string; type: NType; actor_id: string | null; post_id: string | null; band_id: string | null;
@@ -36,6 +36,8 @@ const META: Record<NType, { Icon: React.ElementType; color: string; text: (n: No
   track_like:      { Icon: Heart, color: '#FF6B9A', text: (n) => `liked your song${n.snippet ? ` “${n.snippet}”` : ''}` },
   track_comment:   { Icon: MessageCircle, color: '#53E6D4', text: () => 'commented on your song', quote: true },
   mention_track_comment: { Icon: AtSign, color: '#B7A8FF', text: () => 'tagged you in a song comment', quote: true },
+  band_member:     { Icon: Users, color: '#53E6D4', text: (n) => `added you as a member of ${n.snippet ? `“${n.snippet}”` : 'their band'}` },
+  band_admin:      { Icon: ShieldCheck, color: '#53E6D4', text: (n) => `made you an admin of ${n.snippet ? `“${n.snippet}”` : 'their band page'} — you can now edit it from your account` },
 };
 
 /** Where tapping a notification takes you. */
@@ -43,7 +45,7 @@ function routeFor(n: Notif, myId: string): Route {
   switch (n.type) {
     case 'comment': case 'mention_post': case 'mention_comment': case 'reaction': case 'venue_tag':
       return n.post_id ? { name: 'post', id: n.post_id } : { name: 'connect' };
-    case 'band_follow': case 'rsvp': case 'track_like': case 'track_comment': case 'mention_track_comment':
+    case 'band_follow': case 'rsvp': case 'band_member': case 'band_admin': case 'track_like': case 'track_comment': case 'mention_track_comment':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile' };
     case 'review_pending':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile', id: myId };
@@ -59,7 +61,7 @@ function routeFor(n: Notif, myId: string): Route {
 /** Bell with an unread badge; opens a panel with your latest notifications. Updates live. */
 export const NotificationBell: React.FC = () => {
   const go = useNav();
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const uid = user?.id;
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -160,7 +162,7 @@ export const NotificationBell: React.FC = () => {
               return (
                 <button
                   key={n.id}
-                  onClick={() => { setOpen(false); go(routeFor(n, uid)); }}
+                  onClick={() => { setOpen(false); if (n.type === 'band_admin') refresh(); go(routeFor(n, uid)); }}
                   className={`w-full flex gap-3 px-3.5 py-3 text-left border-b border-white/[0.05] cursor-pointer hover:bg-white/5 ${newIds.has(n.id) ? 'bg-[#6045F4]/10' : ''}`}
                 >
                   <span className="relative flex-shrink-0">
