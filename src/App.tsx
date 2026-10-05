@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Headphones, House, LogIn, LogOut, MessageCircle, Music, Pencil, Radio, ShieldCheck, Tag, User as UserIcon } from 'lucide-react';
+import { Headphones, House, LogIn, LogOut, MessageCircle, Settings, Music, Pencil, Radio, ShieldCheck, Tag, User as UserIcon } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { NavContext, type Route } from './nav';
@@ -14,6 +14,7 @@ import { ConnectScreen, PostScreen } from './screens/ConnectScreen';
 import { NotificationBell } from './components/Notifications';
 import { ChatScreen, MessagesScreen } from './screens/MessagesScreen';
 import { useChatUnread } from './lib/chat';
+import { AccountDeletedNote } from './components/DeleteAccount';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { DealsScreen } from './screens/DealsScreen';
 import { AuthScreen } from './screens/AuthScreen';
@@ -135,6 +136,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
                   {adminBands.map((ab) => <React.Fragment key={ab.id}>{item(Music, `Manage ${ab.name}`, () => go({ name: 'band', id: ab.id }))}</React.Fragment>)}
                   {isModerator && item(ShieldCheck, 'Admin Panel', () => go({ name: 'admin' }))}
                   <div className="h-px bg-white/[0.08] my-1" />
+                  {item(Settings, 'Delete Account', () => { go({ name: 'profile' }); setTimeout(() => document.getElementById('account-settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 900); })}
                   {item(LogOut, 'Log Out', async () => { await signOut(); go({ name: 'home' }); }, true)}
                 </div>
               )}
@@ -216,7 +218,7 @@ const Shell: React.FC = () => {
         <div className="w-full max-w-[480px] mx-auto min-h-screen flex flex-col bg-[#0F1417] sm:border-x sm:border-white/10">
           <Header route={view} go={go} />
           {view.name !== 'auth' && view.name !== 'onboarding' && <InstallBanner />}
-          <main className="flex-1">{screen}</main>
+          <main className="flex-1">{view.name === 'home' && <AccountDeletedNote />}{screen}</main>
           {view.name !== 'chat' && <footer className="pt-7 pb-36 px-4 border-t border-white/10 bg-[#161B20] text-[#8E9AA7] space-y-3">
             <div className="flex items-center gap-2">
               <img src="/minaw-logo.png.png" alt="" className="h-6 w-auto" />

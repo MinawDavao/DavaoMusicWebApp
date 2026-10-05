@@ -14,6 +14,7 @@ import { GenrePicker } from '../components/GenrePicker';
 import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
 import { MessageButton } from './MessagesScreen';
+import { DeleteAccountSection } from '../components/DeleteAccount';
 import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { Testimonials } from '../components/Testimonials';
 import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
@@ -247,6 +248,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
         <ConnectFeed authorId={p.id} showComposer={isMe} />
       </section>
 
+      {isMe && <DeleteAccountSection />}
       {report && <ReportModal targetType="profile" targetId={p.id} label="this profile" onClose={() => setReport(false)} onLogin={() => go({ name: 'auth' })} />}
     </div>
   );
