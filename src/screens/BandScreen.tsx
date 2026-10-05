@@ -11,6 +11,9 @@ import { useNav } from '../nav';
 import { GigCard, TrackRow } from '../components/cards';
 import { MEMBER_COLS, MembersEditor, type MemberRow } from '../components/MembersEditor';
 import { MessageButton } from './MessagesScreen';
+import { DeleteAccountSection } from '../components/DeleteAccount';
+import { Playlists } from '../components/Playlists';
+import { BlockedList } from '../components/BlockMenu';
 import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { Testimonials } from '../components/Testimonials';
 import { CoverField, CoverPhoto, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
@@ -21,7 +24,7 @@ import { PlaylistModal } from '../components/PlaylistModal';
 import { ConnectFeed } from './ConnectScreen';
 import { ReportModal } from '../components/ReportModal';
 import { MAX_TRACKS, TrackUploadForm } from '../components/TrackUpload';
-import { Avatar, EmptyState, ErrorNote, Field, FilePick, Modal, SectionHead, Spinner, btn, inputCls } from '../components/ui';
+import { Avatar, EmptyState, ErrorNote, Field, FilePick, Modal, Panel, Spinner, btn, inputCls } from '../components/ui';
 
 type Member = MemberRow;
 interface Photo { id: string; image_url: string; title: string | null; tag: string | null }
@@ -76,6 +79,21 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
   }, [id, user?.id]); // id only: a token refresh shouldn't close open editors
 
   useEffect(() => { setLoading(true); load(); }, [load]);
+
+  // opened from the menu's "Edit Profile" / "Delete Account"
+  useEffect(() => {
+    if (loading || !band || !canManage) return;
+    const check = () => {
+    let want: string | null = null;
+    try { want = sessionStorage.getItem('minaw-open-edit'); sessionStorage.removeItem('minaw-open-edit'); } catch { /* ignore */ }
+    if (!want) return;
+    setEditing(true);
+    if (want === 'delete') setTimeout(() => document.getElementById('account-settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+    };
+    check();
+    window.addEventListener('minaw-open-edit', check);
+    return () => window.removeEventListener('minaw-open-edit', check);
+  }, [loading, band?.id, canManage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // opened from a shared song link (#/band/<id>/song/<trackId>): scroll to that song and highlight it
   const [flashSong, setFlashSong] = useState<string | null>(null);
@@ -139,7 +157,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
     <div className="px-3 py-4 space-y-6">
       <div className="flex items-center justify-between">
         <button onClick={() => go({ name: 'audio' })} className={`${btn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" /> Audio &amp; Bands</button>
-        <span className="font-mono text-[10px] text-[#8E9AA7]">{isOwner ? 'My Band Page' : canManage ? 'Band Page · Admin' : 'Band Profile'}</span>
+        <span className="font-mono text-[10px] text-[#8E9AA7]">{isOwner ? 'My Band Page' : canManage ? 'Band Page · Admin' : 'Band Page'}</span>
       </div>
 
       {/* HERO */}
@@ -194,8 +212,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
       )}
 
       {/* MUSIC */}
-      <section className="space-y-2.5">
-        <SectionHead icon={Disc3} title="Music" right={<span className="font-mono text-[11px] text-[#53E6D4]">{tracks.length} / {MAX_TRACKS}</span>} />
+      <Panel tone="music" icon={Disc3} title="Music" right={<span className="font-mono text-[11px] text-[#53E6D4]">{tracks.length} / {MAX_TRACKS}</span>}>
         {tracks.length === 0 && !canManage && <EmptyState icon={Disc3} title="No songs uploaded yet" text="Check back soon for this band’s music." />}
         {tracks.map((t) => (
           <TrackRow
@@ -210,27 +227,24 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
           />
         ))}
         {canManage && <TrackUploadForm userId={user!.id} bandId={band.id} used={tracks.length} onUploaded={load} />}
-      </section>
+      </Panel>
 
       {/* GIGS */}
-      <section className="space-y-2.5">
-        <SectionHead icon={Calendar} title="Upcoming Gigs" right={canManage ? <button onClick={() => setAddGig(true)} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Plus className="w-3.5 h-3.5" />Add Gig</button> : undefined} />
+      <Panel tone="gigs" icon={Calendar} title="Upcoming Gigs" right={canManage ? <button onClick={() => setAddGig(true)} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Plus className="w-3.5 h-3.5" />Add Gig</button> : undefined}>
         {gigs.length === 0
           ? <EmptyState icon={Calendar} title="No upcoming gigs yet" text={canManage ? 'Add your next show so fans can RSVP.' : 'This band hasn’t posted any shows yet.'} />
           : gigs.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} onDelete={canManage ? () => deleteGig(g) : undefined} />)}
-      </section>
+      </Panel>
 
       {/* POSTS */}
-      <section className="space-y-2.5">
-        <SectionHead icon={MessageCircle} title={isOwner ? 'Our Posts' : 'Posts'} sub={isOwner ? 'Posts you share here also appear on the Connect feed for everyone.' : undefined} />
+      <Panel tone="posts" icon={MessageCircle} title={isOwner ? 'Our Posts' : 'Posts'} sub={isOwner ? 'Posts you share here also appear on the Connect feed for everyone.' : undefined}>
         <ConnectFeed authorId={band.owner_id} showComposer={isOwner} />
-      </section>
+      </Panel>
 
       {/* GALLERY */}
-      <section className="space-y-2.5">
-        <SectionHead icon={Camera} title="Gallery & Stage Photos" right={canManage ? (
+      <Panel tone="gallery" icon={Camera} title="Gallery & Stage Photos" right={canManage ? (
           <FilePick accept="image/jpeg,image/png,image/webp" onPick={addPhoto} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Plus className="w-3.5 h-3.5" />Add Photo</FilePick>
-        ) : undefined} />
+        ) : undefined}>
         {photos.length === 0
           ? <EmptyState icon={Camera} title="No photos yet" text={canManage ? 'Add live shots, rehearsals and posters.' : 'This band hasn’t added photos yet.'} />
           : (
@@ -244,21 +258,19 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
               ))}
             </div>
           )}
-      </section>
+      </Panel>
 
       {/* MEMBERS */}
       {canManage ? (
-        <section className="space-y-2.5">
-          <SectionHead icon={Users} title="Band Members" />
+        <Panel tone="members" icon={Users} title="Band Members">
           <div className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5"><MembersEditor bandId={band.id} ownerId={band.owner_id} onChange={load} /></div>
-        </section>
+        </Panel>
       ) : (
         <MembersSection members={members} />
       )}
 
       {/* FOLLOWERS */}
-      <section className="space-y-2.5">
-        <SectionHead icon={Users} title={`Followers (${followers})`} />
+      <Panel tone="followers" icon={Users} title={`Followers (${followers})`}>
         {followerList.length === 0 ? (
           <EmptyState icon={Users} title="No followers yet" text={canManage ? 'Share your band page so fans can follow you.' : 'Be the first to follow this band.'} />
         ) : (
@@ -271,12 +283,17 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
             ))}
           </div>
         )}
-      </section>
+      </Panel>
+
+      {/* PLAYLISTS made by the band's account */}
+      <Playlists ownerId={band.owner_id} isMe={isOwner} />
+
+      {isOwner && <BlockedList />}
 
       {/* TESTIMONIALS (need the owner's approval) */}
       <Testimonials kind="band" targetId={band.id} isOwner={canManage} onReport={(rid) => setReport({ type: 'review', id: rid, label: 'this testimonial' })} />
 
-      {editing && <EditBandModal band={band} onClose={() => { setEditing(false); load(); }} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
+      {editing && <EditBandModal isOwner={isOwner} band={band} onClose={() => { setEditing(false); load(); }} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
       {addGig && <AddGigModal bandId={band.id} onClose={() => setAddGig(false)} onSaved={() => { setAddGig(false); load(); }} />}
       {playlistFor && <PlaylistModal track={{ ...playlistFor, bands: { id: band.id, name: band.name, handle: band.handle, logo_url: band.logo_url } }} onClose={() => setPlaylistFor(null)} />}
       {report && <ReportModal targetType={report.type} targetId={report.id} label={report.label} onClose={() => setReport(null)} onLogin={() => go({ name: 'auth' })} />}
@@ -289,8 +306,7 @@ const MembersSection: React.FC<{ members: Member[] }> = ({ members }) => {
   const go = useNav();
   if (members.length === 0) return null;
   return (
-    <section className="space-y-2.5">
-      <SectionHead icon={Users} title="Band Members" />
+    <Panel tone="members" icon={Users} title="Band Members">
       {members.map((m) => {
         const p = m.profiles;
         const inner = (
@@ -306,12 +322,12 @@ const MembersSection: React.FC<{ members: Member[] }> = ({ members }) => {
           ? <button key={m.id} onClick={() => go({ name: 'profile', id: p.id })} aria-label={`View ${m.name}’s profile`} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-[#1D232A] border border-white/[0.08] cursor-pointer hover:bg-white/[0.03]">{inner}</button>
           : <div key={m.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#1D232A] border border-white/[0.08]">{inner}</div>;
       })}
-    </section>
+    </Panel>
   );
 };
 
 // ---------------------------------------------------------------- edit band
-const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => void }> = ({ band, onClose, onSaved }) => {
+const EditBandModal: React.FC<{ band: Band; isOwner: boolean; onClose: () => void; onSaved: () => void }> = ({ band, isOwner, onClose, onSaved }) => {
   const { user } = useAuth();
   const [f, setF] = useState({
     name: band.name, handle: band.handle, home_base: band.home_base || '', year_formed: band.year_formed ? String(band.year_formed) : '',
@@ -359,7 +375,7 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
 
   return (
     <Modal
-      title="Edit Band Profile"
+      title="Edit Band Page"
       onClose={onClose}
       footer={<>
         <ErrorNote text={err} />
@@ -405,6 +421,7 @@ const EditBandModal: React.FC<{ band: Band; onClose: () => void; onSaved: () => 
       <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Open for bookings (show contacts)</label>
       <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><GenrePicker value={genres} onChange={setGenres} /></div>
       <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={band.id} ownerId={band.owner_id} /></div>
+      {isOwner && <DeleteAccountSection />}
     </Modal>
   );
 };

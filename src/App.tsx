@@ -92,6 +92,12 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
     return () => document.removeEventListener('mousedown', close);
   }, []);
 
+  // "Edit Profile" / "Delete Account": open the right editor (band page for artists)
+  const openEdit = (what: '1' | 'delete') => {
+    try { sessionStorage.setItem('minaw-open-edit', what); } catch { /* ignore */ }
+    go(isArtist && band ? { name: 'band', id: band.id } : { name: 'profile' });
+    setTimeout(() => window.dispatchEvent(new Event('minaw-open-edit')), 60);
+  };
   const item = (Icon: React.ElementType, label: string, onClick: () => void, danger = false) => (
     <button role="menuitem" onClick={() => { setMenu(false); onClick(); }} className={`w-full h-11 px-3 rounded-xl flex items-center gap-2.5 text-[13px] font-semibold text-left cursor-pointer hover:bg-white/5 ${danger ? 'text-[#FF8A7A]' : 'text-[#EBEBED]'}`}>
       <Icon className="w-4 h-4" />{label}
@@ -131,12 +137,12 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
                   {isArtist && (band
                     ? item(Music, 'My Band Page', () => go({ name: 'band', id: band.id }))
                     : item(Music, 'Create Band Page', () => go({ name: 'onboarding' })))}
-                  {item(UserIcon, profile?.role === 'venue' ? 'My Venue Page' : 'My Profile', () => go({ name: 'profile' }))}
-                  {item(Pencil, isArtist && band ? 'Edit Band Page' : 'Edit Profile', () => go(isArtist && band ? { name: 'band', id: band.id } : { name: 'profile' }))}
+                  {!(isArtist && band) && item(UserIcon, profile?.role === 'venue' ? 'My Venue Page' : 'My Profile', () => go({ name: 'profile' }))}
+                  {item(Pencil, isArtist && band ? 'Edit Band Page' : 'Edit Profile', () => openEdit('1'))}
                   {adminBands.map((ab) => <React.Fragment key={ab.id}>{item(Music, `Manage ${ab.name}`, () => go({ name: 'band', id: ab.id }))}</React.Fragment>)}
                   {isModerator && item(ShieldCheck, 'Admin Panel', () => go({ name: 'admin' }))}
                   <div className="h-px bg-white/[0.08] my-1" />
-                  {item(Settings, 'Delete Account', () => { go({ name: 'profile' }); setTimeout(() => document.getElementById('account-settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 900); })}
+                  {item(Settings, 'Delete Account', () => openEdit('delete'))}
                   {item(LogOut, 'Log Out', async () => { await signOut(); go({ name: 'home' }); }, true)}
                 </div>
               )}

@@ -5,7 +5,7 @@ import { errorMessage, type Track } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { useNav } from '../nav';
-import { Avatar, EmptyState, ErrorNote, Modal, SectionHead, btn, inputCls } from './ui';
+import { Avatar, EmptyState, ErrorNote, Modal, Panel, btn, inputCls } from './ui';
 import { Composer } from '../screens/ConnectScreen';
 import { useShare } from './Share';
 
@@ -184,10 +184,9 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
 
   if (playlistId) return <div className="space-y-2.5">{body}</div>;
   return (
-    <section className="space-y-2.5">
-      <SectionHead icon={ListMusic} title={isMe ? 'My Playlists' : 'Playlists'} sub={isMe ? 'Add songs from any band page with the + playlist button.' : undefined} />
+    <Panel tone="playlists" icon={ListMusic} title={isMe ? 'My Playlists' : 'Playlists'} sub={isMe ? 'Add songs from any band page with the + playlist button.' : undefined}>
       {body}
-    </section>
+    </Panel>
   );
 };
 

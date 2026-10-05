@@ -56,6 +56,51 @@ export const SectionHead: React.FC<{ icon: React.ElementType; title: string; rig
   </div>
 );
 
+/** Colour themes for page sections, so each one is easy to spot while scrolling. */
+export const TONES = {
+  music:     { c: '#8B7BFF', name: 'violet' },
+  gigs:      { c: '#FFB800', name: 'amber' },
+  posts:     { c: '#53E6D4', name: 'mint' },
+  gallery:   { c: '#FF6B9A', name: 'pink' },
+  members:   { c: '#4FA3FF', name: 'blue' },
+  followers: { c: '#FF8A5B', name: 'orange' },
+  following: { c: '#C17BFF', name: 'purple' },
+  reviews:   { c: '#FFD24D', name: 'gold' },
+  playlists: { c: '#8FE36B', name: 'lime' },
+  bands:     { c: '#6C8CFF', name: 'indigo' },
+  tagged:    { c: '#2FD3A0', name: 'green' },
+  blocked:   { c: '#FF6B7A', name: 'red' },
+  band:      { c: '#B7A8FF', name: 'lavender' },
+} as const;
+export type Tone = keyof typeof TONES;
+
+/** A tinted section card with a coloured header strip. */
+export const Panel: React.FC<{
+  tone: Tone; icon: React.ElementType; title: string; right?: React.ReactNode; sub?: string; children?: React.ReactNode; id?: string; className?: string;
+}> = ({ tone, icon: Icon, title, right, sub, children, id, className = '' }) => {
+  const c = TONES[tone].c;
+  return (
+    <section id={id} data-tone={tone} className={`relative rounded-3xl border overflow-hidden ${className}`}
+      style={{ background: `linear-gradient(165deg, ${c}26 0%, ${c}0d 38%, #14191e 100%)`, borderColor: `${c}4d` }}>
+      <span aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${c}, ${c}55 60%, transparent)` }} />
+      <span aria-hidden className="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full blur-2xl" style={{ background: `${c}22` }} />
+      <div className="relative p-3.5 space-y-3">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2.5 text-sm font-heading font-bold uppercase tracking-wider" style={{ color: c }}>
+              <span className="w-8 h-8 rounded-xl flex items-center justify-center border" style={{ background: `${c}24`, borderColor: `${c}55` }}><Icon className="w-4 h-4" /></span>
+              <span>{title}</span>
+            </h2>
+            {right}
+          </div>
+          {sub && <p className="text-[11px] text-[#A3AEB9] pl-[42px]">{sub}</p>}
+        </div>
+        {children}
+      </div>
+    </section>
+  );
+};
+
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
   <div className={`rounded-2xl bg-[#1D232A] border border-white/[0.08] p-4 ${className}`}>{children}</div>
 );

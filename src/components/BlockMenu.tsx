@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { errorMessage, roleMeta } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
-import { Avatar, ErrorNote, SectionHead, btn } from './ui';
+import { Avatar, ErrorNote, Panel, btn } from './ui';
 
 export interface BlockRow { blocked_id: string; expires_at: string | null; created_at: string }
 
@@ -120,8 +120,7 @@ export const BlockedList: React.FC = () => {
     load();
   };
   return (
-    <section className="space-y-2.5">
-      <SectionHead icon={Ban} title={`Blocked & hidden (${rows.length})`} sub="Only you can see this list. They aren’t told." />
+    <Panel tone="blocked" icon={Ban} title={`Blocked & hidden (${rows.length})`} sub="Only you can see this list. They aren’t told.">
       {rows.map((b) => (
         <div key={b.blocked_id} className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#1D232A] border border-white/[0.08]">
           <button onClick={() => go({ name: 'profile', id: b.blocked_id })} className="cursor-pointer"><Avatar src={b.profiles?.avatar_url} name={b.profiles?.display_name} size={40} square={roleMeta(b.profiles?.role).square} /></button>
@@ -133,6 +132,6 @@ export const BlockedList: React.FC = () => {
         </div>
       ))}
       <ErrorNote text={err} />
-    </section>
+    </Panel>
   );
 };

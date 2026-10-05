@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { errorMessage, roleMeta, timeAgo } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
-import { Avatar, EmptyState, ErrorNote, SectionHead, btn, inputCls } from './ui';
+import { Avatar, EmptyState, ErrorNote, Panel, btn, inputCls } from './ui';
 
 type Status = 'pending' | 'approved' | 'declined';
 interface Review {
@@ -76,8 +76,7 @@ export const Testimonials: React.FC<{
   );
 
   return (
-    <section className="space-y-2.5">
-      <SectionHead icon={Star} title="Testimonials" sub={isOwner ? 'New testimonials only appear after you approve them.' : undefined} />
+    <Panel tone="reviews" icon={Star} title="Testimonials" sub={isOwner ? 'New testimonials only appear after you approve them.' : undefined}>
       <ErrorNote text={err} />
 
       {/* Owner: waiting for approval */}
@@ -117,7 +116,7 @@ export const Testimonials: React.FC<{
           {!isOwner && user && onReport && <button onClick={() => onReport(r.id)} className="text-[11px] text-[#8E9AA7] flex items-center gap-1 cursor-pointer"><Flag className="w-3 h-3" />Report</button>}
         </div>
       )))}
-    </section>
+    </Panel>
   );
 };
 

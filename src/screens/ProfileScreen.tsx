@@ -20,7 +20,7 @@ import { Testimonials } from '../components/Testimonials';
 import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
 import { CardBackdrop, CardBackgroundAdjuster, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { VenueFields, checkVenue, venueInfoFrom, venuePatch } from '../components/VenueFields';
-import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, SectionHead, Spinner, btn, inputCls } from '../components/ui';
+import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, Panel, Spinner, btn, inputCls } from '../components/ui';
 
 export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   const go = useNav();
@@ -81,6 +81,20 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
   }, [targetId, user?.id]); // id only: a token refresh shouldn't reload the page or close the editor
 
   useEffect(() => { setLoading(true); setEditing(false); load(); }, [load]);
+  // opened from the menu's "Edit Profile" / "Delete Account"
+  useEffect(() => {
+    if (loading || !isMe) return;
+    const check = () => {
+    let want: string | null = null;
+    try { want = sessionStorage.getItem('minaw-open-edit'); sessionStorage.removeItem('minaw-open-edit'); } catch { /* ignore */ }
+    if (!want) return;
+    setSaved(false); setEditing(true);
+    if (want === 'delete') setTimeout(() => document.getElementById('account-settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
+    };
+    check();
+    window.addEventListener('minaw-open-edit', check);
+    return () => window.removeEventListener('minaw-open-edit', check);
+  }, [loading, isMe]);
 
   const toggleFollow = async () => {
     if (!user) return go({ name: 'auth' });
@@ -113,6 +127,8 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     );
   }
   if (loading) return <Spinner label="Loading profile…" />;
+  // Artists with a band page don't have a separate profile — their band page is their profile.
+  if (p?.role === 'artist' && theirBand) return <ArtistRedirect bandId={theirBand.id} />;
   if (!p) return <div className="px-3 py-4"><EmptyState icon={Users} title="This profile isn’t available" /></div>;
 
   return (
@@ -183,40 +199,35 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       </div>
 
       {p.role === 'artist' && (
-        <section className="space-y-2.5">
-          <SectionHead icon={Music} title={isMe ? 'My Band Page' : 'Band Page'} />
+        <Panel tone="band" icon={Music} title={isMe ? 'My Band Page' : 'Band Page'}>
           {theirBand ? <BandRow band={theirBand} /> : isMe ? (
             <EmptyState icon={Music} title="You haven’t created your band page yet" text="Set it up to upload music, add gigs and get discovered." action={<button onClick={() => go({ name: 'onboarding' })} className={btn.primary}>Create Band Page</button>} />
           ) : <EmptyState icon={Music} title="No band page yet" />}
-        </section>
+        </Panel>
       )}
 
-      <section className="space-y-2.5">
-        <SectionHead icon={Users} title={`Bands Followed (${followed.length})`} />
+      <Panel tone="bands" icon={Users} title={`Bands Followed (${followed.length})`}>
         {followed.length === 0
           ? <EmptyState icon={Users} title="Not following any bands yet" text={isMe ? 'Visit a band page and tap Follow.' : undefined} action={isMe ? <button onClick={() => go({ name: 'audio' })} className={btn.ghost}>Discover bands</button> : undefined} />
           : followed.map((b) => <BandRow key={b.id} band={b} />)}
-      </section>
+      </Panel>
 
-      <section className="space-y-2.5">
-        <SectionHead icon={Users} title={`Followers (${fans.length})`} />
+      <Panel tone="followers" icon={Users} title={`Followers (${fans.length})`}>
         {fans.length === 0 ? <EmptyState icon={Users} title="No followers yet" text={isMe ? 'Fans and artists who follow you will show up here.' : 'Be the first to follow.'} /> : personGrid(fans)}
-      </section>
+      </Panel>
 
       {followingPeople.length > 0 && (
-        <section className="space-y-2.5">
-          <SectionHead icon={Users} title={`Following People (${followingPeople.length})`} />
+        <Panel tone="following" icon={Users} title={`Following People (${followingPeople.length})`}>
           {personGrid(followingPeople)}
-        </section>
+        </Panel>
       )}
 
       {p.role === 'venue' && (
-        <section className="space-y-3">
-          <SectionHead icon={Calendar} title={`Upcoming Gigs Here (${venueGigs.length})`} sub="Gigs whose venue matches this place’s name" />
+        <Panel tone="gigs" icon={Calendar} title={`Upcoming Gigs Here (${venueGigs.length})`} sub="Gigs whose venue matches this place’s name">
           {venueGigs.length === 0
             ? <EmptyState icon={Calendar} title="No upcoming gigs listed here yet" text={isMe ? 'When bands add a gig with your venue’s name, it shows up here.' : undefined} />
             : venueGigs.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} />)}
-        </section>
+        </Panel>
       )}
 
       {p.role === 'venue' && (
@@ -224,12 +235,11 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       )}
 
       {p.role === 'fan' && (isMe || p.show_rsvps) && (
-        <section className="space-y-3">
-          <SectionHead icon={Calendar} title={`Going To (${rsvps.length})`} sub={isMe && !p.show_rsvps ? 'Only you can see this — turn on “Show my gig RSVPs” in Edit Profile to share it.' : undefined} />
+        <Panel tone="gigs" icon={Calendar} title={`Going To (${rsvps.length})`} sub={isMe && !p.show_rsvps ? 'Only you can see this — turn on “Show my gig RSVPs” in Edit Profile to share it.' : undefined}>
           {rsvps.length === 0
             ? <EmptyState icon={Calendar} title="No upcoming RSVPs" text={isMe ? 'RSVP to a gig from Home or a band page.' : 'No upcoming gigs yet.'} />
             : rsvps.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} />)}
-        </section>
+        </Panel>
       )}
 
       <Playlists ownerId={p.id} isMe={isMe} />
@@ -237,21 +247,24 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       {isMe && <BlockedList />}
 
       {p.role === 'venue' && (
-        <section className="space-y-2.5">
-          <SectionHead icon={Tag} title="Tagged Posts" sub="Posts where people tagged this venue" />
+        <Panel tone="tagged" icon={Tag} title="Tagged Posts" sub="Posts where people tagged this venue">
           <ConnectFeed taggedVenue={{ id: p.id, username: p.username }} showComposer={false} />
-        </section>
+        </Panel>
       )}
 
-      <section className="space-y-2.5">
-        <SectionHead icon={MessageCircle} title={isMe ? 'My Posts' : 'Posts'} sub={isMe ? 'Everything you post here or on Connect shows up for all fans and artists.' : undefined} />
+      <Panel tone="posts" icon={MessageCircle} title={isMe ? 'My Posts' : 'Posts'} sub={isMe ? 'Everything you post here or on Connect shows up for all fans and artists.' : undefined}>
         <ConnectFeed authorId={p.id} showComposer={isMe} />
-      </section>
+      </Panel>
 
-      {isMe && <DeleteAccountSection />}
       {report && <ReportModal targetType="profile" targetId={p.id} label="this profile" onClose={() => setReport(false)} onLogin={() => go({ name: 'auth' })} />}
     </div>
   );
+};
+
+/** Replaces the address (so Back doesn't bounce here again) and opens the band page. */
+const ArtistRedirect: React.FC<{ bandId: string }> = ({ bandId }) => {
+  useEffect(() => { window.location.replace(`#/band/${bandId}`); }, [bandId]);
+  return <Spinner label="Opening band page…" />;
 };
 
 const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () => void; onSaved: () => void }> = ({ profile, bandId, onCancel, onSaved }) => {
@@ -350,6 +363,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
         <button onClick={onCancel} className={`${btn.ghost} flex-1`}>Cancel</button>
         <button onClick={save} disabled={busy} className={`${btn.mint} flex-1`}><Check className="w-4 h-4" />{busy ? 'Saving…' : 'Save Changes'}</button>
       </div>
+      <DeleteAccountSection />
     </div>
   );
 };
