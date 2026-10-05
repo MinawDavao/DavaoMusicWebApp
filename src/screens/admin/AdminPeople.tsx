@@ -15,7 +15,7 @@ interface Report {
 }
 type Target = { text: string; route: Route | null; owner?: string | null; image?: string | null; hidden?: boolean };
 
-const TYPE_LABEL: Record<string, string> = { post: 'Post', comment: 'Comment', listing: 'Deal', track: 'Song', band: 'Band page', review: 'Testimonial', profile: 'Profile' };
+const TYPE_LABEL: Record<string, string> = { post: 'Post', comment: 'Comment', listing: 'Deal', track: 'Song', band: 'Band page', review: 'Testimonial', profile: 'Profile', message: 'Chat message', track_comment: 'Song comment' };
 
 /** Looks up what each report points at, so you can see it without leaving the list. */
 async function loadTargets(list: Report[]): Promise<Record<string, Target>> {
@@ -33,6 +33,7 @@ async function loadTargets(list: Report[]): Promise<Record<string, Target>> {
     q('track', 'tracks', 'id, title, band_id, is_hidden', (x) => ({ text: x.title, hidden: x.is_hidden, route: { name: 'band', id: x.band_id } })),
     q('band', 'bands', 'id, name, owner_id, is_hidden', (x) => ({ text: x.name, owner: x.owner_id, hidden: x.is_hidden, route: { name: 'band', id: x.id } })),
     q('review', 'band_reviews', 'id, message, band_id, author_id, is_hidden', (x) => ({ text: x.message, owner: x.author_id, hidden: x.is_hidden, route: { name: 'band', id: x.band_id } })),
+    q('message', 'messages', 'id, body, image_path, sender_id, is_hidden', (x) => ({ text: x.body || '(photo)', owner: x.sender_id, hidden: x.is_hidden, route: { name: 'profile', id: x.sender_id } })),
     q('profile', 'profiles', 'id, display_name, username, avatar_url, is_suspended', (x) => ({ text: `${x.display_name} (@${x.username})`, image: x.avatar_url, hidden: x.is_suspended, route: { name: 'profile', id: x.id } })),
   ]);
   return out;

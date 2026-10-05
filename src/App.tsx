@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Headphones, House, LogIn, LogOut, Music, Pencil, Radio, ShieldCheck, Tag, User as UserIcon } from 'lucide-react';
+import { Headphones, House, LogIn, LogOut, MessageCircle, Music, Pencil, Radio, ShieldCheck, Tag, User as UserIcon } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlayerProvider } from './context/PlayerContext';
 import { NavContext, type Route } from './nav';
@@ -12,6 +12,8 @@ import { AudioScreen } from './screens/AudioScreen';
 import { BandScreen } from './screens/BandScreen';
 import { ConnectScreen, PostScreen } from './screens/ConnectScreen';
 import { NotificationBell } from './components/Notifications';
+import { ChatScreen, MessagesScreen } from './screens/MessagesScreen';
+import { useChatUnread } from './lib/chat';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { DealsScreen } from './screens/DealsScreen';
 import { AuthScreen } from './screens/AuthScreen';
@@ -35,6 +37,7 @@ function parseHash(): Route {
     case 'signup': return { name: 'auth', mode: 'signup' };
     case 'welcome': return { name: 'onboarding' };
     case 'admin': return { name: 'admin' };
+    case 'messages': return b ? { name: 'chat', id: b, listing: c === 'deal' && d ? d : undefined } : { name: 'messages' };
     case 'home': return b === 'admin' ? { name: 'admin' } : { name: 'home' };
     default: return { name: 'home' };
   }
@@ -48,6 +51,7 @@ function toHash(r: Route): string {
     case 'auth': return r.mode === 'signup' ? '#/signup' : '#/login';
     case 'onboarding': return '#/welcome';
     case 'admin': return '#/home/admin';
+    case 'chat': return r.listing ? `#/messages/${r.id}/deal/${r.listing}` : `#/messages/${r.id}`;
     default: return `#/${r.name}`;
   }
 }
@@ -60,6 +64,20 @@ const TABS: { key: Route['name']; label: string; Icon: React.ElementType; route:
 ];
 const activeTab = (r: Route): Route['name'] =>
   r.name === 'admin' ? 'home' : r.name === 'band' || r.name === 'playlist' ? 'audio' : r.name === 'profile' || r.name === 'post' ? 'connect' : r.name;
+
+/** Messages icon with the unread-chats badge. */
+const ChatIcon: React.FC<{ onClick: () => void; active: boolean }> = ({ onClick, active }) => {
+  const n = useChatUnread();
+  return (
+    <button onClick={onClick} aria-label={n ? `Messages, ${n} unread` : 'Messages'}
+      className={`relative w-[38px] h-[38px] rounded-full border flex items-center justify-center cursor-pointer ${active ? 'bg-[#6045F4] border-[#6045F4] text-white' : 'bg-[#161B20] border-white/15 text-[#EBEBED] hover:text-white'}`}>
+      <MessageCircle className="w-[18px] h-[18px]" />
+      {n > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#53E6D4] text-[#0F1417] text-[10px] font-bold flex items-center justify-center border-2 border-[#0F1417]">{n > 99 ? '99+' : n}</span>
+      )}
+    </button>
+  );
+};
 
 const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
   const { user, profile, band, adminBands, isModerator, signOut } = useAuth();
@@ -94,8 +112,9 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </button>
           ) : (
             <div className="relative flex items-center gap-2" ref={ref}>
+              <ChatIcon onClick={() => go({ name: 'messages' })} active={route.name === 'messages' || route.name === 'chat'} />
               <NotificationBell />
-              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 ${roleMeta(profile?.role).chip}`}>{roleMeta(profile?.role).label}</span>
+              <span className={`hidden min-[390px]:inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 ${roleMeta(profile?.role).chip}`}>{roleMeta(profile?.role).label}</span>
               <button onClick={() => setMenu(!menu)} aria-haspopup="menu" aria-expanded={menu} aria-label="Open profile menu" className="cursor-pointer">
                 <Avatar src={profile?.avatar_url} name={profile?.display_name} size={38} square={roleMeta(profile?.role).square} ring />
               </button>
@@ -185,6 +204,8 @@ const Shell: React.FC = () => {
     case 'playlist': screen = <PlaylistScreen key={view.id} id={view.id} />; break;
     case 'post': screen = <PostScreen key={view.id} id={view.id} />; break;
     case 'admin': screen = <AdminScreen />; break;
+    case 'messages': screen = <MessagesScreen />; break;
+    case 'chat': screen = <ChatScreen key={view.id} id={view.id} listing={view.listing} />; break;
     case 'auth': screen = <AuthScreen key={view.mode} initialMode={view.mode} />; break;
     case 'onboarding': screen = user ? <OnboardingScreen /> : <Spinner />; break;
   }
@@ -196,7 +217,7 @@ const Shell: React.FC = () => {
           <Header route={view} go={go} />
           {view.name !== 'auth' && view.name !== 'onboarding' && <InstallBanner />}
           <main className="flex-1">{screen}</main>
-          <footer className="pt-7 pb-36 px-4 border-t border-white/10 bg-[#161B20] text-[#8E9AA7] space-y-3">
+          {view.name !== 'chat' && <footer className="pt-7 pb-36 px-4 border-t border-white/10 bg-[#161B20] text-[#8E9AA7] space-y-3">
             <div className="flex items-center gap-2">
               <img src="/minaw-logo.png.png" alt="" className="h-6 w-auto" />
               <span className="font-heading font-bold text-sm"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DVO</span></span>
@@ -204,7 +225,7 @@ const Shell: React.FC = () => {
             <InstallLink />
             <p className="text-[11px] leading-relaxed">Dedicated local music platform for Davao City &amp; Southern Mindanao. Connect with local bands, discover gigs, and grab gear deals.</p>
             <p className="text-[10px] pt-2 border-t border-white/5">© 2026 MINAW DVO • Made for Davao musicians and fans.</p>
-          </footer>
+          </footer>}
         </div>
 
         <nav aria-label="Mobile navigation" className="fixed bottom-3 left-0 right-0 z-40 mx-auto max-w-[420px] px-3">

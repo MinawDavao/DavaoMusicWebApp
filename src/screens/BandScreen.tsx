@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { GigCard, TrackRow } from '../components/cards';
 import { MEMBER_COLS, MembersEditor, type MemberRow } from '../components/MembersEditor';
+import { MessageButton } from './MessagesScreen';
 import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { Testimonials } from '../components/Testimonials';
 import { CoverField, CoverPhoto, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
@@ -152,6 +153,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
             ) : (
               <div className="flex gap-1.5">
                 <button onClick={toggleFollow} className={`${following ? btn.ghost : btn.primary} !py-2 !text-xs`}>{following ? <><UserMinus className="w-3.5 h-3.5" />Following</> : <><UserPlus className="w-3.5 h-3.5" />Follow</>}</button>
+                <MessageButton to={band.owner_id} label="" className={btn.icon} />
                 <button onClick={() => setReport({ type: 'band', id: band.id, label: 'this band page' })} aria-label="Report band page" className={btn.icon}><Flag className="w-4 h-4" /></button>
               </div>
             )}

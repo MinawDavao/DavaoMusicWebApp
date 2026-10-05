@@ -13,6 +13,7 @@ import { Playlists } from '../components/Playlists';
 import { GenrePicker } from '../components/GenrePicker';
 import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
+import { MessageButton } from './MessagesScreen';
 import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { Testimonials } from '../components/Testimonials';
 import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
@@ -137,6 +138,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
                     <button onClick={toggleFollow} disabled={followBusy || !!block} className={`${iFollow ? btn.ghost : btn.primary} !py-2 !text-xs`}>
                       {iFollow ? <><UserMinus className="w-3.5 h-3.5" />Following</> : <><UserPlus className="w-3.5 h-3.5" />Follow</>}
                     </button>
+                    {!block && <MessageButton to={p.id} label="" className={btn.icon} />}
                     {user && <button onClick={() => setReport(true)} aria-label="Report profile" className={btn.icon}><Flag className="w-4 h-4" /></button>}
                     {user && <BlockMenu targetId={p.id} name={p.display_name} onChange={() => { reloadBlock(); load(); }} />}
                   </div>

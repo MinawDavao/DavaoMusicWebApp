@@ -11,7 +11,9 @@ export type Route =
   | { name: 'post'; id: string }
   | { name: 'auth'; mode?: 'login' | 'signup' }
   | { name: 'onboarding' }
-  | { name: 'admin' };
+  | { name: 'admin' }
+  | { name: 'messages' }
+  | { name: 'chat'; id: string; listing?: string };
 
 export const NavContext = createContext<(r: Route) => void>(() => {});
 export const useNav = () => useContext(NavContext);

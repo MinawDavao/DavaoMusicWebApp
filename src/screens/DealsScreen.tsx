@@ -8,6 +8,7 @@ import {
 } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
+import { MessageButton } from './MessagesScreen';
 import { ZoomImg } from '../components/Zoom';
 import { SponsoredSpotlight } from '../components/SponsoredSpotlight';
 import { ReportModal } from '../components/ReportModal';
@@ -212,8 +213,9 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
           </>
         ) : (
           <>
-            <button onClick={() => setContact(!contact)} className={`${btn.primary} !py-2 !text-xs`}><Send className="w-3.5 h-3.5" />Inquire / Offer</button>
-            <button onClick={() => go({ name: 'profile', id: it.seller_id })} className={`${btn.ghost} !py-2 !text-xs`}>Seller Profile</button>
+            <MessageButton to={it.seller_id} listing={it.id} label={it.deal_type === 'looking_to_buy' ? 'Message Buyer' : 'Message Seller'} className={`${btn.primary} !py-2 !text-xs`} />
+            <button onClick={() => go({ name: 'profile', id: it.seller_id })} className={`${btn.ghost} !py-2 !text-xs`}>Profile</button>
+            {(it.profiles?.instagram || it.profiles?.facebook) && <button onClick={() => setContact(!contact)} aria-expanded={contact} className={`${btn.ghost} !py-2 !text-xs`}><Send className="w-3.5 h-3.5" />Socials</button>}
             <span className="flex-1" />
             <button onClick={onReport} aria-label="Report listing" className={btn.icon}><Flag className="w-4 h-4" /></button>
           </>
@@ -244,7 +246,8 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
   const [err, setErr] = useState<string | null>(null);
 
   const needsWish = deal !== 'for_sale';
-  const ok = title.trim().length >= 3 && (deal === 'for_trade' || price.trim() !== '');
+  const priceOk = price.trim() !== '' && Number.isFinite(Number(price)) && Number(price) > 0;
+  const ok = title.trim().length >= 3 && priceOk;
 
   const pill = <T extends string>(val: T, cur: T, set: (v: T) => void, label: string) => (
     <button key={val} type="button" onClick={() => set(val)} className={`h-8 px-3 rounded-full text-xs font-bold cursor-pointer border ${cur === val ? 'bg-[#6045F4] border-[#6045F4] text-white' : 'bg-[#0F1417] border-white/15 text-[#EBEBED]'}`}>{label}</button>
@@ -252,8 +255,8 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
 
   const submit = async () => {
     if (!ok || !user) return;
-    const priceNum = price.trim() ? Number(price) : null;
-    if (priceNum !== null && !Number.isFinite(priceNum)) return setErr('Please enter a valid price, e.g. 4500 or 4500.50.');
+    const priceNum = Number(price);
+    if (!price.trim() || !Number.isFinite(priceNum) || priceNum <= 0) return setErr('Please enter a price, e.g. 4500 or 4500.50.');
     setBusy(true); setErr(null);
     try {
       const fields = {
@@ -306,7 +309,7 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
       <Field label="Item Title" htmlFor="d-title"><input id="d-title" className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Boss DS-1 Distortion (Made in Japan)" /></Field>
       <div className="space-y-2"><p className="text-[13px] font-bold text-white">Category</p><div className="flex flex-wrap gap-1.5">{(Object.keys(CATEGORY_LABELS) as GearCategory[]).map((c) => pill(c, cat, setCat, CATEGORY_LABELS[c]))}</div></div>
       <div className="space-y-2"><p className="text-[13px] font-bold text-white">Condition</p><div className="flex flex-wrap gap-1.5">{(Object.keys(CONDITION_LABELS) as GearCondition[]).map((c) => pill(c, cond, setCond, CONDITION_LABELS[c]))}</div></div>
-      <Field label={deal === 'looking_to_buy' ? 'Budget (₱)' : deal === 'for_trade' ? 'Value (₱, optional)' : 'Asking Price (₱)'} htmlFor="d-price">
+      <Field label={deal === 'looking_to_buy' ? 'Budget (₱) *' : deal === 'for_trade' ? 'Estimated Value (₱) *' : 'Asking Price (₱) *'} htmlFor="d-price" hint="required">
         <input id="d-price" inputMode="decimal" className={inputCls} value={price} onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0" />
       </Field>
       {needsWish && <Field label={deal === 'looking_to_buy' ? 'What exactly are you looking for?' : 'What would you trade for?'} htmlFor="d-wish"><input id="d-wish" className={inputCls} value={wish} onChange={(e) => setWish(e.target.value)} /></Field>}
@@ -341,7 +344,7 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
       <Field label="Meetup District" icon={MapPin} htmlFor="d-dist"><input id="d-dist" className={inputCls} value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="e.g. Matina, Davao City" /></Field>
       <ErrorNote text={err} />
       <button onClick={submit} disabled={!ok || busy} className={`${btn.mint} w-full h-12`}>{editing ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}{busy ? 'Saving…' : editing ? 'Save Changes' : 'Post Deal'}</button>
-      <p className="-mt-2 text-center text-[11px] text-[#8E9AA7]">{!ok ? 'Add a title and price to post.' : editing ? 'Changes show up right away.' : 'Your deal will appear at the top of Gear Exchange.'}</p>
+      <p className="-mt-2 text-center text-[11px] text-[#8E9AA7]">{!ok ? (title.trim().length < 3 ? 'Add a title and a price to post.' : 'A price is required for every deal (use your budget or the item’s value for trades).') : editing ? 'Changes show up right away.' : 'Your deal will appear at the top of Gear Exchange.'}</p>
     </div>
   );
 };

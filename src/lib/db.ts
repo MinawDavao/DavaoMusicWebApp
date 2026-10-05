@@ -162,7 +162,7 @@ export interface Listing {
   listing_photos?: { id: string; image_path: string; position: number }[];
 }
 
-export type ReportTarget = 'post' | 'comment' | 'listing' | 'track' | 'band' | 'review' | 'profile' | 'track_comment';
+export type ReportTarget = 'post' | 'comment' | 'listing' | 'track' | 'band' | 'review' | 'profile' | 'track_comment' | 'message';
 export type ReportReason = 'nudity' | 'violence' | 'political' | 'hate' | 'scam' | 'copyright' | 'other';
 
 // ---------- Labels ----------
@@ -291,6 +291,8 @@ export function errorMessage(e: any): string {
   if (/venues_name_norm_uniq/.test(msg)) return 'A venue/business with this name already exists. Please choose a different name.';
   if (/Database error saving new user/i.test(msg)) return 'Couldn’t create the account. If you chose Venue/Business, that name may already be taken — try a different one.';
   if (/band_members_band_profile_uniq/.test(msg)) return 'That account is already linked to another member of this band.';
+  if (/CHAT(_SPAM)?: /.test(msg)) return msg.replace(/^.*CHAT(_SPAM)?: /, '');
+  if (/listings_price_required/.test(msg)) return 'Please enter a price (or your budget / the item’s value).';
   if (/BAND_ADMIN: /.test(msg)) return msg.replace(/^.*BAND_ADMIN: /, '');
   if (/bands_owner_id_key/.test(msg)) return 'You already have a band page — refresh the page to edit it.';
   if (/row-level security/i.test(msg)) return 'You can’t do that here. This can happen if one of you has blocked the other, or if you haven’t accepted the Terms yet.';
