@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ArrowLeft, BadgeCheck, Calendar, Camera, Check, Disc3, Flag, Globe, Headphones, Mail, MapPin, Music, Pencil, Phone, Play,
+  ArrowLeft, BadgeCheck, Calendar, Camera, Check, ChevronRight, Disc3, Flag, Globe, Headphones, Mail, MapPin, Music, Pencil, Phone, Play,
   MessageCircle, Plus, ShieldCheck, Star, Trash2, UserMinus, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -46,8 +46,8 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
   const [addGig, setAddGig] = useState(false);
   const [report, setReport] = useState<{ type: 'band' | 'track' | 'review'; id: string; label: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [followerList, setFollowerList] = useState<{ id: string; display_name: string; avatar_url: string | null; role: string }[]>([]);
   const [playlistFor, setPlaylistFor] = useState<Track | null>(null);
+  const [showFollowers, setShowFollowers] = useState(false);
 
   const isOwner = !!user && band?.owner_id === user.id;
   const myAdminRow = user ? members.find((m) => m.profile_id === user.id && m.is_admin) : undefined;
@@ -57,7 +57,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
     const { data: b } = await supabase.from('bands').select('*, band_genres(genre_id, genres(name))').eq('id', id).maybeSingle();
     setBand((b as unknown as Band) || null);
     if (!b) { setLoading(false); return; }
-    const [m, t, p, g, c, my, f, amF, fl] = await Promise.all([
+    const [m, t, p, g, c, my, f, amF] = await Promise.all([
       supabase.from('band_members').select(MEMBER_COLS).eq('band_id', id).order('sort_order').order('created_at'),
       fetchTracks(id),
       supabase.from('band_photos').select('id, image_url, title, tag').eq('band_id', id).order('created_at', { ascending: false }),
@@ -66,7 +66,6 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
       user ? fetchMyRsvps(user.id) : Promise.resolve(new Set<string>()),
       supabase.from('follows').select('band_id', { count: 'exact', head: true }).eq('band_id', id),
       user ? supabase.from('follows').select('band_id').eq('band_id', id).eq('follower_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
-      supabase.from('follows').select('follower_id, profiles!follows_follower_id_fkey(id, display_name, avatar_url, role)').eq('band_id', id).order('created_at', { ascending: false }).limit(40),
     ]);
     setMembers((m.data as any as Member[]) || []);
     setTracks(t);
@@ -74,7 +73,6 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
     setGigs(g); setCounts(c); setMine(my);
     setFollowers(f.count || 0);
     setFollowing(!!(amF as any).data);
-    setFollowerList((((fl as any).data as any[]) || []).map((x) => x.profiles).filter(Boolean));
     setLoading(false);
   }, [id, user?.id]); // id only: a token refresh shouldn't close open editors
 
@@ -194,7 +192,12 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
             </div>
           )}
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/[0.08]">
-            {[['FOLLOWERS', followers], ['TOTAL PLAYS', totalPlays], ['TRACKS', tracks.length]].map(([l, v]) => (
+            <button onClick={() => setShowFollowers(true)} aria-label={`Followers: ${followers}. Show all followers`}
+              className="p-2.5 rounded-xl bg-[#FF8A5B]/10 border border-[#FF8A5B]/40 text-center cursor-pointer hover:bg-[#FF8A5B]/20 transition-colors">
+              <p className="font-heading font-bold text-lg text-[#FF8A5B]">{followers.toLocaleString()}</p>
+              <p className="flex items-center justify-center gap-0.5 text-[9px] tracking-wider text-[#FFB899]">FOLLOWERS<ChevronRight className="w-2.5 h-2.5" /></p>
+            </button>
+            {[['TOTAL PLAYS', totalPlays], ['TRACKS', tracks.length]].map(([l, v]) => (
               <div key={l as string} className="p-2.5 rounded-xl bg-[#161B20] border border-white/[0.08] text-center">
                 <p className="font-heading font-bold text-lg text-[#53E6D4]">{Number(v).toLocaleString()}</p>
                 <p className="text-[9px] tracking-wider text-[#8E9AA7]">{l}</p>
@@ -229,17 +232,13 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
         {canManage && <TrackUploadForm userId={user!.id} bandId={band.id} used={tracks.length} onUploaded={load} />}
       </Panel>
 
-      {/* GIGS */}
-      <Panel tone="gigs" icon={Calendar} title="Upcoming Gigs" right={canManage ? <button onClick={() => setAddGig(true)} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Plus className="w-3.5 h-3.5" />Add Gig</button> : undefined}>
-        {gigs.length === 0
-          ? <EmptyState icon={Calendar} title="No upcoming gigs yet" text={canManage ? 'Add your next show so fans can RSVP.' : 'This band hasn’t posted any shows yet.'} />
-          : gigs.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} onDelete={canManage ? () => deleteGig(g) : undefined} />)}
-      </Panel>
-
       {/* POSTS */}
       <Panel tone="posts" icon={MessageCircle} title={isOwner ? 'Our Posts' : 'Posts'} sub={isOwner ? 'Posts you share here also appear on the Connect feed for everyone.' : undefined}>
         <ConnectFeed authorId={band.owner_id} showComposer={isOwner} />
       </Panel>
+
+      {/* TESTIMONIALS (need the owner's approval) */}
+      <Testimonials kind="band" targetId={band.id} isOwner={canManage} onReport={(rid) => setReport({ type: 'review', id: rid, label: 'this testimonial' })} />
 
       {/* GALLERY */}
       <Panel tone="gallery" icon={Camera} title="Gallery & Stage Photos" right={canManage ? (
@@ -260,6 +259,13 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
           )}
       </Panel>
 
+      {/* GIGS */}
+      <Panel tone="gigs" icon={Calendar} title="Upcoming Gigs" right={canManage ? <button onClick={() => setAddGig(true)} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Plus className="w-3.5 h-3.5" />Add Gig</button> : undefined}>
+        {gigs.length === 0
+          ? <EmptyState icon={Calendar} title="No upcoming gigs yet" text={canManage ? 'Add your next show so fans can RSVP.' : 'This band hasn’t posted any shows yet.'} />
+          : gigs.map((g) => <GigCard key={g.id} gig={g} count={counts[g.id] || 0} going={mine.has(g.id)} onChange={load} onDelete={canManage ? () => deleteGig(g) : undefined} />)}
+      </Panel>
+
       {/* MEMBERS */}
       {canManage ? (
         <Panel tone="members" icon={Users} title="Band Members">
@@ -269,35 +275,56 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
         <MembersSection members={members} />
       )}
 
-      {/* FOLLOWERS */}
-      <Panel tone="followers" icon={Users} title={`Followers (${followers})`}>
-        {followerList.length === 0 ? (
-          <EmptyState icon={Users} title="No followers yet" text={canManage ? 'Share your band page so fans can follow you.' : 'Be the first to follow this band.'} />
-        ) : (
-          <div className="grid grid-cols-4 gap-2.5">
-            {followerList.map((f) => (
-              <button key={f.id} onClick={() => go({ name: 'profile', id: f.id })} className="flex flex-col items-center gap-1.5 min-w-0 cursor-pointer" aria-label={`View ${f.display_name}’s profile`}>
-                <Avatar src={f.avatar_url} name={f.display_name} size={52} square={roleMeta(f.role).square} />
-                <span className="text-[11px] font-bold text-white max-w-full truncate">{f.display_name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </Panel>
-
       {/* PLAYLISTS made by the band's account */}
       <Playlists ownerId={band.owner_id} isMe={isOwner} />
 
       {isOwner && <BlockedList />}
 
-      {/* TESTIMONIALS (need the owner's approval) */}
-      <Testimonials kind="band" targetId={band.id} isOwner={canManage} onReport={(rid) => setReport({ type: 'review', id: rid, label: 'this testimonial' })} />
-
+      {showFollowers && <FollowersModal bandId={band.id} count={followers} canManage={canManage} onClose={() => setShowFollowers(false)} />}
       {editing && <EditBandModal isOwner={isOwner} band={band} onClose={() => { setEditing(false); load(); }} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
       {addGig && <AddGigModal bandId={band.id} onClose={() => setAddGig(false)} onSaved={() => { setAddGig(false); load(); }} />}
       {playlistFor && <PlaylistModal track={{ ...playlistFor, bands: { id: band.id, name: band.name, handle: band.handle, logo_url: band.logo_url } }} onClose={() => setPlaylistFor(null)} />}
       {report && <ReportModal targetType={report.type} targetId={report.id} label={report.label} onClose={() => setReport(null)} onLogin={() => go({ name: 'auth' })} />}
     </div>
+  );
+};
+
+// ---------------------------------------------------------------- followers (opened from the FOLLOWERS count)
+type Fan = { id: string; display_name: string; username: string; avatar_url: string | null; role: string };
+const FollowersModal: React.FC<{ bandId: string; count: number; canManage: boolean; onClose: () => void }> = ({ bandId, count, canManage, onClose }) => {
+  const go = useNav();
+  const [list, setList] = useState<Fan[] | null>(null);
+  const [q, setQ] = useState('');
+  useEffect(() => {
+    supabase.from('follows').select('follower_id, created_at, profiles!follows_follower_id_fkey(id, display_name, username, avatar_url, role)')
+      .eq('band_id', bandId).order('created_at', { ascending: false }).range(0, 999)
+      .then(({ data }) => setList((((data as any[]) || []).map((x) => x.profiles).filter(Boolean)) as Fan[]));
+  }, [bandId]);
+  const term = q.trim().toLowerCase();
+  const shown = (list || []).filter((f) => !term || f.display_name.toLowerCase().includes(term) || f.username.toLowerCase().includes(term));
+  return (
+    <Modal title={`Followers (${Math.max(count, list?.length ?? 0).toLocaleString()})`} onClose={onClose}>
+      {list === null ? <Spinner /> : list.length === 0 ? (
+        <EmptyState icon={Users} title="No followers yet" text={canManage ? 'Share your band page so fans can follow you.' : 'Be the first to follow this band.'} />
+      ) : (
+        <>
+          {list.length > 8 && (
+            <input type="text" inputMode="search" aria-label="Search followers" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search followers"
+              className={inputCls} />
+          )}
+          <div className="grid grid-cols-4 gap-x-2 gap-y-3.5">
+            {shown.map((f) => (
+              <button key={f.id} onClick={() => { onClose(); go({ name: 'profile', id: f.id }); }} className="flex flex-col items-center gap-1.5 min-w-0 cursor-pointer group" aria-label={`View ${f.display_name}’s profile`}>
+                <span className="rounded-full ring-2 ring-transparent group-hover:ring-[#FF8A5B] transition"><Avatar src={f.avatar_url} name={f.display_name} size={56} square={roleMeta(f.role).square} /></span>
+                <span className="text-[11px] font-bold text-white max-w-full truncate">{f.display_name}</span>
+                <span className="-mt-1 text-[9px] text-[#8E9AA7] max-w-full truncate">@{f.username}</span>
+              </button>
+            ))}
+          </div>
+          {term && shown.length === 0 && <p className="text-center text-[12px] text-[#8E9AA7]">No followers match “{q.trim()}”.</p>}
+        </>
+      )}
+    </Modal>
   );
 };
 
