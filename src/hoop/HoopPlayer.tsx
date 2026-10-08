@@ -45,9 +45,12 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
     setFans(fr.count || 0); setFollowingN(fg.count || 0); setIFollow(!!(mineF as any).data);
 
     // last 5 finished games
-    const { data: gp } = await supabase.from('hoop_game_players').select('team, hoop_games!inner(id, title, starts_at, status, team_a, team_b)')
-      .eq('profile_id', pid).not('team', 'is', null).eq('hoop_games.status', 'final').order('booked_at', { ascending: false }).limit(5);
-    const games = ((gp as any[]) || []).map((x) => ({ ...x.hoop_games, team: x.team }));
+    const { data: gp } = await supabase.from('hoop_game_players').select('team, hoop_games!inner(id, title, starts_at, ended_at, status, team_a, team_b)')
+      .eq('profile_id', pid).not('team', 'is', null).eq('hoop_games.status', 'final').limit(200);
+    // most recently finished first
+    const when = (g: any) => g.ended_at || g.starts_at;
+    const games = ((gp as any[]) || []).map((x) => ({ ...x.hoop_games, team: x.team }))
+      .sort((x, y) => when(y).localeCompare(when(x))).slice(0, 5);
     if (games.length) {
       const ids = games.map((g) => g.id);
       const { data: ev } = await supabase.from('hoop_events').select('*').in('game_id', ids);
@@ -56,10 +59,17 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
         const bs = boxScore(all.filter((e) => e.game_id === g.id));
         const l = bs.lines[pid];
         return { ...g, a: bs.score.A, b: bs.score.B, pts: l?.pts || 0, reb: l?.reb || 0, ast: l?.ast || 0 };
-      }).sort((x, y) => y.starts_at.localeCompare(x.starts_at)));
+      }));
     } else setRecent([]);
   }, [pid, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    // a game finishing updates this card right away
+    const ch = supabase.channel(`hoop-card-${pid}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hoop_games' }, (p: any) => { if (p.new?.status === 'final' || p.old?.status === 'final') load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [load, pid]);
 
   const join = async () => {
     setErr(null);
@@ -406,5 +416,46 @@ export const HoopPlayers: React.FC = () => {
         ))}
       </div>
     </div>
+  );
+};
+
+// ===================================================================== small summary on the MINAW (music) profile
+export const HoopSummary: React.FC<{ profileId: string; isMe: boolean }> = ({ profileId, isMe }) => {
+  const go = useNav();
+  const [card, setCard] = useState<HoopCard | null | undefined>(undefined);
+  const [st, setSt] = useState<HoopStats | null>(null);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('hoop_players').select('*').eq('profile_id', profileId).maybeSingle();
+      setCard((data as HoopCard) || null);
+      if (data) setSt((await fetchStats([profileId]))[profileId] || null);
+    })();
+  }, [profileId]);
+  if (!card) return null;
+  return (
+    <button onClick={() => go({ name: 'hoopPlayer', id: profileId })} className="w-full text-left rounded-3xl overflow-hidden border border-[#F28C14]/45 cursor-pointer" style={{ background: 'linear-gradient(160deg, rgba(242,140,20,0.22), #141414 70%)' }}>
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #F28C14, #F26A2E)' }} />
+      <div className="p-3.5 space-y-3">
+        <div className="flex items-center gap-2.5">
+          <img src="/hoop-ball.png" alt="" className="w-9 h-9" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[9px] font-bold tracking-[0.3em] text-[#F28C14]">SUNDAY HOOP METHOD</p>
+            <p className="font-hoop italic font-black text-[18px] uppercase text-white leading-tight truncate">
+              {card.jersey_number != null ? `#${card.jersey_number} · ` : ''}{card.position || 'Player'}
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-[#F28C14]">{isMe ? 'My card' : 'Player card'} ›</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2 text-center">
+          {[['GP', String(st?.games ?? 0)], ['PPG', fmt1(st?.ppg)], ['RPG', fmt1(st?.rpg)], ['APG', fmt1(st?.apg)]].map(([k, v]) => (
+            <div key={k} className="py-2 rounded-xl bg-black/30 border border-white/10">
+              <p className="font-hoop font-bold text-[20px] leading-none text-white">{v}</p>
+              <p className="text-[9px] tracking-wider text-[#A8A29E]">{k}</p>
+            </div>
+          ))}
+        </div>
+        {st && <p className="text-[10px] text-[#D6D3D1]">{st.wins}-{st.losses} record · {fmt1(st.spg)} STL · {fmt1(st.bpg)} BLK per game · best game {st.best_pts} pts</p>}
+      </div>
+    </button>
   );
 };

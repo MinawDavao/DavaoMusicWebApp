@@ -15,6 +15,7 @@ import { fetchBandGenreNames, setBandGenres } from '../lib/genres';
 import { ReportModal } from '../components/ReportModal';
 import { MessageButton } from './MessagesScreen';
 import { DeleteAccountSection } from '../components/DeleteAccount';
+import { HoopSummary } from '../hoop/HoopPlayer';
 import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { Testimonials } from '../components/Testimonials';
 import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
@@ -197,6 +198,8 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
           </div>
         )}
       </div>
+
+      {p.role === 'fan' && user && <HoopSummary profileId={p.id} isMe={isMe} />}
 
       {p.role === 'artist' && (
         <Panel tone="band" icon={Music} title={isMe ? 'My Band Page' : 'Band Page'}>

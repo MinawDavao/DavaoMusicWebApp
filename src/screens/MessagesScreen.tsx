@@ -142,7 +142,9 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [hasOlder, setHasOlder] = useState(false);
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [text, setText] = useState('');
+  const [text, setText] = useState(() => {   // message pre-filled by the button that opened this chat
+    try { const d = sessionStorage.getItem(`minaw-chat-draft:${id}`); sessionStorage.removeItem(`minaw-chat-draft:${id}`); return d || ''; } catch { return ''; }
+  });
   const [about, setAbout] = useState<ChatListing | null>(null);
   const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -401,7 +403,7 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
 };
 
 /** Small "Message" button for profiles / band pages. */
-export const MessageButton: React.FC<{ to: string; label?: string; className?: string; listing?: string }> = ({ to, label = 'Message', className, listing }) => {
+export const MessageButton: React.FC<{ to: string; label?: string; className?: string; listing?: string; draft?: string }> = ({ to, label = 'Message', className, listing, draft }) => {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const go = useNav();
@@ -412,6 +414,7 @@ export const MessageButton: React.FC<{ to: string; label?: string; className?: s
     const { data, error } = await supabase.rpc('start_conversation', { p_other: to });
     setBusy(false);
     if (error || !data) return alert(errorMessage(error));
+    if (draft) { try { sessionStorage.setItem(`minaw-chat-draft:${data}`, draft); } catch { /* ignore */ } }
     go({ name: 'chat', id: data as string, listing });
   };
   return (

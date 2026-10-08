@@ -53,14 +53,25 @@ export const HoopGames: React.FC = () => {
   };
 
   if (rows === null) return <Spinner label="Loading games…" />;
-  const live = rows.filter((g) => g.status === 'live');
-  const upcoming = rows.filter((g) => g.status === 'scheduled' || (isModerator && g.status === 'cancelled' && new Date(g.starts_at) > new Date()));
-  const results = rows.filter((g) => g.status === 'final').reverse().slice(0, 10);
+  // a schedule = its first game + any extra games ("Game 2, 3…") played the same day
+  const parents = rows.filter((g) => !g.session_id);
+  const kids = (g: Row) => rows.filter((x) => x.session_id === g.id);
+  const liveOf = (g: Row) => (g.status === 'live' ? g : kids(g).find((x) => x.status === 'live'));
+  const live = parents.filter((g) => liveOf(g));
+  // newest first: the latest scheduled game on top, the most recently finished result on top
+  const upcoming = parents.filter((g) => !liveOf(g) && (g.status === 'scheduled' || (isModerator && g.status === 'cancelled' && new Date(g.starts_at) > new Date())))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const lastPlayed = (g: Row) => [g, ...kids(g)].map((x) => x.ended_at || x.started_at || x.starts_at).sort().pop() || g.starts_at;
+  const results = parents.filter((g) => !liveOf(g) && g.status === 'final')
+    .sort((a, b) => lastPlayed(b).localeCompare(lastPlayed(a))).slice(0, 10);
 
-  const card = (g: Row) => {
-    const booked = g.hoop_game_players.length;
-    const mine = !!user && g.hoop_game_players.some((p) => p.profile_id === user.id);
-    const full = booked >= g.slots;
+  const card = (parent: Row) => {
+    const lg = liveOf(parent);
+    const g = lg || parent;
+    const extra = kids(parent).length;
+    const booked = parent.hoop_game_players.length;
+    const mine = !!user && parent.hoop_game_players.some((p) => p.profile_id === user.id);
+    const full = booked >= parent.slots;
     const sc = scores[g.id];
     const started = new Date(g.starts_at).getTime() < Date.now();
     return (
@@ -73,7 +84,7 @@ export const HoopGames: React.FC = () => {
           </span>
           <span className="flex-1 min-w-0 p-3 space-y-1">
             <span className="flex items-center gap-2">
-              <span className="font-hoop italic font-extrabold text-[19px] uppercase text-white truncate">{g.title}</span>
+              <span className="font-hoop italic font-extrabold text-[19px] uppercase text-white truncate">{g.title}{extra > 0 && lg ? ` · G${kids(parent).indexOf(lg) + 2}` : ''}</span>
               {g.status === 'live' && <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#F26A2E] text-[9px] font-black text-white"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE</span>}
               {g.status === 'cancelled' && <span className="px-1.5 py-0.5 rounded bg-white/10 text-[9px] font-bold text-[#A8A29E]">CANCELLED</span>}
             </span>
@@ -81,17 +92,19 @@ export const HoopGames: React.FC = () => {
               <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-[#F28C14]" />{gameTime(g.starts_at)}</span>
               {g.venue && <span className="flex items-center gap-1 truncate"><MapPin className="w-3 h-3 text-[#F28C14]" />{g.venue}</span>}
             </span>
-            {sc && (g.status === 'final' || g.status === 'live')
+            {extra > 0 && !lg
+              ? <span className="block text-[12px] font-bold text-white">{extra + 1} games played · tap for scores</span>
+              : sc && (g.status === 'final' || g.status === 'live')
               ? <span className="block font-hoop italic font-extrabold text-[17px] text-white">{g.team_a} <span className={sc.score_a >= sc.score_b ? 'text-[#F28C14]' : ''}>{sc.score_a}</span> – <span className={sc.score_b >= sc.score_a ? 'text-[#F28C14]' : ''}>{sc.score_b}</span> {g.team_b}</span>
               : (
                 <span className="flex items-center gap-2">
-                  <span className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (booked / g.slots) * 100)}%`, background: full ? H.ball : H.orange }} /></span>
-                  <span className="text-[11px] font-bold text-[#E7E5E4] flex items-center gap-1"><Users className="w-3 h-3" />{booked}/{g.slots}</span>
+                  <span className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${Math.min(100, (booked / parent.slots) * 100)}%`, background: full ? H.ball : H.orange }} /></span>
+                  <span className="text-[11px] font-bold text-[#E7E5E4] flex items-center gap-1"><Users className="w-3 h-3" />{booked}/{parent.slots}</span>
                 </span>
               )}
           </span>
         </button>
-        {g.status === 'scheduled' && !started && (
+        {parent.status === 'scheduled' && !started && !lg && (
           <div className="mx-3 mt-1 mb-3 pt-3 border-t border-white/10">
             {mine
               ? <button onClick={() => book(g, true)} disabled={busy === g.id} className={`${hbtn.ghost} w-full !py-2`}><Check className="w-4 h-4 text-[#F28C14]" />You’re in · Cancel my slot</button>
@@ -115,6 +128,17 @@ export const HoopGames: React.FC = () => {
       </div>
 
       <ErrorNote text={err} />
+
+      {isModerator && live.length > 0 && (
+        <button onClick={() => go({ name: 'hoopGame', id: liveOf(live[0])!.id })}
+          className="w-full flex items-center gap-3 p-3.5 rounded-2xl text-left cursor-pointer border border-[#F26A2E]/60 animate-[pulse_2.5s_ease-in-out_infinite]" style={{ background: 'rgba(242,106,46,0.18)' }}>
+          <span className="w-3 h-3 rounded-full bg-[#F26A2E] flex-shrink-0" />
+          <span className="flex-1 min-w-0">
+            <span className="block font-hoop italic font-black text-[18px] uppercase text-white">Resume live game</span>
+            <span className="block text-[11px] text-[#E7E5E4]">Your game is still running — score, clock and stats are all saved.</span>
+          </span>
+        </button>
+      )}
 
       {isModerator && (
         <button onClick={() => setCreating(true)} className={`${hbtn.primary} w-full`}><CalendarPlus className="w-4 h-4" />Schedule a game</button>
