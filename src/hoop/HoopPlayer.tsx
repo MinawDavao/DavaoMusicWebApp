@@ -110,17 +110,17 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
 
   return (
     <div className="px-3 py-4 space-y-5">
-      <h1 className="text-center font-hoop italic font-black text-[28px] uppercase text-white leading-none">{person.display_name}</h1>
+      <h1 className="text-center font-hoop italic font-black text-[24px] uppercase text-white leading-none">{person.display_name}</h1>
 
       {/* THE CARD */}
       <div className="rounded-[28px] overflow-hidden border border-white/10 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
         <div className="relative" style={{ background: H.cream }}>
           <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${H.orange}, ${H.ball})` }} />
           <div className="flex items-start justify-between gap-3 px-5 pt-4">
-            <p className="font-hoop italic font-black uppercase text-[#262626] leading-[0.9] text-[38px] tracking-tight break-words min-w-0">
+            <p className="font-hoop italic font-black uppercase text-[#262626] leading-[0.9] text-[30px] tracking-tight break-words min-w-0">
               {first}{last && <><br />{last}</>}
             </p>
-            <p className="font-hoop font-semibold text-[48px] leading-none text-[#3F3F3F] flex-shrink-0">{card.jersey_number ?? '—'}</p>
+            <p className="font-hoop font-semibold text-[38px] leading-none text-[#3F3F3F] flex-shrink-0">{card.jersey_number ?? '—'}</p>
           </div>
           <div className="relative mt-2 aspect-[4/3] mx-4 overflow-hidden">
             {person.avatar_url
@@ -133,23 +133,23 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
         <div className="px-5 pt-2 pb-5 space-y-4 bg-black">
           <div className="space-y-1.5">
             {info.map(([k, v]) => (
-              <p key={k} className="text-[15px] tracking-wide"><span className="text-[#A8A29E]">{k}</span>&nbsp;&nbsp;<strong className="text-white uppercase">{v}</strong></p>
+              <p key={k} className="text-[13px] tracking-wide"><span className="text-[#A8A29E]">{k}</span>&nbsp;&nbsp;<strong className="text-white uppercase">{v}</strong></p>
             ))}
           </div>
 
           <div className="grid grid-cols-3 border-y border-white/15 py-3">
             {[['PPG', s?.ppg], ['RPG', s?.rpg], ['APG', s?.apg]].map(([k, v], i) => (
               <div key={k as string} className={`text-center ${i ? 'border-l border-white/20' : ''}`}>
-                <p className="text-[13px] tracking-wider text-[#D6D3D1]">{k}</p>
-                <p className="font-hoop font-bold text-[34px] leading-tight text-white">{fmt1(v as number)}</p>
+                <p className="text-[11px] tracking-wider text-[#D6D3D1]">{k}</p>
+                <p className="font-hoop font-bold text-[28px] leading-tight text-white">{fmt1(v as number)}</p>
               </div>
             ))}
           </div>
 
           <div className="flex items-center justify-around text-center">
-            <div><p className="font-hoop font-bold text-[22px] text-white leading-none">{fans}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWERS</p></div>
-            <div><p className="font-hoop font-bold text-[22px] text-white leading-none">{followingN}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWING</p></div>
-            <div><p className="font-hoop font-bold text-[22px] text-[#F28C14] leading-none">{s?.best_pts ?? 0}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">BEST GAME</p></div>
+            <div><p className="font-hoop font-bold text-[18px] text-white leading-none">{fans}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWERS</p></div>
+            <div><p className="font-hoop font-bold text-[18px] text-white leading-none">{followingN}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWING</p></div>
+            <div><p className="font-hoop font-bold text-[18px] text-[#F28C14] leading-none">{s?.best_pts ?? 0}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">BEST GAME</p></div>
           </div>
 
           <div className="flex gap-2">

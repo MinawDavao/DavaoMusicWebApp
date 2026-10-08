@@ -125,10 +125,10 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </button>
           ) : (
             <div className="relative flex items-center gap-2" ref={ref}>
-              <button onClick={() => go({ name: 'hoop' })} aria-label="Sunday Hoop Method basketball club" title="Hoop Method"
+              {profile?.role === 'fan' && <button onClick={() => go({ name: 'hoop' })} aria-label="Sunday Hoop Method basketball club" title="Hoop Method"
                 className="w-[38px] h-[38px] rounded-full bg-[#F28C14]/12 border border-[#F28C14]/45 text-[#F28C14] hover:bg-[#F28C14]/25 flex items-center justify-center cursor-pointer">
                 <BallIcon />
-              </button>
+              </button>}
               <ChatIcon onClick={() => go({ name: 'messages' })} active={route.name === 'messages' || route.name === 'chat'} />
               <NotificationBell />
               <span className={`hidden min-[390px]:inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 ${roleMeta(profile?.role).chip}`}>{roleMeta(profile?.role).label}</span>

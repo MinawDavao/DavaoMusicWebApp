@@ -230,7 +230,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           <button onClick={() => setAdding(!adding)} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Add</button>
         </div>
       </div>
-      {adding && <AccountPicker autoFocus exclude={players.map((p) => p.profile_id)} onPick={(p) => addPlayer(p.id)} onCancel={() => setAdding(false)} />}
+      {adding && <AccountPicker autoFocus roles={['fan']} exclude={players.map((p) => p.profile_id)} onPick={(p) => addPlayer(p.id)} onCancel={() => setAdding(false)} />}
       {players.length === 0 && <p className="text-[12px] text-[#A8A29E]">No one has booked yet. You can add players with “Add”.</p>}
       {players.map(rosterRow)}
     </div>

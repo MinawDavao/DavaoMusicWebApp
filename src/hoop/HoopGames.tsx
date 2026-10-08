@@ -92,7 +92,7 @@ export const HoopGames: React.FC = () => {
           </span>
         </button>
         {g.status === 'scheduled' && !started && (
-          <div className="px-3 pb-3">
+          <div className="mx-3 mt-1 mb-3 pt-3 border-t border-white/10">
             {mine
               ? <button onClick={() => book(g, true)} disabled={busy === g.id} className={`${hbtn.ghost} w-full !py-2`}><Check className="w-4 h-4 text-[#F28C14]" />You’re in · Cancel my slot</button>
               : <button onClick={() => book(g, false)} disabled={busy === g.id || full} className={`${hbtn.primary} w-full !py-2`}>{full ? 'Game is full' : 'Book my slot'}</button>}
@@ -105,12 +105,16 @@ export const HoopGames: React.FC = () => {
   return (
     <div className="px-3 py-4 space-y-5">
       {/* hero */}
-      <div className="relative rounded-3xl overflow-hidden" style={{ background: H.cream }}>
-        <img src="/hoop-method-logo.jpg" alt="Sunday Hoop Method" className="w-full max-h-52 object-contain" />
-        <div className="px-4 pb-4 -mt-1 text-center">
-          <p className="text-[12px] font-semibold text-[#57534E]">The MINAW DVO basketball club. Book a slot, ball out, and your stats land on your player card.</p>
-        </div>
+      <div className="rounded-3xl overflow-hidden" style={{ background: H.cream }}>
+        <img src="/hoop-method-logo.jpg" alt="Sunday Hoop Method" className="w-full max-h-56 object-contain" />
       </div>
+      <figure className="relative px-5 py-4 rounded-2xl border border-[#F28C14]/30 text-center" style={{ background: 'linear-gradient(135deg, rgba(242,140,20,0.14), rgba(242,106,46,0.04))' }}>
+        <span aria-hidden className="absolute left-3 -top-3 font-hoop font-black text-[54px] leading-none text-[#F28C14]">“</span>
+        <blockquote className="font-hoop italic font-bold text-[19px] leading-snug text-white">
+          The MINAW DVO basketball club. Book a slot, ball out, and your stats land on your player card.
+        </blockquote>
+        <span aria-hidden className="absolute right-3 -bottom-7 font-hoop font-black text-[54px] leading-none text-[#F28C14]">”</span>
+      </figure>
 
       <ErrorNote text={err} />
 

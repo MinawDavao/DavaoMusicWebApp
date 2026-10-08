@@ -23,7 +23,7 @@ export const isHoopRoute = (r: Route) => r.name === 'hoop' || r.name === 'hoopGa
 
 /** Basketball mode: its own look (logo colours), header and bottom menu. */
 export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
-  const { user, loading, isModerator } = useAuth();
+  const { user, profile, loading, isModerator } = useAuth();
 
   let screen: React.ReactNode;
   if (loading) screen = <Spinner label="Warming up…" />;
@@ -33,6 +33,14 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
       <p className="font-hoop italic font-extrabold text-2xl text-white uppercase">Members only</p>
       <p className="text-sm text-[#A8A29E]">Log in to your MINAW DVO account to book games and see your player card.</p>
       <button onClick={() => go({ name: 'auth', mode: 'login' })} className={hbtn.primary}><LogIn className="w-4 h-4" />Log In</button>
+    </div>
+  );
+  else if (profile && profile.role !== 'fan' && !isModerator) screen = (
+    <div className="px-4 py-10 text-center space-y-4">
+      <img src="/hoop-ball.png" alt="" className="w-20 h-20 mx-auto" />
+      <p className="font-hoop italic font-extrabold text-2xl text-white uppercase">For Fan accounts</p>
+      <p className="text-sm text-[#A8A29E]">Sunday Hoop Method is for individual (Fan) accounts. Artist and Venue/Business accounts can’t join games.</p>
+      <button onClick={() => go({ name: 'home' })} className={hbtn.primary}><Music className="w-4 h-4" />Back to MINAW</button>
     </div>
   );
   else switch (route.name) {
@@ -73,7 +81,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
 
         <main className="flex-1 pb-28">{screen}</main>
 
-        {user && (
+        {user && (profile?.role === 'fan' || isModerator) && (
           <nav aria-label="Hoop Method menu" className="fixed bottom-3 left-0 right-0 z-40 mx-auto max-w-[420px] px-3">
             <div className="flex gap-1 p-1.5 rounded-2xl backdrop-blur-2xl border border-white/15 shadow-[0_10px_35px_rgba(0,0,0,0.8)]" style={{ background: 'rgba(26,26,26,0.96)' }}>
               {tabs.map(({ key, label, Icon, to }) => {

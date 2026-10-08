@@ -13,7 +13,7 @@ export interface MemberRow {
 export const MEMBER_COLS = 'id, name, role, profile_id, is_admin, profiles!band_members_profile_id_fkey(id, display_name, username, avatar_url, role)';
 
 /** Type a name or @username to find someone’s MINAW DVO account. */
-export const AccountPicker: React.FC<{ onPick: (p: Person) => void; exclude?: string[]; autoFocus?: boolean; onCancel?: () => void }> = ({ onPick, exclude = [], autoFocus, onCancel }) => {
+export const AccountPicker: React.FC<{ onPick: (p: Person) => void; exclude?: string[]; autoFocus?: boolean; onCancel?: () => void; roles?: string[] }> = ({ onPick, exclude = [], autoFocus, onCancel, roles }) => {
   const [q, setQ] = useState('');
   const [list, setList] = useState<Person[]>([]);
   const seq = useRef(0);
@@ -22,8 +22,10 @@ export const AccountPicker: React.FC<{ onPick: (p: Person) => void; exclude?: st
     const my = ++seq.current;
     if (term.length < 2) { setList([]); return; }
     const t = setTimeout(async () => {
-      const { data } = await supabase.from('profiles').select('id, display_name, username, avatar_url, role')
+      let req = supabase.from('profiles').select('id, display_name, username, avatar_url, role')
         .or(`username.ilike.${term}%,display_name.ilike.%${term}%`).limit(6);
+      if (roles?.length) req = req.in('role', roles);
+      const { data } = await req;
       if (my === seq.current) setList(((data as Person[]) || []).filter((p) => !exclude.includes(p.id)));
     }, 300);
     return () => clearTimeout(t);
