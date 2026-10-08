@@ -228,6 +228,7 @@ alter publication supabase_realtime add table public.messages;
 alter publication supabase_realtime add table public.conversations;
 
 -- ============================================================ DEALS: price is required for every listing
+update public.listings set price = 0 where price is null;   -- older trade listings could have no price
 alter table public.listings drop constraint listings_check,
   add constraint listings_price_required check (price is not null);
 
