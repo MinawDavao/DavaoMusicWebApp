@@ -291,6 +291,7 @@ export function errorMessage(e: any): string {
   if (/venues_name_norm_uniq/.test(msg)) return 'A venue/business with this name already exists. Please choose a different name.';
   if (/Database error saving new user/i.test(msg)) return 'Couldn’t create the account. If you chose Venue/Business, that name may already be taken — try a different one.';
   if (/band_members_band_profile_uniq/.test(msg)) return 'That account is already linked to another member of this band.';
+  if (/HOOP: /.test(msg)) return msg.replace(/^.*HOOP: /, '');
   if (/CHAT(_SPAM)?: /.test(msg)) return msg.replace(/^.*CHAT(_SPAM)?: /, '');
   if (/listings_price_required/.test(msg)) return 'Please enter a price (or your budget / the item’s value).';
   if (/BAND_ADMIN: /.test(msg)) return msg.replace(/^.*BAND_ADMIN: /, '');

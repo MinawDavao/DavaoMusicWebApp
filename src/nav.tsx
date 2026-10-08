@@ -13,6 +13,10 @@ export type Route =
   | { name: 'onboarding' }
   | { name: 'admin' }
   | { name: 'messages' }
+  | { name: 'hoop' }
+  | { name: 'hoopGame'; id: string }
+  | { name: 'hoopPlayer'; id?: string }
+  | { name: 'hoopPlayers' }
   | { name: 'chat'; id: string; listing?: string };
 
 export const NavContext = createContext<(r: Route) => void>(() => {});

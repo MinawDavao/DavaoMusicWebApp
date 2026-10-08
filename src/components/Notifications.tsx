@@ -12,7 +12,7 @@ import { MentionText } from './Mentions';
 type NType =
   | 'comment' | 'mention_post' | 'mention_comment' | 'reaction' | 'follow' | 'band_follow'
   | 'review_pending' | 'review_approved' | 'rsvp' | 'playlist_like' | 'playlist_copy' | 'venue_tag'
-  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin';
+  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin' | 'hoop_props' | 'hoop_props_approved';
 
 interface Notif {
   id: string; type: NType; actor_id: string | null; post_id: string | null; band_id: string | null;
@@ -37,6 +37,8 @@ const META: Record<NType, { Icon: React.ElementType; color: string; text: (n: No
   track_comment:   { Icon: MessageCircle, color: '#53E6D4', text: () => 'commented on your song', quote: true },
   mention_track_comment: { Icon: AtSign, color: '#B7A8FF', text: () => 'tagged you in a song comment', quote: true },
   band_member:     { Icon: Users, color: '#53E6D4', text: (n) => `added you as a member of ${n.snippet ? `“${n.snippet}”` : 'their band'}` },
+  hoop_props:      { Icon: Star, color: '#F28C14', text: () => 'gave you props on Hoop Method — tap to approve', quote: true },
+  hoop_props_approved: { Icon: Star, color: '#F28C14', text: () => 'approved your Hoop Method props' },
   band_admin:      { Icon: ShieldCheck, color: '#53E6D4', text: (n) => `made you an admin of ${n.snippet ? `“${n.snippet}”` : 'their band page'} — you can now edit it from your account` },
 };
 
@@ -47,6 +49,10 @@ function routeFor(n: Notif, myId: string): Route {
       return n.post_id ? { name: 'post', id: n.post_id } : { name: 'connect' };
     case 'band_follow': case 'rsvp': case 'band_member': case 'band_admin': case 'track_like': case 'track_comment': case 'mention_track_comment':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile' };
+    case 'hoop_props':
+      return { name: 'hoopPlayer' };
+    case 'hoop_props_approved':
+      return n.actor_id ? { name: 'hoopPlayer', id: n.actor_id } : { name: 'hoop' };
     case 'review_pending':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile', id: myId };
     case 'review_approved':

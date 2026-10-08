@@ -15,6 +15,7 @@ import { NotificationBell } from './components/Notifications';
 import { ChatScreen, MessagesScreen } from './screens/MessagesScreen';
 import { useChatUnread } from './lib/chat';
 import { AccountDeletedNote } from './components/DeleteAccount';
+import { BallIcon, HoopShell, isHoopRoute } from './hoop/HoopShell';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { DealsScreen } from './screens/DealsScreen';
 import { AuthScreen } from './screens/AuthScreen';
@@ -39,6 +40,7 @@ function parseHash(): Route {
     case 'welcome': return { name: 'onboarding' };
     case 'admin': return { name: 'admin' };
     case 'messages': return b ? { name: 'chat', id: b, listing: c === 'deal' && d ? d : undefined } : { name: 'messages' };
+    case 'hoop': return b === 'game' && c ? { name: 'hoopGame', id: c } : b === 'player' ? { name: 'hoopPlayer', id: c || undefined } : b === 'me' ? { name: 'hoopPlayer' } : b === 'players' ? { name: 'hoopPlayers' } : { name: 'hoop' };
     case 'home': return b === 'admin' ? { name: 'admin' } : { name: 'home' };
     default: return { name: 'home' };
   }
@@ -52,6 +54,10 @@ function toHash(r: Route): string {
     case 'auth': return r.mode === 'signup' ? '#/signup' : '#/login';
     case 'onboarding': return '#/welcome';
     case 'admin': return '#/home/admin';
+    case 'hoop': return '#/hoop';
+    case 'hoopGame': return `#/hoop/game/${r.id}`;
+    case 'hoopPlayer': return r.id ? `#/hoop/player/${r.id}` : '#/hoop/me';
+    case 'hoopPlayers': return '#/hoop/players';
     case 'chat': return r.listing ? `#/messages/${r.id}/deal/${r.listing}` : `#/messages/${r.id}`;
     default: return `#/${r.name}`;
   }
@@ -119,6 +125,10 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </button>
           ) : (
             <div className="relative flex items-center gap-2" ref={ref}>
+              <button onClick={() => go({ name: 'hoop' })} aria-label="Sunday Hoop Method basketball club" title="Hoop Method"
+                className="w-[38px] h-[38px] rounded-full bg-[#F28C14]/12 border border-[#F28C14]/45 text-[#F28C14] hover:bg-[#F28C14]/25 flex items-center justify-center cursor-pointer">
+                <BallIcon />
+              </button>
               <ChatIcon onClick={() => go({ name: 'messages' })} active={route.name === 'messages' || route.name === 'chat'} />
               <NotificationBell />
               <span className={`hidden min-[390px]:inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 ${roleMeta(profile?.role).chip}`}>{roleMeta(profile?.role).label}</span>
@@ -217,6 +227,9 @@ const Shell: React.FC = () => {
     case 'auth': screen = <AuthScreen key={view.mode} initialMode={view.mode} />; break;
     case 'onboarding': screen = user ? <OnboardingScreen /> : <Spinner />; break;
   }
+
+  // Basketball mode has its own look, header and menu
+  if (isHoopRoute(view)) return <NavContext.Provider value={go}><HoopShell route={view} go={go} /></NavContext.Provider>;
 
   return (
     <NavContext.Provider value={go}>
