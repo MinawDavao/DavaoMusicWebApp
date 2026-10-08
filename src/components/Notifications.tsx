@@ -16,7 +16,7 @@ type NType =
 
 interface Notif {
   id: string; type: NType; actor_id: string | null; post_id: string | null; band_id: string | null;
-  gig_id: string | null; playlist_id: string | null; snippet: string | null; read_at: string | null; created_at: string;
+  gig_id: string | null; playlist_id: string | null; track_id?: string | null; snippet: string | null; read_at: string | null; created_at: string;
   actor?: { id: string; display_name: string; avatar_url: string | null; role: string } | null;
 }
 
@@ -47,7 +47,9 @@ function routeFor(n: Notif, myId: string): Route {
   switch (n.type) {
     case 'comment': case 'mention_post': case 'mention_comment': case 'reaction': case 'venue_tag':
       return n.post_id ? { name: 'post', id: n.post_id } : { name: 'connect' };
-    case 'band_follow': case 'rsvp': case 'band_member': case 'band_admin': case 'track_like': case 'track_comment': case 'mention_track_comment':
+    case 'track_like': case 'track_comment': case 'mention_track_comment':
+      return n.band_id ? { name: 'band', id: n.band_id, song: n.track_id || undefined } : { name: 'profile' };
+    case 'band_follow': case 'rsvp': case 'band_member': case 'band_admin':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile' };
     case 'hoop_props':
       return { name: 'hoopPlayer' };

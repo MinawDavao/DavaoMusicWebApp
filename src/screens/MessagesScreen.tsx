@@ -210,7 +210,8 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
         sign([m]);
         if (m.sender_id !== uid && document.visibilityState === 'visible') markRead();
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, (p: any) => {
+      // (deletes can't be filtered by conversation, so match on the message id)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (p: any) => {
         setMsgs((xs) => xs.filter((x) => x.id !== p.old?.id));
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations', filter: `id=eq.${id}` }, (p: any) => {

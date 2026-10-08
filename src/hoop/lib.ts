@@ -82,6 +82,23 @@ export const fmtClock = (ms: number) => {
   const s = Math.ceil(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
+/** Difference between this phone's clock and the server's, so every phone shows the same game clock. */
+let serverOffset: number | null = null;
+export function useServerOffset() {
+  const [off, setOff] = useState(serverOffset ?? 0);
+  useEffect(() => {
+    if (serverOffset !== null) return;
+    const t0 = Date.now();
+    supabase.rpc('hoop_now').then(({ data }) => {
+      if (!data) return;
+      const t1 = Date.now();
+      serverOffset = new Date(data as string).getTime() - (t0 + t1) / 2;
+      setOff(serverOffset);
+    });
+  }, []);
+  return off;
+}
+
 /** Re-renders every 250 ms while the clock is running. */
 export function useTick(active: boolean) {
   const [, set] = useState(0);

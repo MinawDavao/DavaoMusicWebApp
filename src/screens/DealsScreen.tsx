@@ -40,7 +40,9 @@ export const DealsScreen: React.FC = () => {
   const [posted, setPosted] = useState(false);
   const [report, setReport] = useState<string | null>(null);
 
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const my = ++loadSeq.current;   // a slower older search must not replace newer results
     let query = supabase
       .from('listings')
       .select('*, profiles!listings_seller_id_fkey(id, display_name, avatar_url, role, instagram, facebook, is_verified), listing_photos(id, image_path, position)')
@@ -53,6 +55,7 @@ export const DealsScreen: React.FC = () => {
     const s = q.trim();
     if (s) query = query.textSearch('search', s, { type: 'websearch', config: 'simple' });
     const { data } = await query;
+    if (my !== loadSeq.current) return;
     setItems((data as Listing[]) || []);
     setLoading(false);
   }, [q, type, cat]);

@@ -49,7 +49,7 @@ export const TrackSocial: React.FC<{ track: Track; bandId: string }> = ({ track,
   const share = () => openShare({
     title: track.title,
     text: `Listen to “${track.title}”${track.bands?.name ? ` by ${track.bands.name}` : ''} on MINAW DVO`,
-    url: `${window.location.origin}/#/band/${bandId}/song/${track.id}`,
+    url: `${window.location.origin}${window.location.pathname}#/band/${bandId}/song/${track.id}`,
   });
 
   const item = 'flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold cursor-pointer hover:bg-white/5';

@@ -64,15 +64,19 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   /** Load and play a track from the beginning. */
+  const startSeq = useRef(0);
   const start = useCallback(async (t: Track) => {
     const a = audio.current;
     if (!a) return;
+    const my = ++startSeq.current;   // if another song is tapped while this one loads, skip this one
     setError(null);
     try {
       a.pause();
       setCurrent(t);
       setProgress(0);
-      a.src = await trackUrl(t.audio_path);
+      const src = await trackUrl(t.audio_path);
+      if (my !== startSeq.current) return;
+      a.src = src;
       await a.play();
       supabase.rpc('record_play', { p_track_id: t.id }).then(() => {}, () => {});
     } catch {

@@ -46,7 +46,7 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
 
     // last 5 finished games
     const { data: gp } = await supabase.from('hoop_game_players').select('team, hoop_games!inner(id, title, starts_at, ended_at, status, team_a, team_b)')
-      .eq('profile_id', pid).not('team', 'is', null).eq('hoop_games.status', 'final').limit(200);
+      .eq('profile_id', pid).not('team', 'is', null).eq('hoop_games.status', 'final').order('booked_at', { ascending: false }).limit(200);
     // most recently finished first
     const when = (g: any) => g.ended_at || g.starts_at;
     const games = ((gp as any[]) || []).map((x) => ({ ...x.hoop_games, team: x.team }))
@@ -66,7 +66,7 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
     load();
     // a game finishing updates this card right away
     const ch = supabase.channel(`hoop-card-${pid}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hoop_games' }, (p: any) => { if (p.new?.status === 'final' || p.old?.status === 'final') load(); })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hoop_games' }, (p: any) => { if (p.new?.status === 'final' || p.old?.status === 'final') load(); })   // (full rows: replica identity full)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [load, pid]);

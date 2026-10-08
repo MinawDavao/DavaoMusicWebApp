@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarPlus, Check, ChevronDown, Clock, MapPin, ScrollText, Users, X } from 'lucide-react';
 import { MessageButton } from '../screens/MessagesScreen';
 import { supabase } from '../lib/supabase';
@@ -19,6 +19,7 @@ export const HoopGames: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const scoreT = useRef<ReturnType<typeof setTimeout>>();   // live scores: one refresh per burst of taps
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 45 * 864e5).toISOString();
     const { data } = await supabase.from('hoop_games').select('*, hoop_game_players(profile_id, team)').gte('starts_at', since).order('starts_at');
@@ -38,6 +39,7 @@ export const HoopGames: React.FC = () => {
     const ch = supabase.channel(`hoop-list-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_games' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_events' }, () => { clearTimeout(scoreT.current); scoreT.current = setTimeout(load, 800); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [load]);
@@ -109,7 +111,7 @@ export const HoopGames: React.FC = () => {
             {parent.closed_at && !lg
               ? <span className="block text-[12px] font-bold text-white">Finished · {[parent, ...kids(parent)].filter((x) => x.status === 'final').length} game{[parent, ...kids(parent)].filter((x) => x.status === 'final').length === 1 ? '' : 's'} · tap for scores</span>
               : extra > 0 && !lg
-              ? <span className="block text-[12px] font-bold text-white">{extra + 1} games played · tap for scores</span>
+              ? <span className="block text-[12px] font-bold text-white">{[parent, ...kids(parent)].filter((x) => x.status === 'final').length} games played · tap for scores</span>
               : sc && (g.status === 'final' || g.status === 'live')
               ? <span className="block font-hoop italic font-extrabold text-[17px] text-white">{g.team_a} <span className={sc.score_a >= sc.score_b ? 'text-[#F28C14]' : ''}>{sc.score_a}</span> – <span className={sc.score_b >= sc.score_a ? 'text-[#F28C14]' : ''}>{sc.score_b}</span> {g.team_b}</span>
               : (

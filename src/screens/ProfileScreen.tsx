@@ -87,7 +87,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     if (loading || !isMe) return;
     const check = () => {
     let want: string | null = null;
-    try { want = sessionStorage.getItem('minaw-open-edit'); sessionStorage.removeItem('minaw-open-edit'); } catch { /* ignore */ }
+    try { const [w, t] = (sessionStorage.getItem('minaw-open-edit') || '').split('|'); sessionStorage.removeItem('minaw-open-edit'); want = w && Date.now() - Number(t) < 15000 ? w : null; } catch { /* ignore */ }
     if (!want) return;
     setSaved(false); setEditing(true);
     if (want === 'delete') setTimeout(() => document.getElementById('account-settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);

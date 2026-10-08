@@ -28,6 +28,7 @@ async function loadTargets(list: Report[]): Promise<Record<string, Target>> {
   };
   await Promise.all([
     q('post', 'posts', 'id, content, image_url, author_id, is_hidden', (x) => ({ text: x.content, image: x.image_url, owner: x.author_id, hidden: x.is_hidden, route: { name: 'post', id: x.id } })),
+    q('track_comment', 'track_comments', 'id, content, author_id, is_hidden, track_id, tracks(band_id)', (x) => ({ text: x.content, owner: x.author_id, hidden: x.is_hidden, route: x.tracks?.band_id ? { name: 'band', id: x.tracks.band_id, song: x.track_id } : null })),
     q('comment', 'comments', 'id, content, post_id, author_id, is_hidden', (x) => ({ text: x.content, owner: x.author_id, hidden: x.is_hidden, route: { name: 'post', id: x.post_id } })),
     q('listing', 'listings', 'id, title, seller_id, is_hidden', (x) => ({ text: x.title, owner: x.seller_id, hidden: x.is_hidden, route: { name: 'profile', id: x.seller_id } })),
     q('track', 'tracks', 'id, title, band_id, is_hidden', (x) => ({ text: x.title, hidden: x.is_hidden, route: { name: 'band', id: x.band_id } })),

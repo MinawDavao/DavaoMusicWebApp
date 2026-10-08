@@ -13,7 +13,7 @@ import { MEMBER_COLS, MembersEditor, type MemberRow } from '../components/Member
 import { MessageButton } from './MessagesScreen';
 import { DeleteAccountSection } from '../components/DeleteAccount';
 import { Playlists } from '../components/Playlists';
-import { BlockedList } from '../components/BlockMenu';
+import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
 import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 import { Testimonials } from '../components/Testimonials';
 import { CoverField, CoverPhoto, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
@@ -48,6 +48,8 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
   const [err, setErr] = useState<string | null>(null);
   const [playlistFor, setPlaylistFor] = useState<Track | null>(null);
   const [showFollowers, setShowFollowers] = useState(false);
+  const [membersKey, setMembersKey] = useState(0);   // re-reads the members list after the edit modal closes
+  const { block: myBlock, reload: reloadBlock } = useMyBlock(band?.owner_id);
 
   const isOwner = !!user && band?.owner_id === user.id;
   const myAdminRow = user ? members.find((m) => m.profile_id === user.id && m.is_admin) : undefined;
@@ -83,7 +85,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
     if (loading || !band || !canManage) return;
     const check = () => {
     let want: string | null = null;
-    try { want = sessionStorage.getItem('minaw-open-edit'); sessionStorage.removeItem('minaw-open-edit'); } catch { /* ignore */ }
+    try { const [w, t] = (sessionStorage.getItem('minaw-open-edit') || '').split('|'); sessionStorage.removeItem('minaw-open-edit'); want = w && Date.now() - Number(t) < 15000 ? w : null; } catch { /* ignore */ }
     if (!want) return;
     setEditing(true);
     if (want === 'delete') setTimeout(() => document.getElementById('account-settings')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
@@ -171,6 +173,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
                 <button onClick={toggleFollow} className={`${following ? btn.ghost : btn.primary} !py-2 !text-xs`}>{following ? <><UserMinus className="w-3.5 h-3.5" />Following</> : <><UserPlus className="w-3.5 h-3.5" />Follow</>}</button>
                 <MessageButton to={band.owner_id} label="" className={btn.icon} />
                 <button onClick={() => setReport({ type: 'band', id: band.id, label: 'this band page' })} aria-label="Report band page" className={btn.icon}><Flag className="w-4 h-4" /></button>
+                {user && <BlockMenu targetId={band.owner_id} name={band.name} onChange={() => { reloadBlock(); load(); }} />}
               </div>
             )}
           </div>
@@ -207,6 +210,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
         </div>
       </div>
       <ErrorNote text={err} />
+      {myBlock && <BlockedBanner block={myBlock} name={band.name} onChange={() => { reloadBlock(); load(); }} />}
       {myAdminRow && !isOwner && (
         <p className="flex items-start gap-2 px-3 py-2.5 rounded-2xl bg-[#53E6D4]/[0.08] border border-[#53E6D4]/35 text-[12px] text-[#EBEBED] leading-relaxed">
           <ShieldCheck className="w-4 h-4 text-[#53E6D4] flex-shrink-0 mt-0.5" />
@@ -269,7 +273,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
       {/* MEMBERS */}
       {canManage ? (
         <Panel tone="members" icon={Users} title="Band Members">
-          <div className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5"><MembersEditor bandId={band.id} ownerId={band.owner_id} onChange={load} /></div>
+          <div className="rounded-2xl bg-[#1D232A] border border-white/[0.08] p-3.5"><MembersEditor key={membersKey} bandId={band.id} ownerId={band.owner_id} onChange={load} /></div>
         </Panel>
       ) : (
         <MembersSection members={members} />
@@ -281,7 +285,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
       {isOwner && <BlockedList />}
 
       {showFollowers && <FollowersModal bandId={band.id} count={followers} canManage={canManage} onClose={() => setShowFollowers(false)} />}
-      {editing && <EditBandModal isOwner={isOwner} band={band} onClose={() => { setEditing(false); load(); }} onSaved={() => { setEditing(false); load(); refreshAuth(); }} />}
+      {editing && <EditBandModal isOwner={isOwner} band={band} onClose={() => { setEditing(false); setMembersKey((k) => k + 1); load(); }} onSaved={() => { setEditing(false); setMembersKey((k) => k + 1); load(); refreshAuth(); }} />}
       {addGig && <AddGigModal bandId={band.id} onClose={() => setAddGig(false)} onSaved={() => { setAddGig(false); load(); }} />}
       {playlistFor && <PlaylistModal track={{ ...playlistFor, bands: { id: band.id, name: band.name, handle: band.handle, logo_url: band.logo_url } }} onClose={() => setPlaylistFor(null)} />}
       {report && <ReportModal targetType={report.type} targetId={report.id} label={report.label} onClose={() => setReport(null)} onLogin={() => go({ name: 'auth' })} />}

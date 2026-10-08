@@ -100,7 +100,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
 
   // "Edit Profile" / "Delete Account": open the right editor (band page for artists)
   const openEdit = (what: '1' | 'delete') => {
-    try { sessionStorage.setItem('minaw-open-edit', what); } catch { /* ignore */ }
+    try { sessionStorage.setItem('minaw-open-edit', `${what}|${Date.now()}`); } catch { /* ignore */ }
     go(isArtist && band ? { name: 'band', id: band.id } : { name: 'profile' });
     setTimeout(() => window.dispatchEvent(new Event('minaw-open-edit')), 60);
   };

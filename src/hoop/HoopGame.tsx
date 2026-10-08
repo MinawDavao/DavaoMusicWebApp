@@ -9,7 +9,7 @@ import { useNav } from '../nav';
 import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import {
-  H, KINDS, PERSON, boxScore, clockLeftMs, fmtClock, gameDate, gameTime, hbtn, kindPts, useTick,
+  H, KINDS, PERSON, boxScore, clockLeftMs, fmtClock, gameDate, gameTime, hbtn, kindPts, useServerOffset, useTick,
   type GamePlayer, type HoopEvent, type HoopGame, type Kind,
 } from './lib';
 import { GameForm } from './HoopGames';
@@ -45,7 +45,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [adding, setAdding] = useState(false);
   const [showTeams, setShowTeams] = useState(false);
 
+  const loadSeq = useRef(0);
   const loadPlayers = useCallback(async () => {
+    const my = ++loadSeq.current;   // ignore answers that come back after a newer reload
     const { data: g } = await supabase.from('hoop_games').select('id, session_id').eq('id', id).maybeSingle();
     const sid = (g as any)?.session_id || id;
     const cols = `*, profiles!hoop_game_players_profile_id_fkey(${PERSON})`;
@@ -54,6 +56,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       sid === id ? Promise.resolve({ data: null }) : supabase.from('hoop_game_players').select(cols).eq('game_id', sid).order('booked_at'),
       supabase.from('hoop_games').select('*, hoop_game_players(profile_id, team)').or(`id.eq.${sid},session_id.eq.${sid}`).order('created_at'),
     ]);
+    if (my !== loadSeq.current) return;
     const rows = (data as any as GamePlayer[]) || [];
     setPlayers(rows);
     const book = sid === id ? rows : ((bk as any as GamePlayer[]) || []);
@@ -82,12 +85,15 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     load();
     const ch = supabase.channel(`hoop-game-${id}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_games' }, (p: any) => {
-        if (p.new?.id === id) setGame((g) => (g ? { ...g, ...p.new } : g)); else loadPlayers();
+        if (p.eventType === 'DELETE' && p.old?.id === id) { setGame(null); return; }
+        if (p.new?.id === id) setGame((g) => (g ? { ...g, ...p.new } : g));
+        loadPlayers();   // keeps the Game 1/2/3 list, counters and "next game" buttons current
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hoop_events', filter: `game_id=eq.${id}` }, (p: any) => {
         setEvents((xs) => (xs.some((x) => x.id === p.new.id) ? xs : [...xs, p.new as HoopEvent]));
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_events', filter: `game_id=eq.${id}` }, (p: any) => {
+      // (deletes can't be filtered by game, so match on the id)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_events' }, (p: any) => {
         setEvents((xs) => xs.filter((x) => x.id !== p.old?.id));
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, () => loadPlayers())
@@ -96,7 +102,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   }, [id, load, loadPlayers]);
 
   useTick(!!game?.clock_running);
-  const left = game ? clockLeftMs(game) : 0;
+  const offset = useServerOffset();
+  const now = () => Date.now() + offset;
+  const left = game ? clockLeftMs(game, now()) : 0;
 
   // the admin's phone stops the clock at 0:00
   useEffect(() => {
@@ -125,7 +133,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
   const sessionId = game.session_id || game.id;
   const isFirst = sessionId === game.id;
-  const root = session.find((g) => g.id === sessionId) || game;
+  const root = isFirst ? game : (session.find((g) => g.id === sessionId) || game);
   const gameNo = Math.max(1, session.findIndex((g) => g.id === game.id) + 1);
   const teamA = players.filter((p) => p.team === 'A');
   const teamB = players.filter((p) => p.team === 'B');
@@ -153,7 +161,11 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     if (error) { setErr(errorMessage(error)); return false; }
     return true;
   };
-  const patchGame = (patch: Partial<HoopGame>) => run(() => supabase.from('hoop_games').update(patch).eq('id', game.id));
+  const patchGame = async (patch: Partial<HoopGame>) => {
+    const ok = await run(() => supabase.from('hoop_games').update(patch).eq('id', game.id));
+    if (ok) { setGame((g) => (g ? { ...g, ...patch } : g)); loadPlayers(); }
+    return ok;
+  };
 
   // ---------- booking
   const book = () => run(() => (mine
@@ -179,12 +191,14 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const order = [...bookings].sort(() => Math.random() - 0.5).sort((a, b) => (played[a.profile_id] || 0) - (played[b.profile_id] || 0));
     const pick = order.slice(0, n * 2).map((b) => b.profile_id);
     setBusy(true); setErr(null);
+    let failed = 0;
     for (const b of bookings) {
       const i = pick.indexOf(b.profile_id);
       const want = i < 0 ? null : i % 2 === 0 ? 'A' : 'B';
-      if (teamOf(b.profile_id) !== want) await writeTeam(b.profile_id, want as any);
+      if (teamOf(b.profile_id) !== want) { const r: any = await writeTeam(b.profile_id, want as any); if (r?.error) failed++; }
     }
     setBusy(false);
+    if (failed) setErr(`${failed} player${failed === 1 ? '' : 's'} couldn’t be moved — check your connection and try again.`);
     loadPlayers();
   };
   const removePlayer = async (pid: string) => {
@@ -205,8 +219,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     if (!confirm(`Shuffle these ${onTeams.length} players into two new random teams?`)) return;
     const ids = onTeams.sort(() => Math.random() - 0.5);
     setBusy(true);
-    for (let i = 0; i < ids.length; i++) await writeTeam(ids[i], i % 2 === 0 ? 'A' : 'B');
+    let failed = 0;
+    for (let i = 0; i < ids.length; i++) { const r: any = await writeTeam(ids[i], i % 2 === 0 ? 'A' : 'B'); if (r?.error) failed++; }
     setBusy(false);
+    if (failed) setErr(`${failed} player${failed === 1 ? '' : 's'} couldn’t be moved — check your connection and try again.`);
     loadPlayers();
   };
   /** Admin: another game on the same schedule — the same booked players, new teams, new score. */
@@ -260,7 +276,6 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
 
   // ---------- admin: clock
-  const now = () => Date.now();
   const clockStart = () => patchGame({ clock_running: true, clock_started_at: new Date().toISOString(), ...(left <= 0 ? { clock_elapsed_ms: 0 } : {}) });
   const clockPause = () => patchGame({ clock_running: false, clock_started_at: null, clock_elapsed_ms: game.period_seconds * 1000 - clockLeftMs(game, now()) });
   const clockReset = () => patchGame({ clock_running: false, clock_started_at: null, clock_elapsed_ms: 0 });

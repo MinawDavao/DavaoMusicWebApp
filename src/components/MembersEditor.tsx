@@ -162,13 +162,13 @@ export const MembersEditor: React.FC<{ bandId: string; ownerId: string; onChange
         return (
           <div key={r.id} className="p-2 rounded-xl bg-[#161B20] border border-white/[0.08] space-y-1.5">
             <div className="flex gap-1.5">
-              <input aria-label="Member name" className={`${inputCls} flex-1 min-w-0 !min-h-[40px]`} value={r.name} onChange={(e) => edit(r.id, { name: e.target.value })} />
-              <input aria-label="Member role" className={`${inputCls} flex-1 min-w-0 !min-h-[40px]`} value={r.role || ''} onChange={(e) => edit(r.id, { role: e.target.value })} placeholder="Role" />
+              <input aria-label="Member name" className={`${inputCls} flex-1 min-w-0 !min-h-[40px]`} value={r.name} onChange={(e) => edit(r.id, { name: e.target.value })} onBlur={() => { const x = rows.find((y) => y.id === r.id); if (x?.dirty && x.name.trim()) save(x); }} />
+              <input aria-label="Member role" className={`${inputCls} flex-1 min-w-0 !min-h-[40px]`} value={r.role || ''} onChange={(e) => edit(r.id, { role: e.target.value })} onBlur={() => { const x = rows.find((y) => y.id === r.id); if (x?.dirty && x.name.trim()) save(x); }} placeholder="Role" />
               {r.dirty
                 ? <button onClick={() => save(r)} aria-label="Save member" className={`${btn.mint} !px-2.5 !py-0`}><Check className="w-4 h-4" /></button>
                 : savedId === r.id
                   ? <span className="w-9 flex items-center justify-center text-[#53E6D4]"><Check className="w-4 h-4" /></span>
-                  : <button onClick={() => remove(r)} disabled={r.is_admin && !isOwner && !mine} aria-label={`Remove ${r.name}`} className={`${btn.icon} disabled:opacity-40`}><Trash2 className="w-4 h-4" /></button>}
+                  : <button onClick={() => remove(r)} disabled={(r.is_admin && !isOwner && !mine) || (ownerRow && !isOwner)} aria-label={`Remove ${r.name}`} className={`${btn.icon} disabled:opacity-40`}><Trash2 className="w-4 h-4" /></button>}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {r.profiles
