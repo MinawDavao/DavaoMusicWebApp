@@ -13,6 +13,7 @@ import {
   type GamePlayer, type HoopEvent, type HoopGame, type Kind,
 } from './lib';
 import { GameForm } from './HoopGames';
+import { HoopChat } from './HoopChat';
 import { MessageButton } from '../screens/MessagesScreen';
 
 /** Smallest game allowed: 10 players, 5 per side. */
@@ -854,6 +855,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           {bench.length > 0 && teamA.length + teamB.length > 0 && <p className="text-[11px] text-[#A8A29E]">{bench.length} not on a team yet.</p>}
         </section>
       )}
+
+      {/* GROUP CHAT for everyone booked on this schedule */}
+      {game.status !== 'cancelled' && <HoopChat scheduleId={sessionId} canChat={isModerator || mine} title={`${bookings.filter((b) => !b.is_guest).length} players`} />}
 
       {editing && <GameForm game={game} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
     </div>
