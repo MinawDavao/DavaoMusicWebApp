@@ -359,7 +359,9 @@ export const HoopPlayers: React.FC = () => {
 
   return (
     <div className="px-3 py-4 space-y-5">
-      <h1 className="font-hoop italic font-black text-[30px] uppercase text-white leading-none">Players</h1>
+      <h1 className="flex items-center gap-2.5 font-hoop italic font-black text-[30px] uppercase text-white leading-none">Players
+        <span className="not-italic font-sans text-[12px] font-bold px-2.5 py-1 rounded-full bg-[#F28C14] text-[#111]">{rows.length} {rows.length === 1 ? 'player' : 'players'}</span>
+      </h1>
 
       {played.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
@@ -390,7 +392,7 @@ export const HoopPlayers: React.FC = () => {
         {shown.map((r, i) => (
           <button key={r.profile_id} onClick={() => go({ name: 'hoopPlayer', id: r.profile_id })} className="w-full grid grid-cols-[1fr_repeat(4,40px)] items-center px-3 py-2.5 border-b border-white/[0.05] last:border-0 text-left cursor-pointer hover:bg-white/[0.03]">
             <span className="flex items-center gap-2.5 min-w-0">
-              <span className="w-5 text-right text-[11px] font-bold text-[#78716C]">{r.stats?.games ? i + 1 : ''}</span>
+              <span className="w-6 text-right text-[12px] font-bold text-[#F28C14] tabular-nums">{i + 1}.</span>
               <Avatar src={r.profiles!.avatar_url} name={r.profiles!.display_name} size={34} />
               <span className="min-w-0">
                 <span className="block text-[13px] font-bold text-white truncate">{r.profiles!.display_name}</span>

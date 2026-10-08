@@ -108,13 +108,11 @@ export const HoopGames: React.FC = () => {
       <div className="rounded-3xl overflow-hidden" style={{ background: H.cream }}>
         <img src="/hoop-method-logo.jpg" alt="Sunday Hoop Method" className="w-full max-h-56 object-contain" />
       </div>
-      <figure className="relative px-5 py-4 rounded-2xl border border-[#F28C14]/30 text-center" style={{ background: 'linear-gradient(135deg, rgba(242,140,20,0.14), rgba(242,106,46,0.04))' }}>
-        <span aria-hidden className="absolute left-3 -top-3 font-hoop font-black text-[54px] leading-none text-[#F28C14]">“</span>
-        <blockquote className="font-hoop italic font-bold text-[19px] leading-snug text-white">
+      <div className="px-5 py-4 rounded-2xl border border-[#F28C14]/30 text-center" style={{ background: 'linear-gradient(135deg, rgba(242,140,20,0.14), rgba(242,106,46,0.04))' }}>
+        <p className="font-sans font-medium text-[15px] leading-relaxed tracking-[0.01em] text-[#F4F1EE]">
           The MINAW DVO basketball club. Book a slot, ball out, and your stats land on your player card.
-        </blockquote>
-        <span aria-hidden className="absolute right-3 -bottom-7 font-hoop font-black text-[54px] leading-none text-[#F28C14]">”</span>
-      </figure>
+        </p>
+      </div>
 
       <ErrorNote text={err} />
 
