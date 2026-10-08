@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarPlus, Check, Clock, MapPin, Users, X } from 'lucide-react';
+import { CalendarPlus, Check, ChevronDown, Clock, MapPin, ScrollText, Users, X } from 'lucide-react';
+import { MessageButton } from '../screens/MessagesScreen';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
@@ -141,11 +142,7 @@ export const HoopGames: React.FC = () => {
       <div className="rounded-3xl overflow-hidden" style={{ background: H.cream }}>
         <img src="/hoop-method-logo.jpg" alt="Sunday Hoop Method" className="w-full max-h-56 object-contain" />
       </div>
-      <div className="px-5 py-4 rounded-2xl border border-[#F28C14]/30 text-center" style={{ background: 'linear-gradient(135deg, rgba(242,140,20,0.14), rgba(242,106,46,0.04))' }}>
-        <p className="font-sans font-medium text-[15px] leading-relaxed tracking-[0.01em] text-[#F4F1EE]">
-          The MINAW DVO basketball club. Book a slot, ball out, and your stats land on your player card.
-        </p>
-      </div>
+      <ClubRules adminId={rows.find((g) => g.created_by && g.created_by !== user?.id)?.created_by ?? null} />
 
       <ErrorNote text={err} />
 
@@ -250,5 +247,46 @@ export const GameForm: React.FC<{ game?: HoopGame; onClose: () => void; onSaved:
       <div><label className={lbl} htmlFor="hg-notes">Notes <span className="font-normal text-[#A8A29E]">(optional)</span></label><textarea id="hg-notes" rows={3} className={`${hinput} py-2.5 resize-none`} value={f.notes} onChange={set('notes')} maxLength={500} placeholder="Bring a white and a dark shirt, ₱50 court fee…" /></div>
       <p className="text-[11px] text-[#A8A29E]">{gameDate(new Date(f.when || Date.now()).toISOString())} · {gameTime(new Date(f.when || Date.now()).toISOString())}</p>
     </Modal>
+  );
+};
+
+// ---------------------------------------------------------------- club rules (top of the Games screen)
+const RULES: [string, string][] = [
+  ['Book ahead', 'Slots are limited, so book your slot before game day.'],
+  ['Pay ahead', 'Pay before the schedule. If your slot is still unpaid a day before the game, it may be given to someone else or removed.'],
+  ['Proper attire', 'Wear proper basketball shoes and clothes — no slippers, no improper attire, no jewelry.'],
+  ['Play at your own risk', 'This is just a friendly game, so take care of yourself and each other. The club has no budget for injuries and can’t pay for medicine or hospital bills. Members may chip in as a group to help, but the club can’t shoulder the cost.'],
+  ['The app can have bugs', 'If something looks wrong with slots, schedules or stats, let the admin know.'],
+  ['We’re still growing', 'The club isn’t perfect. Concerns or suggestions? Message the admin (God) anytime.'],
+];
+
+const ClubRules: React.FC<{ adminId: string | null }> = ({ adminId }) => {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem('hoop-rules-seen') !== '1'; } catch { return true; } });
+  const toggle = () => { const v = !open; setOpen(v); try { localStorage.setItem('hoop-rules-seen', v ? '0' : '1'); } catch { /* ignore */ } };
+  return (
+    <section className="rounded-2xl border border-[#F28C14]/35 overflow-hidden" style={{ background: 'linear-gradient(160deg, rgba(242,140,20,0.13), rgba(17,17,17,0.6))' }}>
+      <button onClick={toggle} aria-expanded={open} className="w-full flex items-center gap-2.5 px-4 py-3 text-left cursor-pointer">
+        <ScrollText className="w-5 h-5 text-[#F28C14] flex-shrink-0" />
+        <span className="flex-1">
+          <span className="block font-sans font-bold text-[15px] text-white">Club rules</span>
+          <span className="block text-[11px] text-[#A8A29E]">Please read before you book</span>
+        </span>
+        <ChevronDown className={`w-4 h-4 text-[#A8A29E] transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3">
+          <ol className="space-y-2.5">
+            {RULES.map(([title, text], i) => (
+              <li key={title} className="flex gap-3">
+                <span className="w-6 h-6 rounded-full bg-[#F28C14] text-[#111] text-[12px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                <span className="text-[13px] leading-relaxed text-[#E7E5E4]"><strong className="text-white">{title}.</strong> {text}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="text-[13px] font-semibold text-[#F28C14]">Good luck, and let’s enjoy every game!</p>
+          {adminId && <MessageButton to={adminId} label="Message the admin" className={`${hbtn.ghost} w-full !py-2 !text-xs`} />}
+        </div>
+      )}
+    </section>
   );
 };
