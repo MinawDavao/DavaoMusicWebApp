@@ -742,12 +742,16 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       {/* WHO'S PLAYING (before the game) */}
       {!showScore && !(isModerator && game.status === 'scheduled') && (
         <section className="space-y-2.5">
-          <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">Who’s playing</h2>
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">Who’s playing</h2>
+            <span className="text-[12px] font-bold text-[#A8A29E]"><span className="text-[#F28C14] font-black">{players.length}</span> / {root.slots} booked</span>
+          </div>
           {players.length === 0 ? <p className="text-[13px] text-[#A8A29E]">No one yet — be the first to book!</p> : (
             <div className="grid grid-cols-4 gap-x-2 gap-y-3">
-              {players.map((p) => (
+              {players.map((p, i) => (
                 <button key={p.profile_id} onClick={() => go({ name: 'hoopPlayer', id: p.profile_id })} className="flex flex-col items-center gap-1 min-w-0 cursor-pointer">
                   <span className="relative">
+                    <span className="absolute -top-1 -left-1 z-10 min-w-[20px] h-5 px-1 rounded-full bg-[#F28C14] text-[#111] text-[10px] font-black flex items-center justify-center border-2 border-[#111]">{i + 1}</span>
                     <Avatar src={p.profiles?.avatar_url} name={p.profiles?.display_name} size={54} />
                     {p.team && <span className="absolute -bottom-1 -right-1 px-1 rounded text-[8px] font-black" style={{ background: p.team === 'A' ? H.orange : '#D6D3D1', color: '#111' }}>{p.team === 'A' ? game.team_a.slice(0, 6) : game.team_b.slice(0, 6)}</span>}
                   </span>
