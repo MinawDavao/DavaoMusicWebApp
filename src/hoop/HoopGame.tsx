@@ -15,9 +15,9 @@ import {
 import { GameForm } from './HoopGames';
 import { MessageButton } from '../screens/MessagesScreen';
 
-/** Smallest game allowed: 8 players, 4 per side. */
-const MIN_PLAYERS = 8;
-const MIN_PER_TEAM = 4;
+/** Smallest game allowed: 10 players, 5 per side. */
+const MIN_PLAYERS = 10;
+const MIN_PER_TEAM = 5;
 
 const short = (name?: string | null) => {
   const parts = (name || 'Player').trim().split(/\s+/);
