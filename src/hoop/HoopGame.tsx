@@ -210,6 +210,20 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     loadPlayers();
   };
   /** Admin: another game on the same schedule — the same booked players, new teams, new score. */
+  /** Admin: end the whole schedule (no more games today). An empty, not-started extra game is removed. */
+  const endSchedule = async () => {
+    const playedGames = session.filter((g) => g.status === 'final').length;
+    if (!confirm(`End this schedule?\n\n${playedGames} game${playedGames === 1 ? '' : 's'} played. No more games can be added, and everyone’s stats stay on their cards.`)) return;
+    setBusy(true); setErr(null);
+    for (const g of session) {
+      if (g.session_id && g.status === 'scheduled') await supabase.from('hoop_games').delete().eq('id', g.id);
+    }
+    const { error } = await supabase.from('hoop_games').update({ closed_at: new Date().toISOString() }).eq('id', sessionId);
+    setBusy(false);
+    if (error) return setErr(errorMessage(error));
+    if (!isFirst && game.status === 'scheduled') go({ name: 'hoopGame', id: sessionId }); else loadPlayers();
+  };
+  const reopenSchedule = () => run(() => supabase.from('hoop_games').update({ closed_at: null }).eq('id', sessionId)).then(loadPlayers);
   const nextGame = async () => {
     if (!confirm(`Start Game ${session.length + 1} of this schedule?\n\nYou’ll pick new teams — the counter shows who has played the least.`)) return;
     const { data, error } = await supabase.from('hoop_games').insert({
@@ -290,7 +304,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             <span className="flex-1 min-w-0">
               <span className="block text-[12px] font-bold text-white truncate">{short(p.profiles?.display_name)}</span>
               <span className="block text-[10px] leading-tight text-[#A8A29E]"><strong className="text-white">{l?.pts ?? 0}</strong> pts · {l?.reb ?? 0} reb · {l?.ast ?? 0} ast</span>
-              <span className="block text-[10px] leading-tight text-[#A8A29E]">{l?.stl ?? 0} stl · {l?.blk ?? 0} blk{l?.foul ? ` · ${l.foul} pf` : ''}</span>
+              <span className="block text-[10px] leading-tight text-[#A8A29E]">{l?.stl ?? 0} stl · {l?.blk ?? 0} blk · {l?.tov ?? 0} to · <span className={(l?.foul ?? 0) >= 4 ? 'text-[#FF8A9C] font-bold' : ''}>{l?.foul ?? 0} foul</span></span>
             </span>
           </button>
         );
@@ -499,6 +513,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       {isModerator && game.status === 'scheduled' && (
         <section className="rounded-2xl p-3.5 space-y-3 border border-[#F28C14]/40" style={{ background: 'rgba(242,140,20,0.06)' }}>
           <p className="text-[11px] font-black tracking-wider text-[#F28C14]">ADMIN · {isFirst ? 'GAME SETUP' : `GAME ${gameNo} SETUP`}</p>
+          {!isFirst && <button onClick={endSchedule} disabled={busy} className={`${hbtn.ghost} w-full !py-2 !text-xs`}><Flag className="w-3.5 h-3.5" />Skip this game & end the schedule</button>}
           {rosterManager}
           {(() => {
             const n = teamA.length + teamB.length;
@@ -600,10 +615,21 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         </section>
       )}
 
-      {isModerator && game.status === 'final' && !session.some((g) => g.status === 'live' || (g.status === 'scheduled' && g.session_id)) && (
-        <button onClick={nextGame} className={`${hbtn.primary} w-full !py-3 !text-base`}><Plus className="w-5 h-5" />Start Game {session.length + 1} with the next players</button>
+      {root.closed_at ? (
+        <div className="p-3.5 rounded-2xl border border-white/15 text-center space-y-2" style={{ background: H.surface }}>
+          <p className="font-hoop italic font-black text-[20px] uppercase text-white">Schedule finished</p>
+          <p className="text-[12px] text-[#A8A29E]">{session.filter((g) => g.status === 'final').length} games played · ended {gameTime(root.closed_at)}</p>
+          {isModerator && <button onClick={reopenSchedule} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><RotateCcw className="w-3.5 h-3.5" />Reopen schedule</button>}
+        </div>
+      ) : isModerator && game.status === 'final' && !session.some((g) => g.status === 'live') && (
+        <div className="space-y-2">
+          {!session.some((g) => g.status === 'scheduled' && g.session_id) && (
+            <button onClick={nextGame} className={`${hbtn.primary} w-full !py-3 !text-base`}><Plus className="w-5 h-5" />Start Game {session.length + 1} with the next players</button>
+          )}
+          <button onClick={endSchedule} disabled={busy} className={`${hbtn.ghost} w-full !py-3`}><Flag className="w-4 h-4" />End schedule — no more games today</button>
+        </div>
       )}
-      {isModerator && game.status === 'final' && session.some((g) => g.status === 'scheduled' && g.session_id) && (
+      {!root.closed_at && isModerator && game.status === 'final' && session.some((g) => g.status === 'scheduled' && g.session_id) && (
         <button onClick={() => go({ name: 'hoopGame', id: session.find((g) => g.status === 'scheduled' && g.session_id)!.id })} className={`${hbtn.primary} w-full`}>Go to the next game <ChevronRight className="w-4 h-4" /></button>
       )}
 
@@ -630,6 +656,64 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           <button onClick={deleteGame} className={`${hbtn.ghost} !py-2 !text-xs !text-[#FF6B7A]`}><Trash2 className="w-3.5 h-3.5" />{isFirst ? 'Delete schedule' : `Delete Game ${gameNo}`}</button>
         </div>
       )}
+
+      {/* ROTATION: who already played which game of this schedule */}
+      {bookings.length > 0 && (session.length > 1 || game.status !== 'scheduled') && (() => {
+        const cols = session.map((g, i) => ({ g, n: i + 1, map: new Map(g.hoop_game_players.filter((x) => x.team).map((x) => [x.profile_id, x.team])) }));
+        const total = (pid: string) => cols.filter((c) => (c.g.status === 'live' || c.g.status === 'final') && c.map.has(pid)).length;
+        const rows = [...bookings].sort((x, y) => total(x.profile_id) - total(y.profile_id) || (x.profiles?.display_name || '').localeCompare(y.profiles?.display_name || ''));
+        return (
+          <section className="space-y-2.5">
+            <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">Games played today</h2>
+            <p className="-mt-1.5 text-[11px] text-[#A8A29E]">Everyone booked on this schedule and which games they played. Players with the fewest games are listed first — give them the next game.</p>
+            <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: H.surface }}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-[#A8A29E] border-b border-white/10">
+                      <th className="text-left font-bold px-3 py-2">PLAYER</th>
+                      {cols.map((c) => <th key={c.g.id} className={`font-bold px-2 py-2 text-center ${c.g.id === game.id ? 'text-[#F28C14]' : ''}`}>G{c.n}</th>)}
+                      <th className="font-bold px-3 py-2 text-center">TOTAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((b) => {
+                      const t = total(b.profile_id);
+                      return (
+                        <tr key={b.profile_id} className="border-b border-white/[0.05] last:border-0">
+                          <td className="px-3 py-1.5">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <Avatar src={b.profiles?.avatar_url} name={b.profiles?.display_name} size={24} />
+                              <span className="font-bold text-white truncate max-w-[120px]">{short(b.profiles?.display_name)}</span>
+                            </span>
+                          </td>
+                          {cols.map((c) => {
+                            const team = c.map.get(b.profile_id);
+                            const done = c.g.status === 'live' || c.g.status === 'final';
+                            return (
+                              <td key={c.g.id} className="px-2 py-1.5 text-center">
+                                {team
+                                  ? <span className={`inline-flex w-5 h-5 rounded-md items-center justify-center text-[10px] font-black ${done ? '' : 'border border-dashed'}`}
+                                      style={done ? { background: team === 'A' ? H.orange : '#D6D3D1', color: '#111' } : { borderColor: team === 'A' ? H.orange : '#D6D3D1', color: team === 'A' ? H.orange : '#D6D3D1' }}
+                                      title={done ? 'Played' : 'Picked for this game'}>{done ? '✓' : '•'}</span>
+                                  : <span className="text-[#57534E]">–</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-1.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${t === 0 ? 'bg-[#8FE36B]/15 text-[#8FE36B]' : 'bg-white/10 text-white'}`}>{t === 0 ? 'FRESH' : t}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p className="text-[10px] text-[#78716C]">✓ played (orange / gray = team) · dashed = picked for an upcoming game</p>
+          </section>
+        );
+      })()}
 
       {/* BOX SCORE */}
       {showScore && (

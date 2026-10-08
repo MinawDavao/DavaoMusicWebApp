@@ -30,7 +30,7 @@ export interface HoopGame {
   id: string; title: string; venue: string | null; starts_at: string; slots: number; notes: string | null;
   status: 'scheduled' | 'live' | 'final' | 'cancelled'; team_a: string; team_b: string;
   period: number; period_seconds: number; clock_running: boolean; clock_started_at: string | null; clock_elapsed_ms: number;
-  started_at: string | null; ended_at: string | null; created_at: string; session_id: string | null; created_by: string | null;
+  started_at: string | null; ended_at: string | null; created_at: string; session_id: string | null; created_by: string | null; closed_at?: string | null;
 }
 export interface GamePlayer { game_id: string; profile_id: string; team: 'A' | 'B' | null; booked_at: string; paid?: boolean; paid_at?: string | null; profiles?: HoopPerson | null }
 export type Kind = 'p1' | 'p2' | 'p3' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'foul';

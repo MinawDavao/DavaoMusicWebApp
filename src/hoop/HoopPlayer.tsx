@@ -363,7 +363,7 @@ export const HoopPlayers: React.FC = () => {
   if (rows === null) return <Spinner label="Loading players…" />;
 
   const played = rows.filter((r) => r.stats?.games);
-  const leader = (k: 'ppg' | 'rpg' | 'apg') => [...played].sort((a, b) => (b.stats![k] ?? 0) - (a.stats![k] ?? 0))[0];
+  const leader = (k: 'ppg' | 'rpg' | 'apg' | 'spg' | 'bpg' | 'tpg') => [...played].sort((a, b) => (b.stats![k] ?? 0) - (a.stats![k] ?? 0))[0];
   const term = q.trim().toLowerCase();
   const shown = rows.filter((r) => !term || r.profiles!.display_name.toLowerCase().includes(term) || r.profiles!.username.toLowerCase().includes(term));
 
@@ -375,14 +375,21 @@ export const HoopPlayers: React.FC = () => {
 
       {played.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {([['ppg', 'Points'], ['rpg', 'Rebounds'], ['apg', 'Assists']] as const).map(([k, label]) => {
+          {([['ppg', 'Points'], ['rpg', 'Rebounds'], ['apg', 'Assists'], ['spg', 'Steals'], ['bpg', 'Blocks'], ['tpg', '3-Pointers']] as const).map(([k, label]) => {
             const r = leader(k);
+            const unit = { ppg: 'PPG', rpg: 'RPG', apg: 'APG', spg: 'SPG', bpg: 'BPG', tpg: '3PM/G' }[k];
+            if (!r || !(r.stats![k] > 0)) return (
+              <div key={k} className="rounded-2xl p-2.5 text-center border border-white/10 flex flex-col items-center justify-center" style={{ background: H.surface }}>
+                <p className="flex items-center justify-center gap-1 text-[9px] font-black tracking-wider text-[#A8A29E]"><Crown className="w-3 h-3" />{label.toUpperCase()}</p>
+                <p className="mt-3 text-[11px] text-[#78716C]">No leader yet</p>
+              </div>
+            );
             return r ? (
               <button key={k} onClick={() => go({ name: 'hoopPlayer', id: r.profile_id })} className="rounded-2xl p-2.5 text-center border border-[#F28C14]/35 cursor-pointer" style={{ background: 'rgba(242,140,20,0.10)' }}>
                 <p className="flex items-center justify-center gap-1 text-[9px] font-black tracking-wider text-[#F28C14]"><Crown className="w-3 h-3" />{label.toUpperCase()}</p>
                 <span className="inline-block my-1.5"><Avatar src={r.profiles!.avatar_url} name={r.profiles!.display_name} size={44} /></span>
                 <p className="text-[11px] font-bold text-white truncate">{r.profiles!.display_name}</p>
-                <p className="font-hoop font-bold text-[20px] text-white leading-none">{fmt1(r.stats![k])}</p>
+                <p className="font-hoop font-bold text-[20px] text-white leading-none">{fmt1(r.stats![k])}<span className="ml-1 text-[9px] font-sans font-bold text-[#A8A29E]">{unit}</span></p>
               </button>
             ) : null;
           })}

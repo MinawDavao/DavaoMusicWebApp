@@ -41,6 +41,19 @@ export const HoopGames: React.FC = () => {
     return () => { supabase.removeChannel(ch); };
   }, [load]);
 
+  /** Admin: another game for the same schedule and the same booked players. */
+  const anotherGame = async (parent: Row) => {
+    const n = rows!.filter((x) => x.session_id === parent.id).length + 2;
+    if (!confirm(`Start Game ${n} of “${parent.title}”?\n\nSame booked players — you’ll pick new teams. “Games played today” shows who played the least.`)) return;
+    setBusy(parent.id); setErr(null);
+    const { data, error } = await supabase.from('hoop_games').insert({
+      session_id: parent.id, title: parent.title, venue: parent.venue, starts_at: new Date().toISOString(), slots: parent.slots,
+      period_seconds: parent.period_seconds, team_a: parent.team_a, team_b: parent.team_b, created_by: user?.id,
+    }).select('id').single();
+    setBusy(null);
+    if (error) return setErr(errorMessage(error));
+    go({ name: 'hoopGame', id: (data as any).id });
+  };
   const book = async (g: Row, mine: boolean) => {
     if (!user) return;
     setBusy(g.id); setErr(null);
@@ -92,7 +105,9 @@ export const HoopGames: React.FC = () => {
               <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-[#F28C14]" />{gameTime(g.starts_at)}</span>
               {g.venue && <span className="flex items-center gap-1 truncate"><MapPin className="w-3 h-3 text-[#F28C14]" />{g.venue}</span>}
             </span>
-            {extra > 0 && !lg
+            {parent.closed_at && !lg
+              ? <span className="block text-[12px] font-bold text-white">Finished · {[parent, ...kids(parent)].filter((x) => x.status === 'final').length} game{[parent, ...kids(parent)].filter((x) => x.status === 'final').length === 1 ? '' : 's'} · tap for scores</span>
+              : extra > 0 && !lg
               ? <span className="block text-[12px] font-bold text-white">{extra + 1} games played · tap for scores</span>
               : sc && (g.status === 'final' || g.status === 'live')
               ? <span className="block font-hoop italic font-extrabold text-[17px] text-white">{g.team_a} <span className={sc.score_a >= sc.score_b ? 'text-[#F28C14]' : ''}>{sc.score_a}</span> – <span className={sc.score_b >= sc.score_a ? 'text-[#F28C14]' : ''}>{sc.score_b}</span> {g.team_b}</span>
@@ -104,6 +119,11 @@ export const HoopGames: React.FC = () => {
               )}
           </span>
         </button>
+        {isModerator && !lg && !parent.closed_at && [parent, ...kids(parent)].every((x) => x.status === 'final') && (
+          <div className="mx-3 mt-1 mb-3 pt-3 border-t border-white/10">
+            <button onClick={() => anotherGame(parent)} disabled={busy === parent.id} className={`${hbtn.primary} w-full !py-2`}>+ Play Game {extra + 2} on this schedule</button>
+          </div>
+        )}
         {parent.status === 'scheduled' && !started && !lg && (
           <div className="mx-3 mt-1 mb-3 pt-3 border-t border-white/10">
             {mine
