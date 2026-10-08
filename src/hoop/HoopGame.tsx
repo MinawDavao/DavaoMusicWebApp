@@ -752,6 +752,14 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                     {p.team && <span className="absolute -bottom-1 -right-1 px-1 rounded text-[8px] font-black" style={{ background: p.team === 'A' ? H.orange : '#D6D3D1', color: '#111' }}>{p.team === 'A' ? game.team_a.slice(0, 6) : game.team_b.slice(0, 6)}</span>}
                   </span>
                   <span className="text-[11px] font-bold text-white max-w-full truncate">{short(p.profiles?.display_name)}</span>
+                  {(() => {
+                    const paid = !!bookings.find((b) => b.profile_id === p.profile_id)?.paid;   // payments live on the schedule's bookings
+                    return (
+                      <span className={`-mt-0.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black border ${paid ? 'bg-[#53E6D4]/15 text-[#53E6D4] border-[#53E6D4]/45' : 'bg-[#FF6B7A]/10 text-[#FF8A9C] border-[#FF6B7A]/40'}`}>
+                        {paid ? <><Check className="w-2.5 h-2.5" />PAID</> : <><CircleDollarSign className="w-2.5 h-2.5" />UNPAID</>}
+                      </span>
+                    );
+                  })()}
                 </button>
               ))}
             </div>
