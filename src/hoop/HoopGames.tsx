@@ -51,7 +51,7 @@ export const HoopGames: React.FC = () => {
     setBusy(parent.id); setErr(null);
     const { data, error } = await supabase.from('hoop_games').insert({
       session_id: parent.id, title: parent.title, venue: parent.venue, starts_at: new Date().toISOString(), slots: parent.slots,
-      period_seconds: parent.period_seconds, team_a: parent.team_a, team_b: parent.team_b, created_by: user?.id,
+      period_seconds: parent.period_seconds, periods: parent.periods ?? 4, team_a: parent.team_a, team_b: parent.team_b, created_by: user?.id,
     }).select('id').single();
     setBusy(null);
     if (error) return setErr(errorMessage(error));
@@ -198,7 +198,7 @@ export const GameForm: React.FC<{ game?: HoopGame; onClose: () => void; onSaved:
   const { user } = useAuth();
   const [f, setF] = useState({
     title: game?.title ?? 'Sunday Run', venue: game?.venue ?? '', when: localInput(game ? new Date(game.starts_at) : nextSunday()),
-    slots: String(game?.slots ?? 15), minutes: String(Math.round((game?.period_seconds ?? 600) / 60)), notes: game?.notes ?? '',
+    slots: String(game?.slots ?? 15), periods: String(game?.periods ?? 4), minutes: String(Math.round((game?.period_seconds ?? 600) / 60)), notes: game?.notes ?? '',
     team_a: game?.team_a ?? 'Team Orange', team_b: game?.team_b ?? 'Team Gray',
   });
   const [busy, setBusy] = useState(false);
@@ -206,14 +206,15 @@ export const GameForm: React.FC<{ game?: HoopGame; onClose: () => void; onSaved:
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
 
   const save = async () => {
-    const slots = Number(f.slots), minutes = Number(f.minutes);
+    const slots = Number(f.slots), minutes = Number(f.minutes), periods = Number(f.periods);
     if (!f.title.trim()) return setErr('Please give the game a name.');
     if (!f.when || Number.isNaN(new Date(f.when).getTime())) return setErr('Please pick a date and time.');
     if (!(slots >= 2 && slots <= 60)) return setErr('Slots should be between 2 and 60.');
     if (!(minutes >= 1 && minutes <= 60)) return setErr('Minutes per period should be between 1 and 60.');
+    if (!(periods >= 1 && periods <= 8)) return setErr('Periods should be between 1 and 8.');
     setBusy(true); setErr(null);
     const row = {
-      title: f.title.trim(), venue: f.venue.trim() || null, starts_at: new Date(f.when).toISOString(), slots, period_seconds: minutes * 60,
+      title: f.title.trim(), venue: f.venue.trim() || null, starts_at: new Date(f.when).toISOString(), slots, periods, period_seconds: minutes * 60,
       notes: f.notes.trim() || null, team_a: f.team_a.trim() || 'Team Orange', team_b: f.team_b.trim() || 'Team Gray',
     };
     const res = game
@@ -238,9 +239,10 @@ export const GameForm: React.FC<{ game?: HoopGame; onClose: () => void; onSaved:
       <div><label className={lbl} htmlFor="hg-title">Game name</label><input id="hg-title" className={hinput} value={f.title} onChange={set('title')} maxLength={80} /></div>
       <div><label className={lbl} htmlFor="hg-when">Date &amp; time</label><input id="hg-when" type="datetime-local" className={hinput} value={f.when} onChange={set('when')} /></div>
       <div><label className={lbl} htmlFor="hg-venue">Court / venue</label><input id="hg-venue" className={hinput} value={f.venue} onChange={set('venue')} placeholder="e.g. Matina covered court" maxLength={120} /></div>
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-3 gap-2.5">
         <div><label className={lbl} htmlFor="hg-slots">Player slots</label><input id="hg-slots" inputMode="numeric" className={hinput} value={f.slots} onChange={(e) => setF({ ...f, slots: e.target.value.replace(/\D/g, '').slice(0, 2) })} /></div>
-        <div><label className={lbl} htmlFor="hg-min">Minutes / period</label><input id="hg-min" inputMode="numeric" className={hinput} value={f.minutes} onChange={(e) => setF({ ...f, minutes: e.target.value.replace(/\D/g, '').slice(0, 2) })} /></div>
+        <div><label className={lbl} htmlFor="hg-per">Periods</label><input id="hg-per" inputMode="numeric" className={hinput} value={f.periods} onChange={(e) => setF({ ...f, periods: e.target.value.replace(/\D/g, '').slice(0, 1) })} /></div>
+        <div><label className={lbl} htmlFor="hg-min">Min / period</label><input id="hg-min" inputMode="numeric" className={hinput} value={f.minutes} onChange={(e) => setF({ ...f, minutes: e.target.value.replace(/\D/g, '').slice(0, 2) })} /></div>
       </div>
       <div className="grid grid-cols-2 gap-2.5">
         <div><label className={lbl} htmlFor="hg-a">Team 1 name</label><input id="hg-a" className={hinput} value={f.team_a} onChange={set('team_a')} maxLength={30} /></div>

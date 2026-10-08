@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Ban, Check, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Ban, Check, CheckCircle2, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -9,7 +9,7 @@ import { useNav } from '../nav';
 import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import {
-  H, KINDS, PERSON, boxScore, clockLeftMs, fmtClock, gameDate, gameTime, hbtn, kindPts, useServerOffset, useTick,
+  H, KINDS, PERSON, boxScore, byArrival, clockLeftMs, normEvent, normPlayer, periodName, fmtClock, gameDate, gameTime, hbtn, kindPts, useServerOffset, useTick,
   type GamePlayer, type HoopEvent, type HoopGame, type Kind,
 } from './lib';
 import { GameForm } from './HoopGames';
@@ -54,15 +54,15 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const [{ data }, { data: bk }, { data: ses }] = await Promise.all([
       supabase.from('hoop_game_players').select(cols).eq('game_id', id).order('booked_at'),
       sid === id ? Promise.resolve({ data: null }) : supabase.from('hoop_game_players').select(cols).eq('game_id', sid).order('booked_at'),
-      supabase.from('hoop_games').select('*, hoop_game_players(profile_id, team)').or(`id.eq.${sid},session_id.eq.${sid}`).order('created_at'),
+      supabase.from('hoop_games').select('*, hoop_game_players(profile_id, guest_id, team)').or(`id.eq.${sid},session_id.eq.${sid}`).order('created_at'),
     ]);
     if (my !== loadSeq.current) return;
-    const rows = (data as any as GamePlayer[]) || [];
+    const rows = ((data as any[]) || []).map(normPlayer);
     setPlayers(rows);
-    const book = sid === id ? rows : ((bk as any as GamePlayer[]) || []);
+    const book = sid === id ? rows : ((bk as any[]) || []).map(normPlayer);
     setBookings(book);
-    setSession((ses as any[]) || []);
-    const ids = [...new Set([...rows, ...book].map((r) => r.profile_id))];
+    setSession(((ses as any[]) || []).map((g) => ({ ...g, hoop_game_players: (g.hoop_game_players || []).map((x: any) => ({ profile_id: x.profile_id || x.guest_id, team: x.team })) })));
+    const ids = [...new Set([...rows, ...book].filter((r) => !r.is_guest).map((r) => r.profile_id))];
     if (ids.length) {
       const { data: cards } = await supabase.from('hoop_players').select('profile_id, jersey_number').in('profile_id', ids);
       const m: Record<string, number | null> = {};
@@ -77,7 +77,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       supabase.from('hoop_events').select('*').eq('game_id', id).order('created_at'),
     ]);
     setGame((g as HoopGame) || null);
-    setEvents((ev as HoopEvent[]) || []);
+    setEvents(((ev as any[]) || []).map(normEvent));
     await loadPlayers();
   }, [id, loadPlayers]);
 
@@ -90,7 +90,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         loadPlayers();   // keeps the Game 1/2/3 list, counters and "next game" buttons current
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hoop_events', filter: `game_id=eq.${id}` }, (p: any) => {
-        setEvents((xs) => (xs.some((x) => x.id === p.new.id) ? xs : [...xs, p.new as HoopEvent]));
+        setEvents((xs) => (xs.some((x) => x.id === p.new.id) ? xs : [...xs, normEvent(p.new)]));
       })
       // (deletes can't be filtered by game, so match on the id)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_events' }, (p: any) => {
@@ -150,9 +150,20 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     if (g.id === game.id || (g.status !== 'live' && g.status !== 'final')) return;
     g.hoop_game_players.forEach((x) => { if (x.team) played[x.profile_id] = (played[x.profile_id] || 0) + 1; });
   });
-  const sittingOut = bookings.filter((b) => !players.some((p) => p.profile_id === b.profile_id && p.team));
+  const sittingOut = bookings.filter((b) => !players.some((p) => p.profile_id === b.profile_id && p.team)).sort(byArrival);
   const teamOf = (pid: string) => players.find((p) => p.profile_id === pid)?.team ?? null;
   const paidCount = bookings.filter((b) => b.paid).length;
+  const periods = game.periods ?? 4;
+  // guests (not on the app) use their guest id as the player key; writes go to the right column
+  const isGuest = (pid: string) => !!everyone.find((p) => p.profile_id === pid)?.is_guest;
+  const col = (pid: string) => (isGuest(pid) ? 'guest_id' : 'profile_id');
+  const who = (pid: string) => (isGuest(pid) ? { guest_id: pid, guest_name: nameOf(pid) } : { profile_id: pid });
+  // first come, first play: arrival order (arrivals live on the schedule's bookings)
+  const bookingOf = (pid: string) => bookings.find((b) => b.profile_id === pid);
+  const queue = [...bookings].sort(byArrival);
+  const arrivedN = bookings.filter((b) => b.arrived_at).length;
+  const arrivalRank = (pid: string) => { const b = bookingOf(pid); return b?.arrived_at ? queue.indexOf(b) + 1 : 0; };
+  const byQueue = (a: GamePlayer, b: GamePlayer) => byArrival(bookingOf(a.profile_id) || a, bookingOf(b.profile_id) || b);
 
   const run = async (fn: () => PromiseLike<{ error: any }>) => {
     setBusy(true); setErr(null);
@@ -176,19 +187,39 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const writeTeam = async (pid: string, team: 'A' | 'B' | null) => {
     const row = players.find((p) => p.profile_id === pid);
     if (isFirst || row) {
-      if (!isFirst && !team && !events.some((e) => e.profile_id === pid)) return supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq('profile_id', pid);
-      return supabase.from('hoop_game_players').update({ team }).eq('game_id', game.id).eq('profile_id', pid);
+      if (!isFirst && !team && !events.some((e) => e.profile_id === pid)) return supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid);
+      return supabase.from('hoop_game_players').update({ team }).eq('game_id', game.id).eq(col(pid), pid);
     }
     if (!team) return { error: null };
-    return supabase.from('hoop_game_players').insert({ game_id: game.id, profile_id: pid, team });
+    return supabase.from('hoop_game_players').insert({ game_id: game.id, ...who(pid), team });
   };
   const setTeam = (pid: string, team: 'A' | 'B' | null) => run(() => writeTeam(pid, team) as any).then(loadPlayers);
-  const togglePaid = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ paid: !b.paid, paid_at: b.paid ? null : new Date().toISOString() }).eq('game_id', sessionId).eq('profile_id', b.profile_id)).then(loadPlayers);
+  const togglePaid = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ paid: !b.paid, paid_at: b.paid ? null : new Date().toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
+  /** Admin: tap when a player shows up at the court — first to arrive plays first. Tap again to undo. */
+  const toggleArrived = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ arrived_at: b.arrived_at ? null : new Date().toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
+  /** Admin: change how many players can book this schedule. */
+  const setSlots = async (n: number) => {
+    if (n < Math.max(2, bookings.length)) return setErr(n < 2 ? 'At least 2 slots.' : `${bookings.length} players already booked — remove someone first to go lower.`);
+    if (n > 60) return;
+    const ok = await run(() => supabase.from('hoop_games').update({ slots: n }).eq('id', sessionId));
+    if (ok) { if (isFirst) setGame((g) => (g ? { ...g, slots: n } : g)); loadPlayers(); }
+  };
+  /** Admin: a player who isn't on the app yet. They play and score in this schedule, but nothing is saved to any card. */
+  const addGuest = async () => {
+    const name = (prompt('Guest player’s name (not on the app yet):') || '').trim().slice(0, 40);
+    if (!name) return;
+    setAdding(false);
+    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, guest_id: crypto.randomUUID(), guest_name: name, arrived_at: new Date().toISOString() }));
+    loadPlayers();
+  };
   /** Fills both teams with the players who have played the fewest games of this schedule. */
   const autoPick = async () => {
     const n = Number(prompt('Players per team?', '5'));
     if (!(n >= 1 && n <= 30)) return;
-    const order = [...bookings].sort(() => Math.random() - 0.5).sort((a, b) => (played[a.profile_id] || 0) - (played[b.profile_id] || 0));
+    // fewest games first; ties go to whoever arrived first. Once arrivals are marked, players not at the court yet are skipped.
+    const pool = arrivedN ? bookings.filter((b) => b.arrived_at) : bookings;
+    if (pool.length < n * 2 && !confirm(`Only ${pool.length} ${arrivedN ? 'arrived' : 'booked'} — fill the teams anyway?`)) return;
+    const order = [...pool].sort((a, b) => (played[a.profile_id] || 0) - (played[b.profile_id] || 0) || byArrival(a, b));
     const pick = order.slice(0, n * 2).map((b) => b.profile_id);
     setBusy(true); setErr(null);
     let failed = 0;
@@ -203,8 +234,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
   const removePlayer = async (pid: string) => {
     if (!confirm(`Remove ${nameOf(pid)} from this game?${events.some((e) => e.profile_id === pid) ? '\n\nTheir stats in this game will be removed too.' : ''}`)) return;
-    if (events.some((e) => e.profile_id === pid)) await supabase.from('hoop_events').delete().eq('game_id', game.id).eq('profile_id', pid);
-    await run(() => supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq('profile_id', pid));
+    if (events.some((e) => e.profile_id === pid)) await supabase.from('hoop_events').delete().eq('game_id', game.id).eq(col(pid), pid);
+    await run(() => supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid));
     load();
   };
   const addPlayer = async (pid: string) => {
@@ -244,7 +275,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     if (!confirm(`Start Game ${session.length + 1} of this schedule?\n\nYou’ll pick new teams — the counter shows who has played the least.`)) return;
     const { data, error } = await supabase.from('hoop_games').insert({
       session_id: sessionId, title: root.title, venue: root.venue, starts_at: new Date().toISOString(), slots: root.slots,
-      period_seconds: game.period_seconds, team_a: game.team_a, team_b: game.team_b, created_by: user?.id,
+      period_seconds: game.period_seconds, periods, team_a: game.team_a, team_b: game.team_b, created_by: user?.id,
     }).select('id').single();
     if (error) return setErr(errorMessage(error));
     go({ name: 'hoopGame', id: (data as any).id });
@@ -279,7 +310,13 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const clockStart = () => patchGame({ clock_running: true, clock_started_at: new Date().toISOString(), ...(left <= 0 ? { clock_elapsed_ms: 0 } : {}) });
   const clockPause = () => patchGame({ clock_running: false, clock_started_at: null, clock_elapsed_ms: game.period_seconds * 1000 - clockLeftMs(game, now()) });
   const clockReset = () => patchGame({ clock_running: false, clock_started_at: null, clock_elapsed_ms: 0 });
-  const nextPeriod = () => { if (confirm(`Start period ${game.period + 1}?`)) patchGame({ period: Math.min(9, game.period + 1), clock_running: false, clock_started_at: null, clock_elapsed_ms: 0 }); };
+  const lastPeriod = game.period >= periods;
+  const nextPeriod = () => {
+    const name = periodName(game.period + 1, periods);
+    if (game.period >= 9) return setErr('That’s the most periods a game can have — finish the game.');
+    if (confirm(lastPeriod ? `Go to overtime (${name})?` : `Start period ${name} of ${periods}?`)) patchGame({ period: game.period + 1, clock_running: false, clock_started_at: null, clock_elapsed_ms: 0 });
+  };
+  const setPeriods = (n: number) => { if (n >= 1 && n <= 8 && n !== periods) patchGame({ periods: n } as any); };
   const setMinutes = (delta: number) => {
     const s = Math.min(3600, Math.max(60, game.period_seconds + delta * 60));
     patchGame({ period_seconds: s, ...(game.clock_running ? {} : { clock_elapsed_ms: Math.min(game.clock_elapsed_ms, s * 1000) }) });
@@ -289,9 +326,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const record = async (kind: Kind) => {
     if (!sel) return setErr('Tap a player first.');
     setErr(null);
-    const { data, error } = await supabase.from('hoop_events').insert({ game_id: game.id, profile_id: sel, team: 'A', kind }).select('*').single();
+    const { data, error } = await supabase.from('hoop_events').insert({ game_id: game.id, ...(isGuest(sel) ? { guest_id: sel } : { profile_id: sel }), team: 'A', kind }).select('*').single();
     if (error) return setErr(errorMessage(error));
-    setEvents((xs) => (xs.some((x) => x.id === (data as any).id) ? xs : [...xs, data as HoopEvent]));
+    setEvents((xs) => (xs.some((x) => x.id === (data as any).id) ? xs : [...xs, normEvent(data)]));
     if (navigator.vibrate) navigator.vibrate(15);
   };
   const removeEvent = async (e: HoopEvent) => {
@@ -343,8 +380,21 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <div className="flex items-center gap-2">
           <Avatar src={p.profiles?.avatar_url} name={p.profiles?.display_name} size={30} />
           <span className="flex-1 min-w-0">
-            <span className="block text-[12px] font-bold text-white truncate">{p.profiles?.display_name || 'Member'}</span>
-            <span className="flex items-center gap-1 mt-0.5">
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[12px] font-bold text-white truncate">{p.profiles?.display_name || 'Member'}</span>
+              {p.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1] flex-shrink-0">GUEST</span>}
+            </span>
+            <span className="flex flex-wrap items-center gap-1 mt-0.5">
+              {(() => {
+                const b = bookingOf(p.profile_id) || p;
+                const r = arrivalRank(p.profile_id);
+                return (
+                  <button onClick={() => toggleArrived(b)} disabled={busy} aria-pressed={!!b.arrived_at} title={b.arrived_at ? 'Arrived — tap to undo' : 'Tap when this player arrives at the court'}
+                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black cursor-pointer border ${b.arrived_at ? 'bg-[#F28C14]/20 text-[#F28C14] border-[#F28C14]/50' : 'bg-white/[0.04] text-[#A8A29E] border-white/15 border-dashed'}`}>
+                    {b.arrived_at ? <><CheckCircle2 className="w-2.5 h-2.5" />ARRIVED #{r}</> : 'NOT HERE YET'}
+                  </button>
+                );
+              })()}
               {session.length > 1 || !isFirst ? playedChip(p.profile_id) : null}
               <button onClick={() => togglePaid(p)} disabled={busy} aria-pressed={!!p.paid} title={p.paid ? 'Paid — tap to undo' : 'Not paid yet — tap when paid'}
                 className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black cursor-pointer border ${p.paid ? 'bg-[#53E6D4]/15 text-[#53E6D4] border-[#53E6D4]/45' : 'bg-[#FF6B7A]/10 text-[#FF8A9C] border-[#FF6B7A]/40'}`}>
@@ -366,21 +416,30 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     );
   };
 
-  const sortedForRoster = [...everyone].sort((a, b) => (played[a.profile_id] || 0) - (played[b.profile_id] || 0));
+  // fewest games of this schedule first, then first come, first play
+  const sortedForRoster = [...everyone].sort((a, b) => (played[a.profile_id] || 0) - (played[b.profile_id] || 0) || byQueue(a, b));
   const rosterManager = (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-[13px] font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-[#F28C14]" />Players ({bookings.length}/{root.slots}) · <span className="text-[#53E6D4]">{paidCount} paid</span></p>
-        <div className="flex gap-1.5">
+        <p className="text-[13px] font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-[#F28C14]" />Players ({bookings.length}/{root.slots}) · <span className="text-[#53E6D4]">{paidCount} paid</span> · <span className="text-[#F28C14]">{arrivedN} here</span></p>
+        <div className="flex flex-wrap gap-1.5">
           <button onClick={autoPick} disabled={busy || bookings.length < 2} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`} title="Pick the players who have played the fewest games"><Sparkles className="w-3.5 h-3.5" />Fewest games</button>
           <button onClick={shuffle} disabled={busy} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`}><Shuffle className="w-3.5 h-3.5" />Shuffle</button>
-          <button onClick={() => setAdding(!adding)} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Add</button>
+          <button onClick={() => setAdding(!adding)} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Add member</button>
+          <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`} title="Someone who isn’t on the app yet"><Plus className="w-3.5 h-3.5" />Guest</button>
         </div>
+      </div>
+      <div className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.03] border border-white/10">
+        <span className="flex-1 text-[12px] font-bold text-white">Slots <span className="font-normal text-[#A8A29E]">· how many can book</span></span>
+        <button onClick={() => setSlots(root.slots - 1)} disabled={busy || root.slots <= Math.max(2, bookings.length)} aria-label="One slot less" className={`${hbtn.icon} !w-8 !h-8 disabled:opacity-35`}><Minus className="w-4 h-4" /></button>
+        <span className="w-8 text-center font-hoop italic font-black text-[18px] text-white tabular-nums">{root.slots}</span>
+        <button onClick={() => setSlots(root.slots + 1)} disabled={busy || root.slots >= 60} aria-label="One slot more" className={`${hbtn.icon} !w-8 !h-8 disabled:opacity-35`}><Plus className="w-4 h-4" /></button>
       </div>
       <p className="text-[11px] text-[#A8A29E]">
         {teamA.length} on {game.team_a} · {teamB.length} on {game.team_b}
         {(session.length > 1 || !isFirst) && <> · <span className="text-[#8FE36B] font-bold">FRESH</span> = hasn’t played yet today, sorted first</>}
       </p>
+      <p className="text-[11px] text-[#A8A29E]">First come, first play — tap <span className="text-[#F28C14] font-bold">NOT HERE YET</span> when a player arrives. The list follows arrival order. <span className="text-white font-bold">Guests</span> play and score, but their stats aren’t saved.</p>
       {adding && <AccountPicker autoFocus roles={['fan']} exclude={everyone.map((p) => p.profile_id)} onPick={(p) => addPlayer(p.id)} onCancel={() => setAdding(false)} />}
       {everyone.length === 0 && <p className="text-[12px] text-[#A8A29E]">No one has booked yet. You can add players with “Add”.</p>}
       {sortedForRoster.map((p) => rosterRow(bookings.find((b) => b.profile_id === p.profile_id) || p))}
@@ -407,8 +466,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               return (
                 <tr key={p.profile_id} className="border-b border-white/[0.05] last:border-0">
                   <td className="px-3 py-1.5">
-                    <button onClick={() => go({ name: 'hoopPlayer', id: p.profile_id })} className="flex items-center gap-1.5 font-bold text-white hover:text-[#F28C14] cursor-pointer whitespace-nowrap">
+                    <button onClick={() => !p.is_guest && go({ name: 'hoopPlayer', id: p.profile_id })} className={`flex items-center gap-1.5 font-bold text-white whitespace-nowrap ${p.is_guest ? 'cursor-default' : 'hover:text-[#F28C14] cursor-pointer'}`}>
                       <span className="text-[#A8A29E] font-mono w-5 text-right">{jersey[p.profile_id] ?? ''}</span>{short(p.profiles?.display_name)}
+                      {p.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1]">GUEST</span>}
                     </button>
                   </td>
                   {[l?.pts, l?.reb, l?.ast, l?.stl, l?.blk, l?.threes, l?.tov, l?.foul].map((v, i) => (
@@ -436,7 +496,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             <span className="font-hoop italic font-black text-[22px] leading-none text-white tabular-nums">{score.A}</span>
             <span className="px-2 py-0.5 rounded-md bg-white/[0.08] text-center leading-tight">
               <span className={`block font-mono font-bold text-[13px] tabular-nums ${live && game.clock_running && left <= 10000 ? 'text-[#F26A2E]' : 'text-white'}`}>{fmtClock(left)}</span>
-              <span className="block text-[8px] font-bold tracking-wider text-[#A8A29E]">{game.status === 'final' ? 'FINAL' : `P${game.period}`}</span>
+              <span className="block text-[8px] font-bold tracking-wider text-[#A8A29E]">{game.status === 'final' ? 'FINAL' : game.period > periods ? periodName(game.period, periods) : `P${game.period}/${periods}`}</span>
             </span>
             <span className="font-hoop italic font-black text-[22px] leading-none text-white tabular-nums">{score.B}</span>
             <span className="text-[10px] font-black uppercase text-[#D6D3D1] max-w-[70px] truncate">{game.team_b}</span>
@@ -482,7 +542,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               </div>
               <div className="text-center px-2">
                 <p className={`font-mono font-bold text-[26px] tabular-nums ${live && left <= 10000 && game.clock_running ? 'text-[#F26A2E]' : 'text-white'}`}>{fmtClock(left)}</p>
-                <p className="text-[10px] font-bold tracking-wider text-[#A8A29E]">{game.status === 'final' ? 'FINAL' : `PERIOD ${game.period}`}</p>
+                <p className="text-[10px] font-bold tracking-wider text-[#A8A29E]">{game.status === 'final' ? 'FINAL' : game.period > periods ? `OVERTIME${game.period - periods > 1 ? ` ${game.period - periods}` : ''}` : `PERIOD ${game.period} OF ${periods}`}</p>
               </div>
               <div className="text-center min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-wider text-[#D6D3D1] truncate">{game.team_b}</p>
@@ -542,6 +602,24 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               </div>
             );
           })()}
+          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="flex-1 text-[12px] font-bold text-white">Periods</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map((n) => (
+                  <button key={n} onClick={() => setPeriods(n)} disabled={busy} aria-pressed={periods === n}
+                    className={`w-9 h-8 rounded-lg text-[13px] font-black cursor-pointer border ${periods === n ? 'bg-[#F28C14] text-[#111] border-[#F28C14]' : 'bg-white/[0.04] text-[#D6D3D1] border-white/15'}`}>{n}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="flex-1 text-[12px] font-bold text-white">Minutes per period</span>
+              <button onClick={() => setMinutes(-1)} disabled={busy} aria-label="One minute less per period" className={`${hbtn.icon} !w-8 !h-8`}><Minus className="w-4 h-4" /></button>
+              <span className="w-12 text-center text-[13px] font-black text-white">{Math.round(game.period_seconds / 60)} min</span>
+              <button onClick={() => setMinutes(1)} disabled={busy} aria-label="One minute more per period" className={`${hbtn.icon} !w-8 !h-8`}><Plus className="w-4 h-4" /></button>
+            </div>
+            <p className="text-[10px] text-[#A8A29E]">{periods} × {Math.round(game.period_seconds / 60)} min{periods > 1 ? ` = ${periods * Math.round(game.period_seconds / 60)} min game` : ''} · overtime is available if it’s tied</p>
+          </div>
           <button onClick={begin} disabled={busy || teamA.length < MIN_PER_TEAM || teamB.length < MIN_PER_TEAM} className={`${hbtn.primary} w-full !py-3 !text-base`}><Play className="w-5 h-5 fill-current" />Begin game</button>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setEditing(true)} className={`${hbtn.ghost} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Edit details</button>
@@ -561,13 +639,15 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               ? <button onClick={clockPause} disabled={busy} className={`${hbtn.primary} !py-2`}><Pause className="w-4 h-4 fill-current" />Pause</button>
               : <button onClick={clockStart} disabled={busy} className={`${hbtn.primary} !py-2`}><Play className="w-4 h-4 fill-current" />{game.clock_elapsed_ms ? 'Resume' : 'Start clock'}</button>}
             <button onClick={clockReset} disabled={busy} className={`${hbtn.ghost} !py-2 !px-3`} aria-label="Reset clock"><RotateCcw className="w-4 h-4" /></button>
-            <button onClick={nextPeriod} disabled={busy} className={`${hbtn.ghost} !py-2 !px-3 !text-xs`}><SkipForward className="w-4 h-4" />Next period</button>
+            <button onClick={nextPeriod} disabled={busy} className={`${hbtn.ghost} !py-2 !px-3 !text-xs`}><SkipForward className="w-4 h-4" />{lastPeriod ? 'Overtime' : `Period ${game.period + 1}`}</button>
             <span className="flex items-center gap-1 ml-auto">
               <button onClick={() => setMinutes(-1)} aria-label="One minute less per period" className={hbtn.icon}><Minus className="w-4 h-4" /></button>
               <span className="text-[11px] font-bold text-white w-12 text-center">{Math.round(game.period_seconds / 60)} min</span>
               <button onClick={() => setMinutes(1)} aria-label="One minute more per period" className={hbtn.icon}><Plus className="w-4 h-4" /></button>
             </span>
           </div>
+
+          {lastPeriod && <p className="text-[11px] font-bold text-[#F28C14]">{game.period > periods ? 'Overtime' : `Last period (${periods} of ${periods})`} — tap “Finish game” when time’s up{score.A === score.B ? ', or “Overtime” if it’s still tied' : ''}.</p>}
 
           {/* players */}
           <p className="text-[11px] text-[#A8A29E]">Tap a player, then tap what they did.</p>
@@ -612,7 +692,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                   <div key={e.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.03] text-[12px]">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.team === 'A' ? H.orange : '#D6D3D1' }} />
                     <span className="flex-1 min-w-0 truncate text-white">{nameOf(e.profile_id)} <strong style={{ color: k.tone }}>{kindPts(e.kind) ? k.label : k.short}</strong></span>
-                    <span className="text-[10px] text-[#A8A29E]">P{e.period}</span>
+                    <span className="text-[10px] text-[#A8A29E]">{e.period > periods ? periodName(e.period, periods) : `P${e.period}`}</span>
                     <button onClick={() => removeEvent(e)} aria-label="Remove this play" className="text-[#A8A29E] hover:text-[#FF6B7A] cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                   </div>
                 );
@@ -748,14 +828,17 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           </div>
           {players.length === 0 ? <p className="text-[13px] text-[#A8A29E]">No one yet — be the first to book!</p> : (
             <div className="grid grid-cols-4 gap-x-2 gap-y-3">
-              {players.map((p, i) => (
-                <button key={p.profile_id} onClick={() => go({ name: 'hoopPlayer', id: p.profile_id })} className="flex flex-col items-center gap-1 min-w-0 cursor-pointer">
+              {[...players].sort(byQueue).map((p, i) => (
+                <button key={p.profile_id} onClick={() => !p.is_guest && go({ name: 'hoopPlayer', id: p.profile_id })} className={`flex flex-col items-center gap-1 min-w-0 ${p.is_guest ? 'cursor-default' : 'cursor-pointer'}`}>
                   <span className="relative">
                     <span className="absolute -top-1 -left-1 z-10 min-w-[20px] h-5 px-1 rounded-full bg-[#F28C14] text-[#111] text-[10px] font-black flex items-center justify-center border-2 border-[#111]">{i + 1}</span>
                     <Avatar src={p.profiles?.avatar_url} name={p.profiles?.display_name} size={54} />
                     {p.team && <span className="absolute -bottom-1 -right-1 px-1 rounded text-[8px] font-black" style={{ background: p.team === 'A' ? H.orange : '#D6D3D1', color: '#111' }}>{p.team === 'A' ? game.team_a.slice(0, 6) : game.team_b.slice(0, 6)}</span>}
                   </span>
                   <span className="text-[11px] font-bold text-white max-w-full truncate">{short(p.profiles?.display_name)}</span>
+                  {(p.is_guest || bookingOf(p.profile_id)?.arrived_at) && (
+                    <span className="-mt-1 text-[8px] font-black tracking-wide text-[#F28C14]">{p.is_guest ? 'GUEST' : ''}{p.is_guest && bookingOf(p.profile_id)?.arrived_at ? ' · ' : ''}{bookingOf(p.profile_id)?.arrived_at ? 'HERE' : ''}</span>
+                  )}
                   {(() => {
                     const paid = !!bookings.find((b) => b.profile_id === p.profile_id)?.paid;   // payments live on the schedule's bookings
                     return (

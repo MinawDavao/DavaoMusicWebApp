@@ -30,16 +30,33 @@ export interface HoopGame {
   id: string; title: string; venue: string | null; starts_at: string; slots: number; notes: string | null;
   status: 'scheduled' | 'live' | 'final' | 'cancelled'; team_a: string; team_b: string;
   period: number; period_seconds: number; clock_running: boolean; clock_started_at: string | null; clock_elapsed_ms: number;
-  started_at: string | null; ended_at: string | null; created_at: string; session_id: string | null; created_by: string | null; closed_at?: string | null;
+  started_at: string | null; ended_at: string | null; created_at: string; session_id: string | null; created_by: string | null; closed_at?: string | null; periods?: number;
 }
-export interface GamePlayer { game_id: string; profile_id: string; team: 'A' | 'B' | null; booked_at: string; paid?: boolean; paid_at?: string | null; profiles?: HoopPerson | null }
+/** A booking / team row. For a GUEST (not on the app) profile_id holds the guest's id and is_guest is true — see normPlayer. */
+export interface GamePlayer {
+  game_id: string; profile_id: string; team: 'A' | 'B' | null; booked_at: string; paid?: boolean; paid_at?: string | null;
+  arrived_at?: string | null; guest_id?: string | null; guest_name?: string | null; is_guest?: boolean; profiles?: HoopPerson | null;
+}
 export type Kind = 'p1' | 'p2' | 'p3' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'foul';
-export interface HoopEvent { id: string; game_id: string; profile_id: string; team: 'A' | 'B'; kind: Kind; period: number; created_at: string }
+export interface HoopEvent { id: string; game_id: string; profile_id: string; guest_id?: string | null; team: 'A' | 'B'; kind: Kind; period: number; created_at: string }
 export interface HoopStats {
   profile_id: string; games: number; wins: number; losses: number;
   pts: number; threes: number; reb: number; ast: number; stl: number; blk: number; tov: number; fouls: number;
   ppg: number; rpg: number; apg: number; spg: number; bpg: number; tpg: number; topg: number; fpg: number; best_pts: number;
 }
+
+/** Guests have no account: use their guest id in place of profile_id so every list / key works the same. */
+export const normPlayer = (r: any): GamePlayer => (r?.guest_id
+  ? { ...r, profile_id: r.guest_id, is_guest: true, profiles: { id: r.guest_id, display_name: r.guest_name || 'Guest', username: '', avatar_url: null, role: 'guest' } }
+  : r);
+export const normEvent = (e: any): HoopEvent => (e?.guest_id ? { ...e, profile_id: e.guest_id } : e);
+/** First come, first play: players who arrived (in arrival order), then everyone else in booking order. */
+export const byArrival = (a: Pick<GamePlayer, 'arrived_at' | 'booked_at'>, b: Pick<GamePlayer, 'arrived_at' | 'booked_at'>) =>
+  (a.arrived_at ? 0 : 1) - (b.arrived_at ? 0 : 1)
+  || (a.arrived_at && b.arrived_at ? a.arrived_at.localeCompare(b.arrived_at) : 0)
+  || a.booked_at.localeCompare(b.booked_at);
+/** "1", "2"… then "OT", "OT2" once the game goes past its periods. */
+export const periodName = (p: number, periods = 4) => (p <= periods ? String(p) : p - periods === 1 ? 'OT' : `OT${p - periods}`);
 
 export const PERSON = 'id, display_name, username, avatar_url, role, is_verified';
 
