@@ -353,8 +353,9 @@ export const HoopPlayers: React.FC = () => {
   const [q, setQ] = useState('');
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('hoop_players').select(`*, profiles!hoop_players_profile_id_fkey(${PERSON})`).limit(500);
-      const cards = ((data as any as HoopCard[]) || []).filter((c) => c.profiles);
+      const { data } = await supabase.from('hoop_players').select(`*, profiles!hoop_players_profile_id_fkey!inner(${PERSON}, is_suspended)`)
+        .eq('profiles.is_suspended', false).limit(500);   // suspended accounts aren't listed
+      const cards = ((data as any as HoopCard[]) || []).filter((c) => c.profiles && !(c.profiles as any).is_suspended);
       const st = await fetchStats(cards.map((c) => c.profile_id));
       setRows(cards.map((c) => ({ ...c, stats: st[c.profile_id] }))
         .sort((a, b) => (b.stats?.ppg ?? -1) - (a.stats?.ppg ?? -1) || (b.stats?.games ?? 0) - (a.stats?.games ?? 0) || a.profiles!.display_name.localeCompare(b.profiles!.display_name)));

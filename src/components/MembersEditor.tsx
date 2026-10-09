@@ -23,7 +23,7 @@ export const AccountPicker: React.FC<{ onPick: (p: Person) => void; exclude?: st
     if (term.length < 2) { setList([]); return; }
     const t = setTimeout(async () => {
       let req = supabase.from('profiles').select('id, display_name, username, avatar_url, role')
-        .or(`username.ilike.${term}%,display_name.ilike.%${term}%`).limit(6);
+        .or(`username.ilike.${term}%,display_name.ilike.%${term}%`).eq('is_suspended', false).limit(6);
       if (roles?.length) req = req.in('role', roles);
       const { data } = await req;
       if (my === seq.current) setList(((data as Person[]) || []).filter((p) => !exclude.includes(p.id)));
