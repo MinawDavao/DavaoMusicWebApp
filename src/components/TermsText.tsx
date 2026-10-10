@@ -12,8 +12,8 @@ const Sec: React.FC<{ n: number; title: string; children: React.ReactNode }> = (
 /** Terms of Agreement v2026-10 (draft — have it reviewed before launch). */
 export const TermsText: React.FC = () => (
   <div className="space-y-3.5">
-    <Sec n={1} title="Welcome to MINAW DVO">
-      <p>MINAW DVO is a community app for Davao City and Southern Mindanao musicians and fans. By creating an account you agree to these Terms of Agreement and our Community Guidelines.</p>
+    <Sec n={1} title="Welcome to MINAW DAVAO">
+      <p>MINAW DAVAO is a community app for Davao City and Southern Mindanao musicians and fans. By creating an account you agree to these Terms of Agreement and our Community Guidelines.</p>
       <p>You must be at least 13 years old to use the app. If you are under 18, you confirm that a parent or guardian has agreed to these terms with you.</p>
     </Sec>
     <Sec n={2} title="Your Account">
@@ -21,14 +21,14 @@ export const TermsText: React.FC = () => (
       <p>Venue accounts are for bars, cafés, event places and other spaces that host music. Only the owner, the manager, or someone they have allowed may run a venue’s account.</p>
     </Sec>
     <Sec n={3} title="Music, Copyright & Downloads">
-      <p><strong className="text-white">You keep ownership of your music.</strong> Uploading a song does not transfer your copyright to MINAW DVO.</p>
+      <p><strong className="text-white">You keep ownership of your music.</strong> Uploading a song does not transfer your copyright to MINAW DAVAO.</p>
       <p>Only upload music you wrote, recorded or have permission to share. Covers, remixes and samples need the original rights holder’s permission. Do not upload other artists’ songs.</p>
-      <p>By uploading, you give MINAW DVO permission to host, stream and display your tracks inside the app so fans can listen. You can remove a track at any time.</p>
+      <p>By uploading, you give MINAW DAVAO permission to host, stream and display your tracks inside the app so fans can listen. You can remove a track at any time.</p>
       <p><strong className="text-white">Downloads are the artist’s choice.</strong> Each artist decides whether fans can download their tracks. Downloaded music is for personal listening only. Re-uploading, selling, or sharing it elsewhere without the artist’s permission is not allowed.</p>
       <p>If you believe your music was uploaded without permission, report it. Proven infringing tracks are removed, and repeat infringers lose their accounts.</p>
     </Sec>
     <Sec n={4} title="Community Guidelines">
-      <p>Keep MINAW DVO about music and the local scene. You may not post, upload, comment or message content that includes:</p>
+      <p>Keep MINAW DAVAO about music and the local scene. You may not post, upload, comment or message content that includes:</p>
       <ul className="list-disc pl-5 space-y-1">
         <li><strong className="text-white">Nudity or sexual content</strong>, including in profile photos, gig posters and gear listings.</li>
         <li><strong className="text-white">Violence or gore</strong>, threats, or content that encourages anyone to hurt themselves or others.</li>
@@ -39,7 +39,7 @@ export const TermsText: React.FC = () => (
       </ul>
     </Sec>
     <Sec n={5} title="Gear Exchange & Deals">
-      <p>Deals happen directly between users. MINAW DVO is not a party to any sale or trade and does not guarantee items, payments or meetups. Describe gear honestly, meet in safe public places, and never post stolen or illegal items.</p>
+      <p>Deals happen directly between users. MINAW DAVAO is not a party to any sale or trade and does not guarantee items, payments or meetups. Describe gear honestly, meet in safe public places, and never post stolen or illegal items.</p>
     </Sec>
     <Sec n={6} title="Review & Removal">
       <p>Anyone can report a post, track, comment, profile or listing. Our moderators review every report.</p>

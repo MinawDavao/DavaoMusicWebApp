@@ -48,7 +48,7 @@ export const TrackSocial: React.FC<{ track: Track; bandId: string }> = ({ track,
   const { share: openShare, sheet } = useShare();
   const share = () => openShare({
     title: track.title,
-    text: `Listen to “${track.title}”${track.bands?.name ? ` by ${track.bands.name}` : ''} on MINAW DVO`,
+    text: `Listen to “${track.title}”${track.bands?.name ? ` by ${track.bands.name}` : ''} on MINAW DAVAO`,
     url: `${window.location.origin}${window.location.pathname}#/band/${bandId}/song/${track.id}`,
   });
 

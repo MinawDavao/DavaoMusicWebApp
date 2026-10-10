@@ -89,7 +89,7 @@ export const AdminSponsors: React.FC = () => {
 
 type Biz = { id: string; display_name: string; username: string; avatar_url: string | null };
 
-/** Search Venue/Business accounts to link a sponsor to their MINAW DVO page. */
+/** Search Venue/Business accounts to link a sponsor to their MINAW DAVAO page. */
 const BusinessPicker: React.FC<{ value: Biz | null; onChange: (b: Biz | null) => void }> = ({ value, onChange }) => {
   const [q, setQ] = useState('');
   const [res, setRes] = useState<Biz[]>([]);
@@ -202,7 +202,7 @@ const SponsorForm: React.FC<{ initial: Sponsor | null; nextOrder: number; onDone
       <div className="space-y-3 p-3 rounded-2xl bg-[#0F1417] border border-white/15">
         <p className="text-[13px] font-bold text-white">Where people can reach them</p>
         <div className="space-y-1.5">
-          <p className="flex items-center gap-1.5 text-[12px] font-bold text-[#FFC34D]"><Building2 className="w-4 h-4" />Their MINAW DVO Venue/Business page</p>
+          <p className="flex items-center gap-1.5 text-[12px] font-bold text-[#FFC34D]"><Building2 className="w-4 h-4" />Their MINAW DAVAO Venue/Business page</p>
           <BusinessPicker value={biz} onChange={setBiz} />
         </div>
         <Field label="Website / Facebook link" htmlFor="s-link" hint="optional"><input id="s-link" maxLength={500} className={inputCls} value={f.link_url} onChange={set('link_url')} placeholder="https://facebook.com/theirpage" /></Field>

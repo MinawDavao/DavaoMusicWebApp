@@ -203,7 +203,7 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
           {it.profiles?.instagram && <p className="flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />{it.profiles.instagram}</p>}
           {it.profiles?.facebook && <p className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-[#53E6D4]" />{it.profiles.facebook}</p>}
           {!it.profiles?.instagram && !it.profiles?.facebook && <p className="text-[#8E9AA7]">This seller hasn’t added contact links yet. Leave a comment on their Connect posts or visit their profile.</p>}
-          <p className="text-[10px] text-[#8E9AA7]">Meet in safe public places. MINAW DVO isn’t part of the deal.</p>
+          <p className="text-[10px] text-[#8E9AA7]">Meet in safe public places. MINAW DAVAO isn’t part of the deal.</p>
         </div>
       )}
       <div className="flex items-center gap-2">

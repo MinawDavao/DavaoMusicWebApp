@@ -102,7 +102,7 @@ const TermsStep: React.FC = () => {
       <div className="text-center space-y-1.5">
         <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#6045F4]/20 border border-[#6045F4]/40 text-[#B7A8FF] text-[10px] font-bold">STEP 2 · BEFORE YOU JOIN</span>
         <h1 className="font-heading font-bold text-2xl text-white">Terms of Agreement</h1>
-        <p className="text-xs text-[#8E9AA7]">Please read how MINAW DVO works before you start posting and uploading.</p>
+        <p className="text-xs text-[#8E9AA7]">Please read how MINAW DAVAO works before you start posting and uploading.</p>
         <p className="font-mono text-[10px] text-[#8E9AA7]">Last updated: October 2026</p>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -117,7 +117,7 @@ const TermsStep: React.FC = () => {
         <TermsText />
       </div>
       <div className="space-y-3 p-3.5 rounded-2xl bg-[#161B20] border border-white/[0.08]">
-        <Check2 on={c1} onToggle={() => setC1(!c1)}>I have read and agree to the MINAW DVO Terms of Agreement and Privacy policy.</Check2>
+        <Check2 on={c1} onToggle={() => setC1(!c1)}>I have read and agree to the MINAW DAVAO Terms of Agreement and Privacy policy.</Check2>
         <Check2 on={c2} onToggle={() => setC2(!c2)}>I will follow the Community Guidelines: no nudity, violence or political posts. I understand reported content is reviewed and removed if it breaks the rules.</Check2>
         {isArtist && <Check2 on={c3} onToggle={() => setC3(!c3)}>I own or have permission to share every song I upload, and I’ll choose whether fans can download it.</Check2>}
         {isVenue && <Check2 on={c3} onToggle={() => setC3(!c3)}>I own, manage or am allowed to represent this venue or business, and the details I share about it are accurate.</Check2>}

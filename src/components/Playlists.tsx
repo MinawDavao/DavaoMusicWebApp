@@ -79,7 +79,7 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
   const { share: openShare, sheet: shareSheet } = useShare();
   const share = (pl: PL) => openShare({
     title: pl.name,
-    text: `Listen to “${pl.name}” by ${pl.owner?.display_name || 'a fan'} on MINAW DVO`,
+    text: `Listen to “${pl.name}” by ${pl.owner?.display_name || 'a fan'} on MINAW DAVAO`,
     url: playlistLink(pl.id),
   });
   const saveCopy = async (pl: PL) => {

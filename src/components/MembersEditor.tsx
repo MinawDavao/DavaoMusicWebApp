@@ -12,7 +12,7 @@ export interface MemberRow {
 }
 export const MEMBER_COLS = 'id, name, role, profile_id, is_admin, profiles!band_members_profile_id_fkey(id, display_name, username, avatar_url, role)';
 
-/** Type a name or @username to find someone’s MINAW DVO account. */
+/** Type a name or @username to find someone’s MINAW DAVAO account. */
 export const AccountPicker: React.FC<{ onPick: (p: Person) => void; exclude?: string[]; autoFocus?: boolean; onCancel?: () => void; roles?: string[] }> = ({ onPick, exclude = [], autoFocus, onCancel, roles }) => {
   const [q, setQ] = useState('');
   const [list, setList] = useState<Person[]>([]);
@@ -36,7 +36,7 @@ export const AccountPicker: React.FC<{ onPick: (p: Person) => void; exclude?: st
       <div className="flex gap-1.5">
         <span className="relative flex-1 min-w-0">
           <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8E9AA7]" />
-          <input autoFocus={autoFocus} aria-label="Find their MINAW DVO account" className={`${inputCls} !min-h-[40px] !pl-8 !text-xs`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type their name or @username" />
+          <input autoFocus={autoFocus} aria-label="Find their MINAW DAVAO account" className={`${inputCls} !min-h-[40px] !pl-8 !text-xs`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type their name or @username" />
         </span>
         {onCancel && <button type="button" onClick={onCancel} aria-label="Cancel" className={btn.icon}><X className="w-4 h-4" /></button>}
       </div>
@@ -152,7 +152,7 @@ export const MembersEditor: React.FC<{ bandId: string; ownerId: string; onChange
         <span className="ml-auto text-[10px] font-medium text-[#8E9AA7]">Name • Role / instrument</span></p>
       <p className="text-[11px] text-[#8E9AA7] leading-relaxed">
         {isOwner
-          ? <>Link members to their MINAW DVO account with <strong className="text-white">@</strong>, then tap <strong className="text-white">Make admin</strong> so they can edit this band page from their own account.</>
+          ? <>Link members to their MINAW DAVAO account with <strong className="text-white">@</strong>, then tap <strong className="text-white">Make admin</strong> so they can edit this band page from their own account.</>
           : <>You’re an admin of this band page. Only the owner can add or remove admins.</>}
       </p>
       {rows.length === 0 && <p className="text-[11px] text-[#8E9AA7]">No members added yet.</p>}

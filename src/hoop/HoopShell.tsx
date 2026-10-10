@@ -31,7 +31,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
     <div className="px-4 py-10 text-center space-y-4">
       <img src="/hoop-method-logo.jpg" alt="Sunday Hoop Method" className="w-56 mx-auto rounded-2xl" />
       <p className="font-hoop italic font-extrabold text-2xl text-white uppercase">Members only</p>
-      <p className="text-sm text-[#A8A29E]">Log in to your MINAW DVO account to book games and see your player card.</p>
+      <p className="text-sm text-[#A8A29E]">Log in to your MINAW DAVAO account to book games and see your player card.</p>
       <button onClick={() => go({ name: 'auth', mode: 'login' })} className={hbtn.primary}><LogIn className="w-4 h-4" />Log In</button>
     </div>
   );
@@ -72,7 +72,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
             </button>
             <div className="flex items-center gap-2">
               {isModerator && <span className="px-2 py-1 rounded-full text-[9px] font-bold tracking-wider bg-[#F28C14]/15 text-[#F28C14] border border-[#F28C14]/40">ADMIN</span>}
-              <button onClick={() => go({ name: 'home' })} className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-white/[0.06] border border-white/15 text-[12px] font-bold text-[#E7E5E4] hover:text-white cursor-pointer" aria-label="Back to MINAW DVO music">
+              <button onClick={() => go({ name: 'home' })} className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-white/[0.06] border border-white/15 text-[12px] font-bold text-[#E7E5E4] hover:text-white cursor-pointer" aria-label="Back to MINAW DAVAO music">
                 <Music className="w-3.5 h-3.5 text-[#53E6D4]" />MINAW
               </button>
             </div>

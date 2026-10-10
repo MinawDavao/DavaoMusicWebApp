@@ -93,9 +93,9 @@ export const NameHint: React.FC<{
           <span>
             {exact.length
               ? (kind === 'name' && role === 'fan'
-                ? <>Someone named “{value.trim()}” is already on MINAW DVO. That’s okay — your @username keeps you unique.</>
+                ? <>Someone named “{value.trim()}” is already on MINAW DAVAO. That’s okay — your @username keeps you unique.</>
                 : <>There’s already someone with this {KIND_WORD[kind]}. Make sure people can tell you apart.</>)
-              : <>Heads up: similar {kind === 'name' ? 'names' : `${KIND_WORD[kind]}s`} are already on MINAW DVO. Make sure people can tell you apart.</>}
+              : <>Heads up: similar {kind === 'name' ? 'names' : `${KIND_WORD[kind]}s`} are already on MINAW DAVAO. Make sure people can tell you apart.</>}
           </span>
         </p>
         <div className="flex flex-wrap gap-1.5">{result.matches.map(tag)}</div>

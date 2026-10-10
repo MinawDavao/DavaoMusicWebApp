@@ -114,9 +114,9 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
     <header className="sticky top-0 z-40 bg-[#0F1417]/95 backdrop-blur-xl border-b border-white/10">
       <div className="px-3.5 pt-3 pb-2.5 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <button onClick={() => go({ name: 'home' })} className="flex items-center gap-2.5 cursor-pointer" aria-label="MINAW DVO home">
+          <button onClick={() => go({ name: 'home' })} className="flex items-center gap-2.5 cursor-pointer" aria-label="MINAW DAVAO home">
             <img src="/minaw-logo.png.png" alt="" className="h-9 w-auto" />
-            <span className="font-heading font-extrabold text-base tracking-wider"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DVO</span></span>
+            <span className="font-heading font-extrabold text-base tracking-wider"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DAVAO</span></span>
           </button>
 
           {!user ? (
@@ -241,11 +241,11 @@ const Shell: React.FC = () => {
           {view.name !== 'chat' && <footer className="pt-7 pb-36 px-4 border-t border-white/10 bg-[#161B20] text-[#8E9AA7] space-y-3">
             <div className="flex items-center gap-2">
               <img src="/minaw-logo.png.png" alt="" className="h-6 w-auto" />
-              <span className="font-heading font-bold text-sm"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DVO</span></span>
+              <span className="font-heading font-bold text-sm"><span className="text-white">MINAW</span><span className="text-[#53E6D4]">DAVAO</span></span>
             </div>
             <InstallLink />
             <p className="text-[11px] leading-relaxed">Dedicated local music platform for Davao City &amp; Southern Mindanao. Connect with local bands, discover gigs, and grab gear deals.</p>
-            <p className="text-[10px] pt-2 border-t border-white/5">© 2026 MINAW DVO • Made for Davao musicians and fans.</p>
+            <p className="text-[10px] pt-2 border-t border-white/5">© 2026 MINAW DAVAO • Made for Davao musicians and fans.</p>
           </footer>}
         </div>
 

@@ -138,7 +138,7 @@ export const SponsoredSpotlight: React.FC<{ onGoToDeals?: () => void; compact?: 
           <div className="flex flex-col gap-2">
             {open.venue && (
               <button onClick={() => { setOpen(null); go({ name: 'profile', id: open.venue!.id }); }} className={`${btn.mint} w-full`}>
-                <Building2 className="w-4 h-4" />View {open.venue.display_name} on MINAW DVO
+                <Building2 className="w-4 h-4" />View {open.venue.display_name} on MINAW DAVAO
               </button>
             )}
             {safeLink(open.link_url) && (

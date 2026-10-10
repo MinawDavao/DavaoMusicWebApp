@@ -44,7 +44,7 @@ export const HomeScreen: React.FC = () => {
     <div className="px-3 py-4 space-y-7">
       {!user && (
         <div className="rounded-2xl p-4 bg-[#1B1D33] border border-[#6045F4]/40 space-y-3">
-          <p className="font-heading font-bold text-white">Welcome to MINAW DVO</p>
+          <p className="font-heading font-bold text-white">Welcome to MINAW DAVAO</p>
           <p className="text-xs text-[#8E9AA7] leading-relaxed">The home of Davao City’s local music scene. Create an account to follow bands, upload your music, post gig updates and trade gear.</p>
           <button onClick={() => go({ name: 'auth', mode: 'signup' })} className={btn.primary}><UserPlus className="w-4 h-4" /> Join the scene</button>
         </div>
@@ -96,7 +96,7 @@ export const HomeScreen: React.FC = () => {
 
       {/* TOP 10 */}
       <section className="space-y-3">
-        <SectionHead icon={Headphones} title="Top 10 Davao Artists" sub="Ranked by plays across MINAW DVO" />
+        <SectionHead icon={Headphones} title="Top 10 Davao Artists" sub="Ranked by plays across MINAW DAVAO" />
         {loading ? <Spinner /> : top.length === 0 ? (
           <EmptyState icon={Headphones} title="There’s no Top 10 yet" text="Once artists upload music and fans start listening, the most-played bands will show up here." />
         ) : (

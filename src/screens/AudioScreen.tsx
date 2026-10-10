@@ -93,17 +93,17 @@ export const AudioScreen: React.FC = () => {
         </section>
       ) : (
         <>
-          {/* DVO SCENE RADIO */}
+          {/* DAVAO SCENE RADIO */}
           <section className="rounded-3xl bg-[#1D232A] border border-[#6045F4]/45 p-4 space-y-3.5">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-full bg-[#53E6D4]/10 text-[#53E6D4] flex items-center justify-center"><Radio className="w-4 h-4" /></div>
               <div className="flex-1">
-                <p className="font-heading font-bold text-sm tracking-wider text-white">DVO SCENE RADIO</p>
+                <p className="font-heading font-bold text-sm tracking-wider text-white">DAVAO SCENE RADIO</p>
                 <p className="font-mono text-[10px] text-[#8E9AA7]">Homegrown band shuffle • {tracks.length} upload{tracks.length === 1 ? '' : 's'}</p>
               </div>
             </div>
             {!queued ? (
-              <EmptyState icon={Music} title="No songs uploaded yet" text="When artists upload their music, DVO Scene Radio will shuffle through it here." />
+              <EmptyState icon={Music} title="No songs uploaded yet" text="When artists upload their music, Davao Scene Radio will shuffle through it here." />
             ) : (
               <>
                 <div className="text-center space-y-1">

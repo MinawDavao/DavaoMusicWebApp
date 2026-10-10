@@ -33,7 +33,7 @@ export const DeleteAccountSection: React.FC = () => {
     <section id="account-settings" className="space-y-2.5 pt-2">
       <div className="p-3.5 rounded-2xl bg-[#FF4D6A]/[0.06] border border-[#FF4D6A]/30 space-y-2">
         <p className="flex items-center gap-2 text-[13px] font-bold text-white"><Trash2 className="w-4 h-4 text-[#FF8A9C]" />Delete account</p>
-        <p className="text-[11px] text-[#8E9AA7] leading-relaxed">Permanently remove your MINAW DVO account and everything in it. This can’t be undone.</p>
+        <p className="text-[11px] text-[#8E9AA7] leading-relaxed">Permanently remove your MINAW DAVAO account and everything in it. This can’t be undone.</p>
         <button onClick={() => setOpen(true)} className={`${btn.ghost} !py-2 !text-xs !text-[#FF8A9C] !border-[#FF4D6A]/40`}><Trash2 className="w-3.5 h-3.5" />Delete my account…</button>
       </div>
       {open && <DeleteAccountModal onClose={() => setOpen(false)} />}

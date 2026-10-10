@@ -14,7 +14,7 @@ if (typeof window !== 'undefined') {
 export const subscribeInstall = (l: Listener) => { listeners.add(l); return () => { listeners.delete(l); }; };
 export const canPromptInstall = () => !!deferred;
 
-/** Shows the browser's own "Install MINAW DVO?" dialog. Returns true if the person accepted. */
+/** Shows the browser's own "Install MINAW DAVAO?" dialog. Returns true if the person accepted. */
 export async function promptInstall(): Promise<boolean> {
   if (!deferred) return false;
   const e = deferred; deferred = null; emit();

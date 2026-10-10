@@ -239,7 +239,7 @@ const EditCard: React.FC<{ card: HoopCard; onClose: () => void; onSaved: () => v
         <button onClick={save} disabled={busy} className={`${hbtn.primary} flex-1`}><Check className="w-4 h-4" />{busy ? 'Saving…' : 'Save'}</button>
       </div>
     </>}>
-      <p className="text-[12px] text-[#A8A29E]">Your photo and name come from your MINAW DVO profile.</p>
+      <p className="text-[12px] text-[#A8A29E]">Your photo and name come from your MINAW DAVAO profile.</p>
       <div className="grid grid-cols-2 gap-2.5">
         <div><label className={lbl} htmlFor="hc-num">Jersey #</label><input id="hc-num" inputMode="numeric" className={hinput} value={num} onChange={(e) => setNum(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="e.g. 23" /></div>
         <div><label className={lbl} htmlFor="hc-h">Height <span className="font-normal text-[#A8A29E]">(optional)</span></label><input id="hc-h" className={hinput} value={height} onChange={(e) => setHeight(e.target.value.slice(0, 12))} placeholder={'e.g. 5\'9"'} /></div>

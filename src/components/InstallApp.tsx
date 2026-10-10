@@ -47,7 +47,7 @@ const HowTo: React.FC<{ mode: Mode }> = ({ mode }) => {
         {!isIOSSafari() && <li className="text-[12px] text-[#FFC34D]">Tip: this works best in <strong>Safari</strong>. Open this page in Safari first.</li>}
         <Step n={1}>Tap the <Key><Share className="w-3.5 h-3.5" />Share</Key> button at the bottom of Safari (top right on iPad).</Step>
         <Step n={2}>Scroll down and tap <Key><PlusSquare className="w-3.5 h-3.5" />Add to Home Screen</Key>.</Step>
-        <Step n={3}>Tap <Key>Add</Key>. The MINAW DVO icon appears on your home screen.</Step>
+        <Step n={3}>Tap <Key>Add</Key>. The MINAW DAVAO icon appears on your home screen.</Step>
       </ol>
     );
   }
@@ -65,20 +65,20 @@ const HowTo: React.FC<{ mode: Mode }> = ({ mode }) => {
       <ol className="space-y-2.5">
         <Step n={1}>Tap the browser menu <Key><MoreVertical className="w-3.5 h-3.5" /></Key> (top right in Chrome).</Step>
         <Step n={2}>Tap <Key>Install app</Key> or <Key>Add to Home screen</Key>.</Step>
-        <Step n={3}>Tap <Key>Install</Key>. The MINAW DVO icon appears on your home screen.</Step>
+        <Step n={3}>Tap <Key>Install</Key>. The MINAW DAVAO icon appears on your home screen.</Step>
       </ol>
     );
   }
   return (
     <ol className="space-y-2.5">
-      <Step n={1}>Scan the MINAW DVO QR code or open <strong>minawdavao.com</strong> on your phone.</Step>
+      <Step n={1}>Scan the MINAW DAVAO QR code or open <strong>minawdavao.com</strong> on your phone.</Step>
       <Step n={2}>On Android, tap <strong>Install</strong> when it pops up. On iPhone, tap <Key><Share className="w-3.5 h-3.5" />Share</Key> → <Key>Add to Home Screen</Key>.</Step>
       <Step n={3}>On a computer using Chrome or Edge, click the install icon <Key><Download className="w-3.5 h-3.5" /></Key> at the right end of the address bar.</Step>
     </ol>
   );
 };
 
-/** Banner under the header inviting people to put MINAW DVO on their home screen. */
+/** Banner under the header inviting people to put MINAW DAVAO on their home screen. */
 export const InstallBanner: React.FC = () => {
   const canPrompt = useCanPrompt();
   const [show, setShow] = useState(false);
@@ -105,7 +105,7 @@ export const InstallBanner: React.FC = () => {
       <div role="region" aria-label="Install the app" className="mx-3 mt-3 flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-[#2A2160] to-[#161B20] border border-[#6045F4]/45">
         <Logo />
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold text-white">Get the MINAW DVO app</p>
+          <p className="text-[13px] font-bold text-white">Get the MINAW DAVAO app</p>
           <p className="text-[11px] text-[#8E9AA7] leading-snug">
             {mode === 'inapp' ? 'Open in your browser to add it to your home screen.' : 'Add it to your home screen. Free, no app store needed.'}
           </p>
@@ -121,11 +121,11 @@ export const InstallBanner: React.FC = () => {
 };
 
 const InstallHelpModal: React.FC<{ mode: Mode; onClose: () => void }> = ({ mode, onClose }) => (
-  <Modal title="Add MINAW DVO to your home screen" onClose={onClose}>
+  <Modal title="Add MINAW DAVAO to your home screen" onClose={onClose}>
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <Logo size={52} />
-        <p className="text-xs text-[#8E9AA7] leading-relaxed">It opens full screen like a regular app, with the MINAW DVO icon on your phone.</p>
+        <p className="text-xs text-[#8E9AA7] leading-relaxed">It opens full screen like a regular app, with the MINAW DAVAO icon on your phone.</p>
       </div>
       <HowTo mode={mode} />
       <button onClick={onClose} className={`${btn.primary} w-full`}>Got it</button>

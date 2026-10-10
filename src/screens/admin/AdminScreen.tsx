@@ -80,7 +80,7 @@ const AdminLogin: React.FC = () => {
         <div className="text-center space-y-2">
           <span className="inline-flex w-12 h-12 rounded-2xl bg-[#6045F4]/20 border border-[#6045F4]/40 text-[#B7A8FF] items-center justify-center"><ShieldCheck className="w-6 h-6" /></span>
           <h1 className="font-heading font-bold text-xl text-white">Admin Login</h1>
-          <p className="text-xs text-[#8E9AA7]">MINAW DVO Admin Panel</p>
+          <p className="text-xs text-[#8E9AA7]">MINAW DAVAO Admin Panel</p>
         </div>
         <Field label="Email" icon={Mail} htmlFor="adm-email"><input id="adm-email" type="email" required autoComplete="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Password" icon={Lock} htmlFor="adm-pw"><input id="adm-pw" type="password" required autoComplete="current-password" className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
