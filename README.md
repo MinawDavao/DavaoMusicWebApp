@@ -1,4 +1,4 @@
-# MINAW DVO — Davao Music & Live Scene
+# MINAW DAVAO — Davao Music & Live Scene
 
 A mobile-first music platform for Davao City and Southern Mindanao: discover local bands, stream their music, find gigs, connect with fans, and buy, sell or trade gear.
 
@@ -38,7 +38,7 @@ Phone screens (390 px wide) designed on the Claude Design canvas. They are the t
 | File | Screen |
 | --- | --- |
 | `Main.dc.html` | Home — featured bands, Top 10, sponsored deals, upcoming gigs |
-| `Audio.dc.html` | Audio & Bands — search, genre filter, DVO Scene Radio, Top 10 |
+| `Audio.dc.html` | Audio & Bands — search, genre filter, Davao Scene Radio, Top 10 |
 | `BandProfile.dc.html` | Band page with Edit Profile and artist profile menu (Log Out) |
 | `Connect.dc.html` | Community feed with a **Report** button on every post |
 | `FanProfile.dc.html` | Fan profile with Edit Profile and profile menu (Log Out) |

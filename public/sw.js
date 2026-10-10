@@ -1,4 +1,4 @@
-/* MINAW DVO service worker: lets phones install the app, and shows the last good app page when offline.
+/* MINAW DAVAO service worker: lets phones install the app, and shows the last good app page when offline.
    Everything else (code files, Supabase data, music, images) goes straight to the network as normal. */
 const CACHE = 'minaw-shell-v2';
 
