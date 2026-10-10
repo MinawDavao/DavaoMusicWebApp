@@ -60,7 +60,7 @@ export const AdminScreen: React.FC = () => {
   );
 };
 
-/** Admin login form, shown right on minawdavao.pages.dev/admin. */
+/** Admin login form, shown right on minawdavao.com/admin. */
 const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -71,7 +71,7 @@ const HowTo: React.FC<{ mode: Mode }> = ({ mode }) => {
   }
   return (
     <ol className="space-y-2.5">
-      <Step n={1}>Scan the MINAW DVO QR code or open <strong>minawdavao.pages.dev</strong> on your phone.</Step>
+      <Step n={1}>Scan the MINAW DVO QR code or open <strong>minawdavao.com</strong> on your phone.</Step>
       <Step n={2}>On Android, tap <strong>Install</strong> when it pops up. On iPhone, tap <Key><Share className="w-3.5 h-3.5" />Share</Key> → <Key>Add to Home Screen</Key>.</Step>
       <Step n={3}>On a computer using Chrome or Edge, click the install icon <Key><Download className="w-3.5 h-3.5" /></Key> at the right end of the address bar.</Step>
     </ol>

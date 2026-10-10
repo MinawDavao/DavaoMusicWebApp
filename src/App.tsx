@@ -24,7 +24,7 @@ import { PlaylistScreen } from './components/Playlists';
 
 // ---------- hash routing (#/band/<id>, #/profile/<id>, …) so links and Back work ----------
 function parseHash(): Route {
-  // minawdavao.pages.dev/admin (a real path, no #) opens the Admin Panel
+  // minawdavao.com/admin (a real path, no #) opens the Admin Panel
   if (/^\/admin\/?$/i.test(window.location.pathname) && (!window.location.hash || window.location.hash === '#/' || /^#\/(home\/)?admin/.test(window.location.hash))) return { name: 'admin' };
   const [, a, b, c, d] = window.location.hash.replace(/^#/, '').split('/');
   switch (a) {
