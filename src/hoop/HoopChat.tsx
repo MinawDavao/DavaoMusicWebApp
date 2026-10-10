@@ -5,7 +5,7 @@ import { errorMessage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { Avatar } from '../components/ui';
-import { H, PERSON, type HoopPerson } from './lib';
+import { H, PERSON, useHoopAdmin, type HoopPerson } from './lib';
 
 interface ChatMsg { id: string; game_id: string; author_id: string; body: string; created_at: string; author?: HoopPerson | null }
 
@@ -26,7 +26,8 @@ const when = (iso: string) => {
 /** Group chat for one schedule. Booked players and admins can read and send. */
 export const HoopChat: React.FC<{ scheduleId: string; canChat: boolean; title?: string }> = ({ scheduleId, canChat, title }) => {
   const go = useNav();
-  const { user, isModerator } = useAuth();
+  const { user } = useAuth();
+  const isModerator = useHoopAdmin();   // main admin or Hoop admin
   const [msgs, setMsgs] = useState<ChatMsg[] | null>(null);
   const [text, setText] = useState('');
   const [emoji, setEmoji] = useState(false);

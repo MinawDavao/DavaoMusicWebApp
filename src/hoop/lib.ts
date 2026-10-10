@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 // ---------------------------------------------------------------- look & feel (from the Sunday Hoop Method logo)
 export const H = {
@@ -138,3 +139,22 @@ export async function fetchStats(ids: string[]): Promise<Record<string, HoopStat
 }
 
 export const fmt1 = (n: number | null | undefined) => (n == null ? '0.0' : Number(n).toFixed(1));
+
+// ---------------------------------------------------------------- Hoop admins
+/** True for the main admin (moderators) and for members the main admin made Hoop admins. Updates live. */
+export function useHoopAdmin(): boolean {
+  const { user, isModerator } = useAuth();
+  const [hoop, setHoop] = useState(false);
+  useEffect(() => {
+    if (!user || isModerator) { setHoop(false); return; }
+    let alive = true;
+    const check = () => supabase.from('hoop_admins').select('profile_id').eq('profile_id', user.id).maybeSingle()
+      .then(({ data }) => { if (alive) setHoop(!!data); });
+    check();
+    const ch = supabase.channel(`hoop-admin-${user.id}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_admins' }, () => check())
+      .subscribe();
+    return () => { alive = false; supabase.removeChannel(ch); };
+  }, [user?.id, isModerator]); // eslint-disable-line react-hooks/exhaustive-deps
+  return isModerator || hoop;
+}

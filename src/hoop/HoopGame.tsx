@@ -10,7 +10,7 @@ import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import {
   H, KINDS, PERSON, boxScore, byArrival, clockLeftMs, normEvent, normPlayer, periodName, fmtClock, gameDate, gameTime, hbtn, kindPts, useServerOffset, useTick,
-  type GamePlayer, type HoopEvent, type HoopGame, type Kind,
+  type GamePlayer, type HoopEvent, type HoopGame, type Kind, useHoopAdmin,
 } from './lib';
 import { GameForm } from './HoopGames';
 import { HoopChat } from './HoopChat';
@@ -27,7 +27,8 @@ const short = (name?: string | null) => {
 
 export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const go = useNav();
-  const { user, isModerator } = useAuth();
+  const { user } = useAuth();
+  const isModerator = useHoopAdmin();   // main admin or Hoop admin
   const [game, setGame] = useState<HoopGame | null | undefined>(undefined);
   const [players, setPlayers] = useState<GamePlayer[]>([]);
   const [events, setEvents] = useState<HoopEvent[]>([]);

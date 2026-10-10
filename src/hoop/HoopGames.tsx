@@ -1,23 +1,26 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarPlus, Check, ChevronDown, Clock, MapPin, ScrollText, Users, X } from 'lucide-react';
+import { CalendarPlus, Check, ChevronDown, Clock, MapPin, ScrollText, ShieldCheck, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { MessageButton } from '../screens/MessagesScreen';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
-import { ErrorNote, Modal, Spinner } from '../components/ui';
-import { H, hbtn, hinput, gameDate, gameTime, type HoopGame } from './lib';
+import { Avatar, ErrorNote, Modal, Spinner } from '../components/ui';
+import { AccountPicker } from '../components/MembersEditor';
+import { H, PERSON, hbtn, hinput, gameDate, gameTime, useHoopAdmin, type HoopGame, type HoopPerson } from './lib';
 
 type Row = HoopGame & { hoop_game_players: { profile_id: string; team: string | null }[] };
 
 export const HoopGames: React.FC = () => {
   const go = useNav();
-  const { user, isModerator } = useAuth();
+  const { user, isModerator: isMainAdmin } = useAuth();
+  const isModerator = useHoopAdmin();   // main admin or Hoop admin
   const [rows, setRows] = useState<Row[] | null>(null);
   const [scores, setScores] = useState<Record<string, { score_a: number; score_b: number }>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [managing, setManaging] = useState(false);
 
   const scoreT = useRef<ReturnType<typeof setTimeout>>();   // live scores: one refresh per burst of taps
   const load = useCallback(async () => {
@@ -160,8 +163,12 @@ export const HoopGames: React.FC = () => {
       )}
 
       {isModerator && (
-        <button onClick={() => setCreating(true)} className={`${hbtn.primary} w-full`}><CalendarPlus className="w-4 h-4" />Schedule a game</button>
+        <div className="flex gap-2">
+          <button onClick={() => setCreating(true)} className={`${hbtn.primary} flex-1`}><CalendarPlus className="w-4 h-4" />Schedule a game</button>
+          {isMainAdmin && <button onClick={() => setManaging(true)} className={`${hbtn.ghost}`}><ShieldCheck className="w-4 h-4 text-[#F28C14]" />Hoop admins</button>}
+        </div>
       )}
+      {managing && <HoopAdminsModal onClose={() => setManaging(false)} />}
 
       {live.length > 0 && (
         <section className="space-y-2.5">
@@ -292,5 +299,61 @@ const ClubRules: React.FC<{ adminId: string | null }> = ({ adminId }) => {
         </div>
       )}
     </section>
+  );
+};
+
+// ===================================================================== HOOP ADMINS (main admin only)
+/** The main admin picks members who can run games (schedules, teams, live console, payments) when the main admin isn't around. */
+const HoopAdminsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [list, setList] = useState<{ profile_id: string; created_at: string; profiles: HoopPerson | null }[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('hoop_admins').select(`profile_id, created_at, profiles!hoop_admins_profile_id_fkey(${PERSON})`).order('created_at');
+    setList((data as any[]) || []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const add = async (id: string) => {
+    setAdding(false); setBusy(true); setErr(null);
+    const { error } = await supabase.from('hoop_admins').insert({ profile_id: id });
+    setBusy(false);
+    if (error) return setErr(/duplicate/i.test(error.message) ? 'They’re already a Hoop admin.' : errorMessage(error));
+    load();
+  };
+  const remove = async (a: { profile_id: string; profiles: HoopPerson | null }) => {
+    if (!confirm(`Remove ${a.profiles?.display_name || 'this member'} as Hoop admin? They’ll go back to a regular player.`)) return;
+    setBusy(true); setErr(null);
+    const { error } = await supabase.from('hoop_admins').delete().eq('profile_id', a.profile_id);
+    setBusy(false);
+    if (error) return setErr(errorMessage(error));
+    load();
+  };
+  return (
+    <Modal title="Hoop admins" onClose={onClose} footer={<><ErrorNote text={err} /><button onClick={onClose} className={`${hbtn.ghost} w-full`}>Done</button></>}>
+      <p className="text-[12px] text-[#A8A29E] leading-relaxed">
+        Hoop admins can run games when you’re not at the court: <strong className="text-white">schedule games, pick teams, mark arrivals &amp; payments, add guests, start the game and use the live score console.</strong> They only get these powers inside Sunday Hoop Method — not the MINAW DAVAO Admin Panel — and they can’t add other Hoop admins.
+      </p>
+      {list === null ? <Spinner label="Loading…" /> : list.length === 0
+        ? <p className="py-3 text-center text-[12px] text-[#A8A29E]">No Hoop admins yet. Only you can run games right now.</p>
+        : (
+          <div className="space-y-1.5">
+            {list.map((a) => (
+              <div key={a.profile_id} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.03] border border-white/10">
+                <Avatar src={a.profiles?.avatar_url} name={a.profiles?.display_name} size={34} />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13px] font-bold text-white truncate">{a.profiles?.display_name || 'Member'}</span>
+                  <span className="block text-[11px] text-[#A8A29E] truncate">@{a.profiles?.username} · since {gameDate(a.created_at)}</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-[#F28C14]/15 text-[#F28C14] border border-[#F28C14]/40">HOOP ADMIN</span>
+                <button onClick={() => remove(a)} disabled={busy} aria-label={`Remove ${a.profiles?.display_name}`} className="w-8 h-8 rounded-lg text-[#A8A29E] hover:text-[#FF6B7A] flex items-center justify-center cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      {adding
+        ? <AccountPicker autoFocus roles={['fan']} exclude={(list || []).map((a) => a.profile_id)} onPick={(p) => add(p.id)} onCancel={() => setAdding(false)} />
+        : <button onClick={() => setAdding(true)} disabled={busy} className={`${hbtn.primary} w-full`}><UserPlus className="w-4 h-4" />Add a Hoop admin</button>}
+    </Modal>
   );
 };

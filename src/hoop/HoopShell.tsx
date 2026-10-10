@@ -3,7 +3,7 @@ import { CalendarDays, IdCard, LogIn, Music, Trophy } from 'lucide-react';
 import type { Route } from '../nav';
 import { useAuth } from '../context/AuthContext';
 import { Spinner } from '../components/ui';
-import { H, hbtn } from './lib';
+import { H, hbtn, useHoopAdmin } from './lib';
 import { HoopGames } from './HoopGames';
 import { HoopGameScreen } from './HoopGame';
 import { HoopPlayerScreen, HoopPlayers } from './HoopPlayer';
@@ -24,6 +24,7 @@ export const isHoopRoute = (r: Route) => r.name === 'hoop' || r.name === 'hoopGa
 /** Basketball mode: its own look (logo colours), header and bottom menu. */
 export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
   const { user, profile, loading, isModerator } = useAuth();
+  const hoopAdmin = useHoopAdmin();
 
   let screen: React.ReactNode;
   if (loading) screen = <Spinner label="Warming up…" />;
@@ -71,7 +72,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
               </span>
             </button>
             <div className="flex items-center gap-2">
-              {isModerator && <span className="px-2 py-1 rounded-full text-[9px] font-bold tracking-wider bg-[#F28C14]/15 text-[#F28C14] border border-[#F28C14]/40">ADMIN</span>}
+              {hoopAdmin && <span className="px-2 py-1 rounded-full text-[9px] font-bold tracking-wider bg-[#F28C14]/15 text-[#F28C14] border border-[#F28C14]/40">ADMIN</span>}
               <button onClick={() => go({ name: 'home' })} className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-white/[0.06] border border-white/15 text-[12px] font-bold text-[#E7E5E4] hover:text-white cursor-pointer" aria-label="Back to MINAW DAVAO music">
                 <Music className="w-3.5 h-3.5 text-[#53E6D4]" />MINAW
               </button>
