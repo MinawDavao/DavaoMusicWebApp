@@ -123,7 +123,7 @@ export const CardBackgroundAdjuster: React.FC<{
 // ================================================================ BAND COVER PHOTO (3:1 banner on the band page)
 
 /** Drag-to-move + keyboard arrows for any crop box. */
-function useDragCrop(crop: CardCrop, onChange: (c: CardCrop) => void) {
+export function useDragCrop(crop: CardCrop, onChange: (c: CardCrop) => void) {
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ px: number; py: number; start: CardCrop } | null>(null);
   const [active, setActive] = useState(false);

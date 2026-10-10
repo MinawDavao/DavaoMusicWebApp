@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Crown, MessageSquareQuote, Music, Pencil, Search, Trash2, UserMinus, UserPlus, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Camera, Check, Crown, Download, ImageIcon, MessageSquareQuote, Music, Pencil, RotateCcw, Search, Trash2, UserMinus, UserPlus, X, ZoomIn } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { errorMessage, timeAgo } from '../lib/db';
+import { errorMessage, removeImageByUrl, timeAgo, uploadImage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
-import { Avatar, ErrorNote, Modal, Spinner } from '../components/ui';
-import { ZoomImg } from '../components/Zoom';
+import { Avatar, ErrorNote, FilePick, Modal, Spinner } from '../components/ui';
+import { DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
+import { TradingCard, saveCardImage } from './TradingCard';
 import {
   H, PERSON, boxScore, fetchStats, fmt1, gameDate, hbtn, hinput,
   type HoopCard, type HoopEvent, type HoopPerson, type HoopStats,
@@ -27,6 +28,10 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
   const [followingN, setFollowingN] = useState(0);
   const [iFollow, setIFollow] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [photoEdit, setPhotoEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
+  const shotRef = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -106,9 +111,6 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
     );
   }
 
-  const nameParts = person.display_name.trim().split(/\s+/);
-  const first = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : nameParts[0];
-  const last = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
   const s = stats;
   const info: [string, string][] = [
     ['POSITION', card.position || '—'],
@@ -118,58 +120,49 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
     ['MEMBER SINCE', new Date(card.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }).toUpperCase()],
   ];
 
+  const saveShot = async () => {
+    if (!shotRef.current) return;
+    setSaving(true); setErr(null); setSaveNote(null);
+    try {
+      const r = await saveCardImage(shotRef.current, `hoop-card-${person.display_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`);
+      if (r === 'downloaded') setSaveNote('Saved! Check your Downloads / Photos.');
+    } catch (e) { setErr(errorMessage(e)); }
+    setSaving(false);
+  };
+
   return (
-    <div className="px-3 py-4 space-y-5">
-      <h1 className="text-center font-hoop italic font-black text-[24px] uppercase text-white leading-none">{person.display_name}</h1>
+    <div className="px-3 py-4 space-y-4">
 
-      {/* THE CARD */}
-      <div className="rounded-[28px] overflow-hidden border border-white/10 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
-        <div className="relative" style={{ background: H.cream }}>
-          <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${H.orange}, ${H.ball})` }} />
-          <div className="flex items-start justify-between gap-3 px-5 pt-4">
-            <p className="font-hoop italic font-black uppercase text-[#262626] leading-[0.9] text-[30px] tracking-tight break-words min-w-0">
-              {first}{last && <><br />{last}</>}
-            </p>
-            <p className="font-hoop font-semibold text-[38px] leading-none text-[#3F3F3F] flex-shrink-0">{card.jersey_number ?? '—'}</p>
+      {/* THE CARD (the padded box around it is what gets saved as a picture, glow included) */}
+      <div ref={shotRef} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
+        <TradingCard person={person} card={card} stats={s} />
+      </div>
+
+      <div className="space-y-2.5">
+        {isMe && (
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setPhotoEdit(true)} className={`${hbtn.primary} !py-2.5 !text-xs`}><Camera className="w-4 h-4" />Card photo</button>
+            <button onClick={saveShot} disabled={saving} className={`${hbtn.ghost} !py-2.5 !text-xs`}><Download className="w-4 h-4" />{saving ? 'Making picture…' : 'Save card image'}</button>
           </div>
-          <div className="relative mt-2 aspect-[4/3] mx-4 overflow-hidden">
-            {person.avatar_url
-              ? <ZoomImg src={person.avatar_url} alt={person.display_name} className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center font-hoop italic font-black text-[120px] text-[#D6CFCB]">{person.display_name[0]?.toUpperCase()}</div>}
-            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3" style={{ background: 'linear-gradient(180deg, transparent, #000)' }} />
-          </div>
+        )}
+        {saveNote && <p className="text-center text-[11px] text-[#53E6D4]">{saveNote}</p>}
+        <div className="flex gap-2">
+          {isMe
+            ? <button onClick={() => setEditing(true)} className={`${hbtn.ghost} flex-1 !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Jersey & position</button>
+            : <>
+                <button onClick={toggleFollow} className={`${iFollow ? hbtn.ghost : hbtn.primary} flex-1 !py-2 !text-xs`}>{iFollow ? <><UserMinus className="w-3.5 h-3.5" />Following</> : <><UserPlus className="w-3.5 h-3.5" />Follow</>}</button>
+                <button onClick={saveShot} disabled={saving} className={`${hbtn.ghost} !py-2 !px-3 !text-xs`} aria-label="Save card image"><Download className="w-3.5 h-3.5" /></button>
+              </>}
+          <button onClick={() => go({ name: 'profile', id: person.id })} className={`${hbtn.ghost} flex-1 !py-2 !text-xs`}><Music className="w-3.5 h-3.5 text-[#53E6D4]" />Music profile</button>
         </div>
-
-        <div className="px-5 pt-2 pb-5 space-y-4 bg-black">
-          <div className="space-y-1.5">
-            {info.map(([k, v]) => (
-              <p key={k} className="text-[13px] tracking-wide"><span className="text-[#A8A29E]">{k}</span>&nbsp;&nbsp;<strong className="text-white uppercase">{v}</strong></p>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 border-y border-white/15 py-3">
-            {[['PPG', s?.ppg], ['RPG', s?.rpg], ['APG', s?.apg]].map(([k, v], i) => (
-              <div key={k as string} className={`text-center ${i ? 'border-l border-white/20' : ''}`}>
-                <p className="text-[11px] tracking-wider text-[#D6D3D1]">{k}</p>
-                <p className="font-hoop font-bold text-[28px] leading-tight text-white">{fmt1(v as number)}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-around text-center">
-            <div><p className="font-hoop font-bold text-[18px] text-white leading-none">{fans}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWERS</p></div>
-            <div><p className="font-hoop font-bold text-[18px] text-white leading-none">{followingN}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWING</p></div>
-            <div><p className="font-hoop font-bold text-[18px] text-[#F28C14] leading-none">{s?.best_pts ?? 0}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">BEST GAME</p></div>
-          </div>
-
-          <div className="flex gap-2">
-            {isMe
-              ? <button onClick={() => setEditing(true)} className={`${hbtn.ghost} flex-1 !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Edit my card</button>
-              : <button onClick={toggleFollow} className={`${iFollow ? hbtn.ghost : hbtn.primary} flex-1 !py-2 !text-xs`}>{iFollow ? <><UserMinus className="w-3.5 h-3.5" />Following</> : <><UserPlus className="w-3.5 h-3.5" />Follow</>}</button>}
-            <button onClick={() => go({ name: 'profile', id: person.id })} className={`${hbtn.ghost} flex-1 !py-2 !text-xs`}><Music className="w-3.5 h-3.5 text-[#53E6D4]" />Music profile</button>
-          </div>
-          <ErrorNote text={err} />
+        <div className="flex items-center justify-around text-center py-1">
+          <div><p className="font-hoop font-bold text-[18px] text-white leading-none">{fans}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWERS</p></div>
+          <div><p className="font-hoop font-bold text-[18px] text-white leading-none">{followingN}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">FOLLOWING</p></div>
+          {info.filter(([k]) => k === 'HEIGHT' || k === 'MEMBER SINCE').map(([k, v]) => (
+            <div key={k}><p className="font-hoop font-bold text-[18px] text-white leading-none">{v}</p><p className="text-[10px] tracking-wider text-[#A8A29E]">{k}</p></div>
+          ))}
         </div>
+        <ErrorNote text={err} />
       </div>
 
       {/* CAREER AVERAGES */}
@@ -211,6 +204,7 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
       <Props playerId={person.id} playerName={person.display_name} isMe={isMe} />
 
       {editing && <EditCard card={card} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {photoEdit && <CardPhotoEditor person={person} card={card} stats={s} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
     </div>
   );
 };
@@ -251,6 +245,85 @@ const EditCard: React.FC<{ card: HoopCard; onClose: () => void; onSaved: () => v
             <button key={p} type="button" onClick={() => setPos(pos === p ? '' : p)} className={`h-8 px-3 rounded-full text-xs font-bold border cursor-pointer ${pos === p ? 'bg-[#F28C14] border-[#F28C14] text-[#111]' : 'bg-[#151515] border-white/15 text-[#E7E5E4]'}`}>{p}</button>
           ))}
         </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ===================================================================== CARD PHOTO (separate from the music profile photo)
+/** Phone photos can be huge: scale to at most 1600 px and save as JPEG so uploads stay small (bucket limit 5 MB). */
+async function shrinkPhoto(f: File): Promise<File> {
+  try {
+    const bmp = await createImageBitmap(f);
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    if (k === 1 && f.size < 1.5 * 1024 * 1024 && /jpe?g|png|webp/.test(f.type)) return f;
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    const blob: Blob | null = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.88));
+    return blob ? new File([blob], 'hoop-card.jpg', { type: 'image/jpeg' }) : f;
+  } catch { return f; }
+}
+
+const CardPhotoEditor: React.FC<{ person: HoopPerson; card: HoopCard; stats: HoopStats | null; onClose: () => void; onSaved: () => void }> = ({ person, card, stats, onClose, onSaved }) => {
+  const { user } = useAuth();
+  const [url, setUrl] = useState<string | null>(card.card_photo_url || null);
+  const [crop, setCrop] = useState<CardCrop>(card.card_photo_url ? cropOf(card.card_photo_crop) : DEFAULT_CROP);
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const uploaded = useRef<string[]>([]);   // new uploads this time, removed again if not kept
+
+  const pick = async (f: File) => {
+    if (!f.type.startsWith('image/')) return setErr('Please pick a photo.');
+    setUploading(true); setErr(null);
+    try {
+      const u = await uploadImage('avatars', user!.id, await shrinkPhoto(f));
+      uploaded.current.push(u);
+      setUrl(u); setCrop(DEFAULT_CROP);
+    } catch (e) { setErr(errorMessage(e)); }
+    setUploading(false);
+  };
+  const cleanup = (keep: string | null) => {
+    uploaded.current.filter((u) => u !== keep).forEach((u) => removeImageByUrl(u));
+    uploaded.current = [];
+  };
+  const close = () => { cleanup(null); onClose(); };
+  const save = async () => {
+    setBusy(true); setErr(null);
+    const { error } = await supabase.from('hoop_players').update({ card_photo_url: url, card_photo_crop: url ? crop : null }).eq('profile_id', card.profile_id);
+    setBusy(false);
+    if (error) return setErr(errorMessage(error));
+    cleanup(url);
+    if (card.card_photo_url && card.card_photo_url !== url) removeImageByUrl(card.card_photo_url, [person.avatar_url]);
+    onSaved();
+  };
+
+  return (
+    <Modal title="My card photo" onClose={close} footer={<>
+      <ErrorNote text={err} />
+      <div className="flex gap-2">
+        <button onClick={close} className={`${hbtn.ghost} flex-1`}>Cancel</button>
+        <button onClick={save} disabled={busy || uploading} className={`${hbtn.primary} flex-1`}><Check className="w-4 h-4" />{busy ? 'Saving…' : 'Save card'}</button>
+      </div>
+    </>}>
+      <p className="text-[12px] text-[#A8A29E]">Use an action shot or a hoops photo. It only shows on your Hoop Method card — your music profile photo stays the same.</p>
+      <div className="mx-auto w-full max-w-[300px] px-2 py-3">
+        <TradingCard person={person} card={card} stats={stats} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
+      </div>
+      {url && (
+        <div className="flex items-center gap-2.5">
+          <ZoomIn className="w-4 h-4 text-[#A8A29E] flex-shrink-0" />
+          <input type="range" min={1} max={3} step={0.05} value={crop.zoom} onChange={(e) => setCrop({ ...crop, zoom: Number(e.target.value) })} aria-label="Zoom card photo" className="flex-1 accent-[#F28C14]" />
+          <button type="button" onClick={() => setCrop(DEFAULT_CROP)} className="flex items-center gap-1 text-[11px] font-bold text-[#A8A29E] hover:text-white cursor-pointer"><RotateCcw className="w-3.5 h-3.5" />Reset</button>
+        </div>
+      )}
+      <p className="text-[11px] text-[#A8A29E] text-center">{url ? 'Drag the photo to choose what shows. Zoom with the slider.' : 'Showing your profile photo for now.'}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <FilePick accept="image/*" onPick={pick} disabled={uploading} className={`${hbtn.primary} !py-2 !text-xs`}>
+          <ImageIcon className="w-4 h-4" />{uploading ? 'Uploading…' : url ? 'Change photo' : 'Upload photo'}
+        </FilePick>
+        <button type="button" onClick={() => { setUrl(null); setCrop(DEFAULT_CROP); }} disabled={!url} className={`${hbtn.ghost} !py-2 !text-xs`}><Trash2 className="w-3.5 h-3.5" />Use profile photo</button>
       </div>
     </Modal>
   );

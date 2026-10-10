@@ -25,7 +25,7 @@ export const hinput = 'w-full min-h-[44px] px-3.5 rounded-xl bg-[#151515] border
 
 // ---------------------------------------------------------------- data
 export interface HoopPerson { id: string; display_name: string; username: string; avatar_url: string | null; role: string; is_verified?: boolean }
-export interface HoopCard { profile_id: string; jersey_number: number | null; position: string | null; height: string | null; created_at: string; profiles?: HoopPerson | null }
+export interface HoopCard { profile_id: string; jersey_number: number | null; position: string | null; height: string | null; created_at: string; card_photo_url?: string | null; card_photo_crop?: any; profiles?: HoopPerson | null }
 export interface HoopGame {
   id: string; title: string; venue: string | null; starts_at: string; slots: number; notes: string | null;
   status: 'scheduled' | 'live' | 'final' | 'cancelled'; team_a: string; team_b: string;
