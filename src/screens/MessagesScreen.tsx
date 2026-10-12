@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { confirmDelete } from '../components/ConfirmDelete';
 import {
   ArrowLeft, BadgeCheck, Copy, Flag, ImagePlus, Loader2, MessageCircle, Search, Send, Tag, Trash2, Undo2, X,
 } from 'lucide-react';
@@ -267,7 +268,7 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
   };
 
   const unsend = async (m: Message) => {
-    if (!confirm('Unsend this message? It will be removed for both of you.')) return;
+    if (!(await confirmDelete({ title: 'Unsend this message?', message: 'It will be removed for both of you.', confirmLabel: 'Unsend' }))) return;
     setPicked(null);
     const { error } = await supabase.from('messages').delete().eq('id', m.id);
     if (error) return setErr(errorMessage(error));
@@ -275,7 +276,7 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
     setMsgs((xs) => xs.filter((x) => x.id !== m.id));
   };
   const clearChat = async () => {
-    if (!confirm('Delete this chat for you? The other person keeps their copy. New messages will still reach you.')) return;
+    if (!(await confirmDelete({ title: 'Delete this chat for you?', message: 'The other person keeps their copy. New messages will still reach you.' }))) return;
     const { error } = await supabase.rpc('chat_clear', { p_conv: id });
     if (error) return setErr(errorMessage(error));
     chatReadEvent();

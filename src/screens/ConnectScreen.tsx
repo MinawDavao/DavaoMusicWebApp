@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { confirmDelete } from '../components/ConfirmDelete';
 import { BadgeCheck, Building2, Camera, Check, Search, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Pencil, Play, Send, Trash2, X, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { checkFile, errorMessage, removeImageByUrl, timeAgo, uploadImage, type Comment, type Post, roleMeta } from '../lib/db';
@@ -107,7 +108,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
   };
 
   const remove = async (p: Post) => {
-    if (!confirm('Delete this post?')) return;
+    if (!(await confirmDelete({ title: 'Delete this post?' }))) return;
     const { error } = await supabase.from('posts').delete().eq('id', p.id);
     if (error) return alert(errorMessage(error));
     await removeImageByUrl(p.image_url);
@@ -323,7 +324,7 @@ const Comments: React.FC<{ postId: string; startOpen?: boolean; onReport: (id: s
               {c.author_id === user?.id ? (
                 <>
                   {editId !== c.id && <button onClick={() => { setEditId(c.id); setEditText(c.content); setErr(null); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Edit</button>}
-                  <button onClick={async () => { if (!confirm('Delete this comment?')) return; const { error } = await supabase.from('comments').delete().eq('id', c.id); if (error) alert(errorMessage(error)); load(); onChange(); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Delete</button>
+                  <button onClick={async () => { if (!(await confirmDelete({ title: 'Delete this comment?' }))) return; const { error } = await supabase.from('comments').delete().eq('id', c.id); if (error) alert(errorMessage(error)); load(); onChange(); }} className="text-[10px] text-[#8E9AA7] underline cursor-pointer">Delete</button>
                 </>
               ) : <button onClick={() => onReport(c.id)} className="text-[10px] text-[#8E9AA7] flex items-center gap-1 cursor-pointer"><Flag className="w-3 h-3" />Report</button>}
             </div>

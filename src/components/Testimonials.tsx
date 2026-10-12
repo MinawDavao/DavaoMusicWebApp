@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { confirmDelete } from './ConfirmDelete';
 import { Check, Clock, Flag, Pencil, Star, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, roleMeta, timeAgo } from '../lib/db';
@@ -47,7 +48,7 @@ export const Testimonials: React.FC<{
     load();
   };
   const remove = async (r: Review) => {
-    if (!confirm('Delete your testimonial?')) return;
+    if (!(await confirmDelete({ title: 'Delete your testimonial?' }))) return;
     const { error } = await supabase.from(table).delete().eq('id', r.id);
     if (error) return setErr(errorMessage(error));
     load();

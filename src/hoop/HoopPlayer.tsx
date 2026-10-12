@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { confirmDelete } from '../components/ConfirmDelete';
 import { Camera, Check, Crown, Download, ImageIcon, MessageSquareQuote, Music, Pencil, RotateCcw, Search, Trash2, UserMinus, UserPlus, X, ZoomIn } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, timeAgo, uploadImage } from '../lib/db';
@@ -375,7 +376,7 @@ const Props: React.FC<{ playerId: string; playerName: string; isMe: boolean }> =
     load();
   };
   const remove = async (p: Prop) => {
-    if (!confirm(isMe && p.author_id !== user?.id ? 'Remove these props from your card?' : 'Delete your props?')) return;
+    if (!(await confirmDelete({ title: isMe && p.author_id !== user?.id ? 'Remove these props from your card?' : 'Delete your props?' }))) return;
     const { error } = await supabase.from('hoop_props').delete().eq('id', p.id);
     if (error) return setErr(errorMessage(error));
     load();

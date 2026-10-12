@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { confirmDelete } from './ConfirmDelete';
 import { ChevronDown, Copy, Heart, ListMusic, Megaphone, Pause, Play, Plus, Share2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, type Track } from '../lib/db';
@@ -57,7 +58,7 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
     setName(''); load();
   };
   const del = async (pl: PL) => {
-    if (!confirm(`Delete the playlist “${pl.name}”?`)) return;
+    if (!(await confirmDelete({ title: `Delete the playlist “${pl.name}”?`, typeToConfirm: true }))) return;
     const { error } = await supabase.from('playlists').delete().eq('id', pl.id);
     if (error) return setErr(errorMessage(error));
     load();

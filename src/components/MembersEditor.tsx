@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { confirmDelete } from './ConfirmDelete';
 import { AtSign, Check, Link2, Plus, ShieldCheck, ShieldOff, Trash2, Users, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, roleMeta } from '../lib/db';
@@ -96,7 +97,7 @@ export const MembersEditor: React.FC<{ bandId: string; ownerId: string; onChange
     onChange?.();
   };
   const remove = async (r: MemberRow) => {
-    if (!confirm(`Remove ${r.name} from the band?${r.is_admin ? '\n\nThey will also stop being an admin of this band page.' : ''}`)) return;
+    if (!(await confirmDelete({ title: `Remove ${r.name} from the band?`, message: r.is_admin ? 'They will also stop being an admin of this band page.' : undefined, confirmLabel: 'Remove' }))) return;
     const { error } = await supabase.from('band_members').delete().eq('id', r.id);
     if (error) return setErr(errorMessage(error));
     done();

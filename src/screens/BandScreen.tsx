@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { confirmDelete } from '../components/ConfirmDelete';
 import {
   ArrowLeft, BadgeCheck, Calendar, Camera, Check, ChevronRight, Disc3, Flag, Globe, Headphones, Mail, MapPin, Music, Pencil, Phone, Play,
   MessageCircle, Plus, ShieldCheck, Star, Trash2, UserMinus, UserPlus, Users, X,
@@ -136,14 +137,14 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
     } catch (e) { setErr(errorMessage(e)); }
   };
   const deletePhoto = async (p: Photo) => {
-    if (!confirm('Remove this photo?')) return;
+    if (!(await confirmDelete({ title: 'Remove this photo?', confirmLabel: 'Remove' }))) return;
     const { error } = await supabase.from('band_photos').delete().eq('id', p.id);
     if (error) return setErr(errorMessage(error));
     await removeImageByUrl(p.image_url);
     load();
   };
   const deleteGig = async (g: Gig) => {
-    if (!confirm(`Delete “${g.title}”?`)) return;
+    if (!(await confirmDelete({ title: `Delete the gig “${g.title}”?`, message: 'RSVPs for it are removed too.', typeToConfirm: true }))) return;
     const { error } = await supabase.from('gigs').delete().eq('id', g.id);
     if (error) return setErr(errorMessage(error));
     await removeImageByUrl(g.poster_url);

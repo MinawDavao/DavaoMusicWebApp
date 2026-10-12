@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { confirmDelete } from '../components/ConfirmDelete';
 import { MessageCircle, Send, Smile, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -81,7 +82,7 @@ export const HoopChat: React.FC<{ scheduleId: string; canChat: boolean; title?: 
     inputRef.current?.focus();
   };
   const remove = async (m: ChatMsg) => {
-    if (!confirm('Delete this message for everyone?')) return;
+    if (!(await confirmDelete({ title: 'Delete this message for everyone?' }))) return;
     const { error } = await supabase.from('hoop_chat').delete().eq('id', m.id);
     if (error) return setErr(errorMessage(error));
     setMsgs((xs) => xs && xs.filter((x) => x.id !== m.id));

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { confirmDelete as askDelete } from '../../components/ConfirmDelete';
 import { ArrowDown, ArrowUp, Building2, Camera, Check, Eye, EyeOff, MousePointerClick, Pencil, Plus, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { checkFile, errorMessage, removeImageByUrl, uploadImage, type Sponsor } from '../../lib/db';
@@ -73,7 +74,7 @@ export const AdminSponsors: React.FC = () => {
               <ActBtn onClick={() => move(i, 1)}><ArrowDown className="w-3.5 h-3.5" /></ActBtn>
               {s.venue && <OpenBtn to={{ name: 'profile', id: s.venue.id }} label="Business page" />}
               <DeleteBtn onDelete={async () => {
-                if (!confirm(`Delete the sponsor “${s.title}”? This can’t be undone. (Use “Turn off” to just hide it.)`)) return;
+                if (!(await askDelete({ title: `Delete the sponsor “${s.title}”?`, message: 'Use “Turn off” instead if you just want to hide it.', typeToConfirm: true }))) return;
                 const { error } = await supabase.from('sponsors').delete().eq('id', s.id);
                 if (error) return setErr(errorMessage(error));
                 if (s.image_url?.includes('/sponsors/')) await removeImageByUrl(s.image_url);

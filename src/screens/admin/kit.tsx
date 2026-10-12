@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { confirmDelete as askDelete } from '../../components/ConfirmDelete';
 import { ChevronDown, ExternalLink, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage, removeImageByUrl, roleMeta, timeAgo } from '../../lib/db';
@@ -133,7 +134,7 @@ export const ListBody: React.FC<{
 
 // ---------------------------------------------------------------- actions
 export const confirmDelete = (what: string) =>
-  confirm(`Delete ${what}? This can’t be undone.`);
+  askDelete({ title: `Delete ${what}?`, typeToConfirm: true });
 
 /** Updates a row and reports errors through `onErr`. Returns true on success. */
 export async function updateRow(table: string, id: string, patch: Record<string, unknown>, onErr: (m: string) => void) {

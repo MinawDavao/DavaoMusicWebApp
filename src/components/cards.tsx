@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { confirmDelete } from './ConfirmDelete';
 import { BadgeCheck, Check, ChevronRight, Download, Flag, Headphones, ListPlus, MapPin, Pause, Pencil, Play, Ticket, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, formatGigDate, trackUrl, type Band, type Gig, type Track } from '../lib/db';
@@ -122,7 +123,7 @@ export const TrackRow: React.FC<{
     setEditing(false); onChanged?.();
   };
   const remove = async () => {
-    if (!confirm(`Delete “${track.title}”? This can’t be undone.`)) return;
+    if (!(await confirmDelete({ title: `Delete the song “${track.title}”?`, message: 'Its plays, likes and comments are removed too.', typeToConfirm: true }))) return;
     setBusy(true);
     const { error } = await supabase.from('tracks').delete().eq('id', track.id);
     if (!error) await supabase.storage.from('tracks').remove([track.audio_path]);

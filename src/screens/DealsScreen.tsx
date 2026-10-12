@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { confirmDelete } from '../components/ConfirmDelete';
 import { ArrowLeftRight, BadgeCheck, Camera, Check, Flag, Globe, Lock, MapPin, Pencil, Plus, Search, Send, Tag, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -144,7 +145,7 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
     onChange();
   };
   const remove = async () => {
-    if (!confirm('Delete this listing?')) return;
+    if (!(await confirmDelete({ title: 'Delete this listing?', message: 'Its photos are removed too.', typeToConfirm: true }))) return;
     const { error } = await supabase.from('listings').delete().eq('id', it.id);
     if (error) return alert(errorMessage(error));
     if (photos.length) await supabase.storage.from('gear-photos').remove(photos.map((p) => p.image_path));

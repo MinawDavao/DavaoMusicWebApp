@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { confirmDelete } from './ConfirmDelete';
 import { Check, Flag, Heart, MessageCircle, Send, Share2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, roleMeta, timeAgo, type Track } from '../lib/db';
@@ -107,7 +108,7 @@ const TrackComments: React.FC<{ trackId: string; onCount: (n: number) => void }>
     setEditId(null); load();
   };
   const remove = async (c: TComment) => {
-    if (!confirm('Delete this comment?')) return;
+    if (!(await confirmDelete({ title: 'Delete this comment?' }))) return;
     const { error } = await supabase.from('track_comments').delete().eq('id', c.id);
     if (error) return setErr(errorMessage(error));
     load();

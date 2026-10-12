@@ -15,6 +15,7 @@ import {
 import { GameForm } from './HoopGames';
 import { HoopChat } from './HoopChat';
 import { HoopFace } from './HoopFace';
+import { confirmDelete } from '../components/ConfirmDelete';
 import { MessageButton } from '../screens/MessagesScreen';
 
 /** Smallest game allowed: 10 players, 5 per side. */
@@ -28,7 +29,7 @@ const short = (name?: string | null) => {
 
 export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const go = useNav();
-  const { user } = useAuth();
+  const { user, isModerator: isMainAdmin } = useAuth();
   const isModerator = useHoopAdmin();   // main admin or Hoop admin
   const [game, setGame] = useState<HoopGame | null | undefined>(undefined);
   const [players, setPlayers] = useState<GamePlayer[]>([]);
@@ -180,6 +181,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     return true;
   };
   const patchGame = async (patch: Partial<HoopGame>) => {
+    if (patch.clock_elapsed_ms != null) patch = { ...patch, clock_elapsed_ms: Math.max(0, Math.round(patch.clock_elapsed_ms)) };
     const ok = await run(() => supabase.from('hoop_games').update(patch).eq('id', game.id));
     if (ok) { setGame((g) => (g ? { ...g, ...patch } : g)); loadPlayers(); }
     return ok;
@@ -198,7 +200,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       return supabase.from('hoop_game_players').update({ team }).eq('game_id', game.id).eq(col(pid), pid);
     }
     if (!team) return { error: null };
-    return supabase.from('hoop_game_players').insert({ game_id: game.id, ...who(pid), team });
+    // upsert: a double tap (or a slow reload) never fails with “already on this game”
+    return supabase.from('hoop_game_players').upsert({ game_id: game.id, ...who(pid), team }, { onConflict: isGuest(pid) ? 'game_id,guest_id' : 'game_id,profile_id' });
   };
   const setTeam = (pid: string, team: 'A' | 'B' | null) => run(() => writeTeam(pid, team) as any).then(loadPlayers);
   const togglePaid = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ paid: !b.paid, paid_at: b.paid ? null : new Date().toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
@@ -240,7 +243,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     loadPlayers();
   };
   const removePlayer = async (pid: string) => {
-    if (!confirm(`Remove ${nameOf(pid)} from this game?${events.some((e) => e.profile_id === pid) ? '\n\nTheir stats in this game will be removed too.' : ''}`)) return;
+    const hasStats = events.some((e) => e.profile_id === pid);
+    if (!(await confirmDelete({ title: `Remove ${nameOf(pid)} from this game?`, message: hasStats ? 'Their stats in this game will be removed too.' : undefined, typeToConfirm: hasStats, confirmLabel: 'Remove' }))) return;
     if (events.some((e) => e.profile_id === pid)) await supabase.from('hoop_events').delete().eq('game_id', game.id).eq(col(pid), pid);
     await run(() => supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid));
     load();
@@ -304,12 +308,18 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     patchGame({ status: 'final', ended_at: new Date().toISOString(), clock_running: false, clock_started_at: null, clock_elapsed_ms: game.period_seconds * 1000 - left });
   };
   const reopen = () => { if (confirm('Reopen this game to fix stats? It goes back to LIVE until you finish it again.')) patchGame({ status: 'live', ended_at: null }); };
-  const cancelGame = () => { if (confirm('Cancel this game? Players will see it as cancelled.')) patchGame({ status: 'cancelled' }); };
+  const cancelGame = async () => { if (await confirmDelete({ title: 'Cancel this game?', message: 'Players will see it as cancelled. You can un-cancel it later.', confirmLabel: 'Cancel game' })) patchGame({ status: 'cancelled' }); };
   const restore = () => patchGame({ status: 'scheduled' });
   const deleteGame = async () => {
-    if (!confirm(isFirst
-      ? `Delete this schedule and everything in it (bookings, payments${session.length > 1 ? `, all ${session.length} games` : ''} and stats)? This can’t be undone.`
-      : `Delete Game ${gameNo} and its stats? This can’t be undone.`)) return;
+    const played = isFirst ? session.filter((g) => g.status === 'final' || g.status === 'live').length : (game.status === 'final' || game.status === 'live' ? 1 : 0);
+    if (played > 0 && !isMainAdmin) return setErr('Only the main admin can delete a game that was already played.');
+    if (!(await confirmDelete({
+      title: isFirst ? 'Delete this whole schedule?' : `Delete Game ${gameNo}?`,
+      message: isFirst
+        ? `Everything in it is deleted for good: bookings, payments, the team chat${session.length > 1 ? `, all ${session.length} games` : ''}${played ? ' and every player’s stats from these games' : ''}.`
+        : `Its score and every player’s stats from this game are deleted for good.`,
+      typeToConfirm: true,
+    }))) return;
     if (await run(() => supabase.from('hoop_games').delete().eq('id', game.id))) go(isFirst ? { name: 'hoop' } : { name: 'hoopGame', id: sessionId });
   };
 

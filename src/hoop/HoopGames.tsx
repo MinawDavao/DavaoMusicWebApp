@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { confirmDelete } from '../components/ConfirmDelete';
 import { CalendarPlus, Check, ChevronDown, Clock, MapPin, ScrollText, ShieldCheck, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { MessageButton } from '../screens/MessagesScreen';
 import { supabase } from '../lib/supabase';
@@ -322,7 +323,7 @@ const HoopAdminsModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     load();
   };
   const remove = async (a: { profile_id: string; profiles: HoopPerson | null }) => {
-    if (!confirm(`Remove ${a.profiles?.display_name || 'this member'} as Hoop admin? They’ll go back to a regular player.`)) return;
+    if (!(await confirmDelete({ title: `Remove ${a.profiles?.display_name || 'this member'} as Hoop admin?`, message: 'They’ll go back to a regular player.', confirmLabel: 'Remove' }))) return;
     setBusy(true); setErr(null);
     const { error } = await supabase.from('hoop_admins').delete().eq('profile_id', a.profile_id);
     setBusy(false);

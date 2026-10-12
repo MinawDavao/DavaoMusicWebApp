@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { confirmDelete as askDelete } from '../../components/ConfirmDelete';
 import { BadgeCheck, Download, Image as ImageIcon, Pause, Play, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
@@ -45,7 +46,7 @@ export const AdminPosts: React.FC = () => {
             actions={<>
               <OpenBtn to={{ name: 'post', id: p.id }} />
               <HideBtn hidden={p.is_hidden} onToggle={async () => { if (await updateRow('posts', p.id, { is_hidden: !p.is_hidden }, err)) list.setRows((r) => r.map((x) => x.id === p.id ? { ...x, is_hidden: !p.is_hidden } : x)); }} />
-              <DeleteBtn onDelete={async () => { if (confirmDelete('this post') && await deleteRow('posts', p.id, err, [p.image_url])) list.setRows((r) => r.filter((x) => x.id !== p.id)); }} />
+              <DeleteBtn onDelete={async () => { if (await confirmDelete('this post') && await deleteRow('posts', p.id, err, [p.image_url])) list.setRows((r) => r.filter((x) => x.id !== p.id)); }} />
             </>}
           />
         ))}
@@ -91,7 +92,7 @@ export const AdminComments: React.FC = () => {
                 ? c.tracks && <OpenBtn to={{ name: 'band', id: c.tracks.band_id }} label="Open band page" />
                 : <OpenBtn to={{ name: 'post', id: c.post_id }} label="Open post" />}
               <HideBtn hidden={c.is_hidden} onToggle={async () => { if (await updateRow(table, c.id, { is_hidden: !c.is_hidden }, err)) list.setRows((r) => r.map((x) => x.id === c.id ? { ...x, is_hidden: !c.is_hidden } : x)); }} />
-              <DeleteBtn onDelete={async () => { if (confirmDelete('this comment') && await deleteRow(table, c.id, err)) list.setRows((r) => r.filter((x) => x.id !== c.id)); }} />
+              <DeleteBtn onDelete={async () => { if (await confirmDelete('this comment') && await deleteRow(table, c.id, err)) list.setRows((r) => r.filter((x) => x.id !== c.id)); }} />
             </>}
           />
         ))}
@@ -137,7 +138,7 @@ export const AdminMusic: React.FC = () => {
                 {t.bands && <OpenBtn to={{ name: 'band', id: t.bands.id }} label="Band page" />}
                 <HideBtn hidden={t.is_hidden} onToggle={async () => { if (await updateRow('tracks', t.id, { is_hidden: !t.is_hidden }, err)) list.setRows((r) => r.map((x) => x.id === t.id ? { ...x, is_hidden: !t.is_hidden } : x)); }} />
                 <DeleteBtn onDelete={async () => {
-                  if (!confirmDelete(`the song “${t.title}”`)) return;
+                  if (!(await confirmDelete(`the song “${t.title}”`))) return;
                   if (await deleteRow('tracks', t.id, err)) {
                     await supabase.storage.from('tracks').remove([t.audio_path]);
                     list.setRows((r) => r.filter((x) => x.id !== t.id));
@@ -185,7 +186,7 @@ export const AdminBands: React.FC = () => {
               <ActBtn onClick={() => patch(b, { is_verified: !b.is_verified })}><BadgeCheck className="w-3.5 h-3.5 text-[#53E6D4]" />{b.is_verified ? 'Remove badge' : 'Verify'}</ActBtn>
               <HideBtn hidden={b.is_hidden} onToggle={() => patch(b, { is_hidden: !b.is_hidden })} />
               <DeleteBtn onDelete={async () => {
-                if (!confirm(`Delete the band page “${b.name}”? Its songs, gigs and photos are deleted too. This can’t be undone.\n\nTip: “Hide” is safer if you might want it back.`)) return;
+                if (!(await askDelete({ title: `Delete the band page “${b.name}”?`, message: 'Its songs, gigs and photos are deleted too. Tip: “Hide” is safer if you might want it back.', typeToConfirm: true }))) return;
                 // collect the band's files first (rows are deleted with the band)
                 const [t, ph, g] = await Promise.all([
                   supabase.from('tracks').select('audio_path').eq('band_id', b.id),
@@ -240,7 +241,7 @@ export const AdminGigs: React.FC = () => {
             chips={g.status === 'cancelled' ? <Chip tone="red">Cancelled</Chip> : undefined}
             actions={<>
               {g.bands && <OpenBtn to={{ name: 'band', id: g.bands.id }} label="Band page" />}
-              <DeleteBtn onDelete={async () => { if (confirmDelete(`the gig “${g.title}”`) && await deleteRow('gigs', g.id, err, [g.poster_url])) list.setRows((r) => r.filter((x) => x.id !== g.id)); }} />
+              <DeleteBtn onDelete={async () => { if (await confirmDelete(`the gig “${g.title}”`) && await deleteRow('gigs', g.id, err, [g.poster_url])) list.setRows((r) => r.filter((x) => x.id !== g.id)); }} />
             </>}
           />
         ))}
@@ -283,7 +284,7 @@ export const AdminDeals: React.FC = () => {
                 <OpenBtn to={{ name: 'deals' }} label="Deals page" />
                 <HideBtn hidden={d.is_hidden} onToggle={async () => { if (await updateRow('listings', d.id, { is_hidden: !d.is_hidden }, err)) list.setRows((r) => r.map((x) => x.id === d.id ? { ...x, is_hidden: !d.is_hidden } : x)); }} />
                 <DeleteBtn onDelete={async () => {
-                  if (!confirmDelete(`the deal “${d.title}”`)) return;
+                  if (!(await confirmDelete(`the deal “${d.title}”`))) return;
                   if (await deleteRow('listings', d.id, err)) {
                     if (photos.length) await supabase.storage.from('gear-photos').remove(photos.map((p) => p.image_path));
                     list.setRows((r) => r.filter((x) => x.id !== d.id));
@@ -374,7 +375,7 @@ export const AdminImages: React.FC = () => {
               {sel.owner && <button onClick={() => { setSel(null); go({ name: 'profile', id: sel.owner.id }); }} className={btn.ghost}>Owner’s profile</button>}
               <button
                 onClick={async () => {
-                  if (!confirmDelete(`this ${sel.kind.toLowerCase()}`)) return;
+                  if (!(await confirmDelete(`this ${sel.kind.toLowerCase()}`))) return;
                   const e = await sel.remove();
                   if (e) return setErr(e);
                   setItems((it) => (it || []).filter((x) => x.key !== sel.key)); setSel(null);
