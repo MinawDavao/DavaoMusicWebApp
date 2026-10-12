@@ -7,6 +7,7 @@ import { useNav } from '../nav';
 import { Avatar, ErrorNote, FilePick, Modal, Spinner } from '../components/ui';
 import { DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { TradingCard, saveCardImage } from './TradingCard';
+import { HoopFace } from './HoopFace';
 import {
   H, PERSON, boxScore, fetchStats, fmt1, gameDate, hbtn, hinput,
   type HoopCard, type HoopEvent, type HoopPerson, type HoopStats,
@@ -98,7 +99,7 @@ export const HoopPlayerScreen: React.FC<{ id?: string }> = ({ id }) => {
   if (!card) {
     return (
       <div className="px-4 py-10 text-center space-y-4">
-        <Avatar src={person.avatar_url} name={person.display_name} size={96} />
+        <HoopFace avatar={person.avatar_url} name={person.display_name} cardPhoto={card?.card_photo_url} cardCrop={card?.card_photo_crop} size={96} />
         <p className="font-hoop italic font-black text-[26px] uppercase text-white">{isMe ? 'Get your player card' : `${person.display_name} hasn’t joined yet`}</p>
         {isMe ? (
           <>
@@ -295,7 +296,11 @@ const CardPhotoEditor: React.FC<{ person: HoopPerson; card: HoopCard; stats: Hoo
     setBusy(false);
     if (error) return setErr(errorMessage(error));
     cleanup(url);
-    if (card.card_photo_url && card.card_photo_url !== url) removeImageByUrl(card.card_photo_url, [person.avatar_url]);
+    if (card.card_photo_url && card.card_photo_url !== url) {
+      // keep the old file if it's (also) the profile photo
+      const { data: pr } = await supabase.from('profiles').select('avatar_url').eq('id', card.profile_id).maybeSingle();
+      removeImageByUrl(card.card_photo_url, [person.avatar_url, (pr as any)?.avatar_url]);
+    }
     onSaved();
   };
 
@@ -307,7 +312,7 @@ const CardPhotoEditor: React.FC<{ person: HoopPerson; card: HoopCard; stats: Hoo
         <button onClick={save} disabled={busy || uploading} className={`${hbtn.primary} flex-1`}><Check className="w-4 h-4" />{busy ? 'Saving…' : 'Save card'}</button>
       </div>
     </>}>
-      <p className="text-[12px] text-[#A8A29E]">Use an action shot or a hoops photo. It only shows on your Hoop Method card — your music profile photo stays the same.</p>
+      <p className="text-[12px] text-[#A8A29E]">Use an action shot or a hoops photo for your Hoop Method card. {person.avatar_url ? 'Your music profile photo stays the same.' : 'Since you don’t have a profile photo yet, this will be used as your profile photo too.'}</p>
       <div className="mx-auto w-full max-w-[300px] px-2 py-3">
         <TradingCard person={person} card={card} stats={stats} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
       </div>
@@ -461,7 +466,7 @@ export const HoopPlayers: React.FC = () => {
             return r ? (
               <button key={k} onClick={() => go({ name: 'hoopPlayer', id: r.profile_id })} className="rounded-2xl p-2.5 text-center border border-[#F28C14]/35 cursor-pointer" style={{ background: 'rgba(242,140,20,0.10)' }}>
                 <p className="flex items-center justify-center gap-1 text-[9px] font-black tracking-wider text-[#F28C14]"><Crown className="w-3 h-3" />{label.toUpperCase()}</p>
-                <span className="inline-block my-1.5"><Avatar src={r.profiles!.avatar_url} name={r.profiles!.display_name} size={44} /></span>
+                <span className="inline-block my-1.5"><HoopFace avatar={r.profiles!.avatar_url} name={r.profiles!.display_name} cardPhoto={r.card_photo_url} cardCrop={r.card_photo_crop} size={44} /></span>
                 <p className="text-[11px] font-bold text-white truncate">{r.profiles!.display_name}</p>
                 <p className="font-hoop font-bold text-[20px] text-white leading-none">{fmt1(r.stats![k])}<span className="ml-1 text-[9px] font-sans font-bold text-[#A8A29E]">{unit}</span></p>
               </button>
@@ -484,7 +489,7 @@ export const HoopPlayers: React.FC = () => {
           <button key={r.profile_id} onClick={() => go({ name: 'hoopPlayer', id: r.profile_id })} className="w-full grid grid-cols-[1fr_repeat(4,40px)] items-center px-3 py-2.5 border-b border-white/[0.05] last:border-0 text-left cursor-pointer hover:bg-white/[0.03]">
             <span className="flex items-center gap-2.5 min-w-0">
               <span className="w-6 text-right text-[12px] font-bold text-[#F28C14] tabular-nums">{i + 1}.</span>
-              <Avatar src={r.profiles!.avatar_url} name={r.profiles!.display_name} size={34} />
+              <HoopFace avatar={r.profiles!.avatar_url} name={r.profiles!.display_name} cardPhoto={r.card_photo_url} cardCrop={r.card_photo_crop} size={34} />
               <span className="min-w-0">
                 <span className="block text-[13px] font-bold text-white truncate">{r.profiles!.display_name}</span>
                 <span className="block text-[10px] text-[#A8A29E] truncate">{r.jersey_number != null ? `#${r.jersey_number}` : ''}{r.jersey_number != null && r.position ? ' · ' : ''}{r.position || ''}</span>

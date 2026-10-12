@@ -307,7 +307,11 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
     }
     setBusy(false);
     if (error) return setErr(errorMessage(error));
-    if (profile.avatar_url !== avatar) await removeImageByUrl(profile.avatar_url, [avatar, authBand?.logo_url]); // keep it if it's also the band logo
+    if (profile.avatar_url !== avatar) {
+      // keep the old file if it's also the band logo or the Hoop Method card photo
+      const { data: hc } = await supabase.from('hoop_players').select('card_photo_url').eq('profile_id', user!.id).maybeSingle();
+      await removeImageByUrl(profile.avatar_url, [avatar, authBand?.logo_url, (hc as any)?.card_photo_url]);
+    }
     if (profile.card_bg_url !== cardBg) await removeImageByUrl(profile.card_bg_url, [cardBg]);
     onSaved();
   };

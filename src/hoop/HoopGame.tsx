@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
-import { Avatar, ErrorNote, Spinner } from '../components/ui';
+import { ErrorNote, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import {
   H, KINDS, PERSON, boxScore, byArrival, clockLeftMs, normEvent, normPlayer, periodName, fmtClock, gameDate, gameTime, hbtn, kindPts, useServerOffset, useTick,
@@ -14,6 +14,7 @@ import {
 } from './lib';
 import { GameForm } from './HoopGames';
 import { HoopChat } from './HoopChat';
+import { HoopFace } from './HoopFace';
 import { MessageButton } from '../screens/MessagesScreen';
 
 /** Smallest game allowed: 10 players, 5 per side. */
@@ -33,6 +34,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [players, setPlayers] = useState<GamePlayer[]>([]);
   const [events, setEvents] = useState<HoopEvent[]>([]);
   const [jersey, setJersey] = useState<Record<string, number | null>>({});
+  const [faces, setFaces] = useState<Record<string, { url: string; crop: any }>>({});
   const [sel, setSelRaw] = useState<string | null>(() => { try { return sessionStorage.getItem(`hoop-sel-${id}`); } catch { return null; } });
   const setSel = (v: string | null) => { setSelRaw(v); try { if (v) sessionStorage.setItem(`hoop-sel-${id}`, v); else sessionStorage.removeItem(`hoop-sel-${id}`); } catch { /* ignore */ } };
   // a schedule can have several games ("Game 1, Game 2…"); bookings + payments live on the first one
@@ -66,10 +68,11 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     setSession(((ses as any[]) || []).map((g) => ({ ...g, hoop_game_players: (g.hoop_game_players || []).map((x: any) => ({ profile_id: x.profile_id || x.guest_id, team: x.team })) })));
     const ids = [...new Set([...rows, ...book].filter((r) => !r.is_guest).map((r) => r.profile_id))];
     if (ids.length) {
-      const { data: cards } = await supabase.from('hoop_players').select('profile_id, jersey_number').in('profile_id', ids);
+      const { data: cards } = await supabase.from('hoop_players').select('profile_id, jersey_number, card_photo_url, card_photo_crop').in('profile_id', ids);
       const m: Record<string, number | null> = {};
-      ((cards as any[]) || []).forEach((c) => { m[c.profile_id] = c.jersey_number; });
-      setJersey(m);
+      const f: Record<string, { url: string; crop: any }> = {};
+      ((cards as any[]) || []).forEach((c) => { m[c.profile_id] = c.jersey_number; if (c.card_photo_url) f[c.profile_id] = { url: c.card_photo_url, crop: c.card_photo_crop }; });
+      setJersey(m); setFaces(f);
     }
   }, [id]);
 
@@ -380,7 +383,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     return (
       <div key={p.profile_id} className="p-2 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
         <div className="flex items-center gap-2">
-          <Avatar src={p.profiles?.avatar_url} name={p.profiles?.display_name} size={30} />
+          <HoopFace avatar={p.profiles?.avatar_url} name={p.profiles?.display_name} cardPhoto={faces[p.profile_id]?.url} cardCrop={faces[p.profile_id]?.crop} size={30} />
           <span className="flex-1 min-w-0">
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="text-[12px] font-bold text-white truncate">{p.profiles?.display_name || 'Member'}</span>
@@ -660,7 +663,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <p className="text-[11px] font-bold text-[#A8A29E]">Sitting out ({sittingOut.length}) — tap a team to sub them in</p>
               {sittingOut.map((b) => (
                 <div key={b.profile_id} className="flex items-center gap-2 p-1.5 rounded-xl bg-white/[0.03] border border-white/10">
-                  <Avatar src={b.profiles?.avatar_url} name={b.profiles?.display_name} size={26} />
+                  <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={26} />
                   <span className="flex-1 min-w-0 text-[12px] font-bold text-white truncate">{b.profiles?.display_name}</span>
                   <button onClick={() => setTeam(b.profile_id, 'A')} disabled={busy} className="px-2 py-1 rounded-lg text-[10px] font-black bg-[#F28C14] text-[#111] cursor-pointer max-w-[90px] truncate">+ {game.team_a}</button>
                   <button onClick={() => setTeam(b.profile_id, 'B')} disabled={busy} className="px-2 py-1 rounded-lg text-[10px] font-black bg-[#D6D3D1] text-[#111] cursor-pointer max-w-[90px] truncate">+ {game.team_b}</button>
@@ -737,7 +740,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           <div className="pt-2 space-y-1.5">
             {bookings.map((b) => (
               <div key={b.profile_id} className="flex items-center gap-2">
-                <Avatar src={b.profiles?.avatar_url} name={b.profiles?.display_name} size={26} />
+                <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={26} />
                 <span className="flex-1 min-w-0 text-[12px] text-white truncate">{b.profiles?.display_name}</span>
                 <button onClick={() => togglePaid(b)} className={`px-2 py-1 rounded-md text-[10px] font-black border cursor-pointer ${b.paid ? 'bg-[#53E6D4]/15 text-[#53E6D4] border-[#53E6D4]/45' : 'bg-[#FF6B7A]/10 text-[#FF8A9C] border-[#FF6B7A]/40'}`}>{b.paid ? 'PAID' : 'UNPAID'}</button>
               </div>
@@ -780,7 +783,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                         <tr key={b.profile_id} className="border-b border-white/[0.05] last:border-0">
                           <td className="px-3 py-1.5">
                             <span className="flex items-center gap-2 min-w-0">
-                              <Avatar src={b.profiles?.avatar_url} name={b.profiles?.display_name} size={24} />
+                              <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={24} />
                               <span className="font-bold text-white truncate max-w-[120px]">{short(b.profiles?.display_name)}</span>
                             </span>
                           </td>
@@ -834,7 +837,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 <button key={p.profile_id} onClick={() => !p.is_guest && go({ name: 'hoopPlayer', id: p.profile_id })} className={`flex flex-col items-center gap-1 min-w-0 ${p.is_guest ? 'cursor-default' : 'cursor-pointer'}`}>
                   <span className="relative">
                     <span className="absolute -top-1 -left-1 z-10 min-w-[20px] h-5 px-1 rounded-full bg-[#F28C14] text-[#111] text-[10px] font-black flex items-center justify-center border-2 border-[#111]">{i + 1}</span>
-                    <Avatar src={p.profiles?.avatar_url} name={p.profiles?.display_name} size={54} />
+                    <HoopFace avatar={p.profiles?.avatar_url} name={p.profiles?.display_name} cardPhoto={faces[p.profile_id]?.url} cardCrop={faces[p.profile_id]?.crop} size={54} />
                     {p.team && <span className="absolute -bottom-1 -right-1 px-1 rounded text-[8px] font-black" style={{ background: p.team === 'A' ? H.orange : '#D6D3D1', color: '#111' }}>{p.team === 'A' ? game.team_a.slice(0, 6) : game.team_b.slice(0, 6)}</span>}
                   </span>
                   <span className="text-[11px] font-bold text-white max-w-full truncate">{short(p.profiles?.display_name)}</span>

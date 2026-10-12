@@ -7,8 +7,18 @@ export const Avatar: React.FC<{ src?: string | null; name?: string | null; size?
 }) => {
   const radius = square ? 'rounded-xl' : 'rounded-full';
   const ringCls = ring ? 'ring-2 ring-[#53E6D4]' : 'border border-white/15';
-  if (src) {
-    return <img src={src} alt={name || ''} style={{ width: size, height: size }} className={`${radius} ${ringCls} object-cover flex-shrink-0 bg-[#252D37]`} />;
+  const [failed, setFailed] = React.useState<string | null>(null);
+  if (src && failed !== src) {
+    return (
+      <img src={src} alt={name || ''} style={{ width: size, height: size }} decoding="async"
+        onError={(e) => {
+          // retry once (slow phone networks), then fall back to initials
+          const img = e.currentTarget;
+          if (!img.dataset.retried) { img.dataset.retried = '1'; setTimeout(() => { img.src = src + (src.includes('?') ? '&' : '?') + 'r=1'; }, 800); }
+          else setFailed(src);
+        }}
+        className={`${radius} ${ringCls} object-cover flex-shrink-0 bg-[#252D37]`} />
+    );
   }
   return (
     <div
