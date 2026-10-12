@@ -48,6 +48,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [showTeams, setShowTeams] = useState(false);
+  const [fixMode, setFixMode] = useState(false);
+  const [changing, setChanging] = useState<string | null>(null);
 
   const loadSeq = useRef(0);
   const loadPlayers = useCallback(async () => {
@@ -328,13 +330,28 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
 
   // ---------- admin: stats
-  const record = async (kind: Kind) => {
-    if (!sel) return setErr('Tap a player first.');
+  const addEvent = async (pid: string, kind: Kind) => {
     setErr(null);
-    const { data, error } = await supabase.from('hoop_events').insert({ game_id: game.id, ...(isGuest(sel) ? { guest_id: sel } : { profile_id: sel }), team: 'A', kind }).select('*').single();
-    if (error) return setErr(errorMessage(error));
+    const { data, error } = await supabase.from('hoop_events').insert({ game_id: game.id, ...(isGuest(pid) ? { guest_id: pid } : { profile_id: pid }), team: 'A', kind }).select('*').single();
+    if (error) { setErr(errorMessage(error)); return false; }
     setEvents((xs) => (xs.some((x) => x.id === (data as any).id) ? xs : [...xs, normEvent(data)]));
     if (navigator.vibrate) navigator.vibrate(15);
+    return true;
+  };
+  const record = async (kind: Kind) => {
+    if (!sel) return setErr('Tap a player first.');
+    await addEvent(sel, kind);
+  };
+  /** Fix mode: take back the player's most recent stat of this kind. */
+  const takeBack = (pid: string, kind: Kind) => {
+    const last = [...events].reverse().find((e) => e.profile_id === pid && e.kind === kind);
+    if (last) removeEvent(last);
+  };
+  /** Latest plays: change a wrong stat into the right one (e.g. +3 → +2). */
+  const changePlay = async (e: HoopEvent, kind: Kind) => {
+    setChanging(null);
+    if (kind === e.kind) return;
+    if (await addEvent(e.profile_id, kind)) await removeEvent(e);
   };
   const removeEvent = async (e: HoopEvent) => {
     const { error } = await supabase.from('hoop_events').delete().eq('id', e.id);
@@ -674,8 +691,38 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
           {/* stat buttons */}
           <div className="sticky bottom-[84px] z-20 -mx-1 p-2 rounded-2xl border border-white/15 space-y-2" style={{ background: 'rgba(20,20,20,0.97)' }}>
-            <p className="text-[11px] text-center font-bold truncate" style={{ color: sel ? H.orange : '#A8A29E' }}>{sel ? `${nameOf(sel)}${jersey[sel] != null ? ` #${jersey[sel]}` : ''}` : 'No player selected'}</p>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="flex items-center gap-2">
+              <p className="flex-1 min-w-0 text-[11px] font-bold truncate" style={{ color: sel ? H.orange : '#A8A29E' }}>{sel ? `${nameOf(sel)}${jersey[sel] != null ? ` #${jersey[sel]}` : ''}` : 'No player selected'}</p>
+              <button onClick={() => setFixMode(!fixMode)} disabled={!sel} aria-pressed={fixMode}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black border cursor-pointer disabled:opacity-35 ${fixMode ? 'bg-[#F28C14] text-[#111] border-[#F28C14]' : 'bg-white/[0.06] text-white border-white/15'}`}>
+                <Pencil className="w-3 h-3" />{fixMode ? 'DONE FIXING' : 'FIX STATS'}
+              </button>
+            </div>
+            {fixMode && sel && (() => {
+              const mine = events.filter((e) => e.profile_id === sel);
+              const l = lines[sel];
+              return (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-[#A8A29E] text-center">Tap <strong className="text-white">−</strong> to take one back, <strong className="text-white">+</strong> to add one. {l?.pts ?? 0} pts total.</p>
+                  <div className="grid grid-cols-3 gap-1">
+                    {KINDS.map((k) => {
+                      const n = mine.filter((e) => e.kind === k.k).length;
+                      return (
+                        <div key={k.k} className="flex items-center gap-1 px-1 py-1 rounded-lg border" style={{ borderColor: `${k.tone}55`, background: `${k.tone}14` }}>
+                          <button onClick={() => takeBack(sel, k.k)} disabled={!n} aria-label={`Take back one ${k.short}`} className="w-7 h-7 rounded-md bg-black/40 text-white flex items-center justify-center cursor-pointer disabled:opacity-30"><Minus className="w-3.5 h-3.5" /></button>
+                          <span className="flex-1 text-center leading-none">
+                            <span className="block font-hoop italic font-black text-[14px]" style={{ color: k.tone }}>{k.pts ? k.label : k.label}</span>
+                            <span className="block text-[11px] font-bold text-white">{n}×</span>
+                          </span>
+                          <button onClick={() => addEvent(sel, k.k)} aria-label={`Add one ${k.short}`} className="w-7 h-7 rounded-md bg-black/40 text-white flex items-center justify-center cursor-pointer"><Plus className="w-3.5 h-3.5" /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+            {!fixMode && <div className="grid grid-cols-5 gap-1.5">
               {KINDS.map((k) => (
                 <button key={k.k} onClick={() => record(k.k)} disabled={!sel}
                   className="h-12 rounded-xl font-hoop italic font-black text-[18px] cursor-pointer active:scale-95 transition-transform disabled:opacity-35 disabled:cursor-not-allowed"
@@ -684,21 +731,33 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 </button>
               ))}
               <button onClick={undo} disabled={!events.length} aria-label="Undo last" className="h-12 rounded-xl bg-white/[0.06] border border-white/15 text-white flex items-center justify-center cursor-pointer disabled:opacity-35"><Undo2 className="w-5 h-5" /></button>
-            </div>
+            </div>}
           </div>
 
           {/* play-by-play */}
           {events.length > 0 && (
             <div className="space-y-1">
-              <p className="text-[11px] font-bold text-[#A8A29E]">Latest plays</p>
-              {[...events].reverse().slice(0, 6).map((e) => {
+              <p className="text-[11px] font-bold text-[#A8A29E]">Latest plays <span className="font-normal">· tap <Pencil className="inline w-3 h-3" /> to change a wrong stat, <X className="inline w-3 h-3" /> to remove it</span></p>
+              {[...events].reverse().slice(0, 8).map((e) => {
                 const k = KINDS.find((x) => x.k === e.kind)!;
                 return (
-                  <div key={e.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.03] text-[12px]">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.team === 'A' ? H.orange : '#D6D3D1' }} />
-                    <span className="flex-1 min-w-0 truncate text-white">{nameOf(e.profile_id)} <strong style={{ color: k.tone }}>{kindPts(e.kind) ? k.label : k.short}</strong></span>
-                    <span className="text-[10px] text-[#A8A29E]">{e.period > periods ? periodName(e.period, periods) : `P${e.period}`}</span>
-                    <button onClick={() => removeEvent(e)} aria-label="Remove this play" className="text-[#A8A29E] hover:text-[#FF6B7A] cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                  <div key={e.id} className="rounded-lg bg-white/[0.03]">
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 text-[12px]">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.team === 'A' ? H.orange : '#D6D3D1' }} />
+                      <span className="flex-1 min-w-0 truncate text-white">{nameOf(e.profile_id)} <strong style={{ color: k.tone }}>{kindPts(e.kind) ? k.label : k.short}</strong></span>
+                      <span className="text-[10px] text-[#A8A29E]">{e.period > periods ? periodName(e.period, periods) : `P${e.period}`}</span>
+                      <button onClick={() => setChanging(changing === e.id ? null : e.id)} aria-label="Change this play" aria-expanded={changing === e.id} className={`cursor-pointer ${changing === e.id ? 'text-[#F28C14]' : 'text-[#A8A29E] hover:text-white'}`}><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => removeEvent(e)} aria-label="Remove this play" className="text-[#A8A29E] hover:text-[#FF6B7A] cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                    {changing === e.id && (
+                      <div className="flex flex-wrap gap-1 px-2.5 pb-2">
+                        <span className="w-full text-[10px] text-[#A8A29E]">Change to:</span>
+                        {KINDS.filter((x) => x.k !== e.kind).map((x) => (
+                          <button key={x.k} onClick={() => changePlay(e, x.k)} className="px-2 h-7 rounded-md font-hoop italic font-black text-[13px] cursor-pointer"
+                            style={{ background: x.pts ? x.tone : `${x.tone}22`, color: x.pts ? '#111' : x.tone, border: x.pts ? 'none' : `1px solid ${x.tone}66` }}>{x.label}</button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
