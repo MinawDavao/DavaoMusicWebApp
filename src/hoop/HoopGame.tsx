@@ -111,10 +111,17 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const now = () => Date.now() + offset;
   const left = game ? clockLeftMs(game, now()) : 0;
 
-  // the admin's phone stops the clock at 0:00
+  // the admin's phone stops the clock at 0:00 (once per run of the clock)
+  const stopSent = useRef<string | null>(null);
   useEffect(() => {
     if (!isModerator || !game?.clock_running || left > 0) return;
-    supabase.from('hoop_games').update({ clock_running: false, clock_started_at: null, clock_elapsed_ms: game.period_seconds * 1000 }).eq('id', game.id).then(() => {});
+    const key = `${game.id}-${game.period}-${game.clock_started_at}`;
+    if (stopSent.current === key) return;
+    stopSent.current = key;
+    const patch = { clock_running: false, clock_started_at: null, clock_elapsed_ms: game.period_seconds * 1000 };
+    supabase.from('hoop_games').update(patch).eq('id', game.id).then(({ error }) => {
+      if (error) stopSent.current = null; else setGame((g) => (g ? { ...g, ...patch } : g));
+    });
   }, [left, isModerator, game?.clock_running]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { lines, score } = useMemo(() => boxScore(events), [events]);

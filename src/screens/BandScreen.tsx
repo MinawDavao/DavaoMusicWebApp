@@ -27,6 +27,9 @@ import { ReportModal } from '../components/ReportModal';
 import { MAX_TRACKS, TrackUploadForm } from '../components/TrackUpload';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, Modal, Panel, Spinner, btn, inputCls } from '../components/ui';
 
+/** A link typed by a band ("open.spotify.com/…") made safe and clickable: https only. */
+const webLink = (u: string) => { const v = /^[a-z][a-z0-9+.-]*:/i.test(u.trim()) ? u.trim() : `https://${u.trim()}`; return /^https?:\/\/[^\s]+$/i.test(v) ? v : null; };
+
 type Member = MemberRow;
 interface Photo { id: string; image_url: string; title: string | null; tag: string | null }
 
@@ -192,7 +195,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
               {band.mobile && <a href={`tel:${band.mobile}`} className="flex items-center gap-1.5 text-[#EBEBED]"><Phone className="w-3.5 h-3.5 text-[#53E6D4]" />{band.mobile}</a>}
               {band.facebook && <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-[#53E6D4]" />{band.facebook}</span>}
               {band.instagram && <span className="flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />{band.instagram}</span>}
-              {band.streaming_url && <a href={band.streaming_url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[#53E6D4] underline"><Play className="w-3.5 h-3.5" />Listen elsewhere</a>}
+              {band.streaming_url && webLink(band.streaming_url) && <a href={webLink(band.streaming_url)!} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[#53E6D4] underline"><Play className="w-3.5 h-3.5" />Listen elsewhere</a>}
             </div>
           )}
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/[0.08]">

@@ -48,7 +48,10 @@ function useResolve(route: Route, userId: string | undefined) {
         if (!pid) return done(null, null);
         const { data } = await supabase.from('hoop_members').select('id, club_id, status').eq('profile_id', pid).order('created_at').limit(10);
         const list = (data as any[]) || [];
-        const m = list.find((x) => x.status === 'active') || list[0];
+        let last: string | null = null;
+        try { last = sessionStorage.getItem('hoop-last-club'); } catch { /* ignore */ }
+        // prefer their card in the club you were just looking at (chat / props links), then any active card
+        const m = list.find((x) => x.club_id === last && x.status === 'active') || list.find((x) => x.status === 'active') || list[0];
         return done(m?.club_id ?? null, m?.id ?? null);
       }
       done(null);
@@ -180,6 +183,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
     ...(ctx.isAdmin ? [{ key: 'manage', label: 'Manage', Icon: Settings }] : []),
   ];
   const showClub = !!club && route.name !== 'hoop';
+  useEffect(() => { if (showClub) { try { sessionStorage.setItem('hoop-last-club', club!.id); } catch { /* ignore */ } } }, [showClub, club?.id]);
 
   return (
     <ClubContext.Provider value={showClub ? ctx : { club: null, isAdmin: false, isOwner: false, me: null, reload: () => {} }}>

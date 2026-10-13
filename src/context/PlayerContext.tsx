@@ -79,7 +79,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       a.src = src;
       await a.play();
       supabase.rpc('record_play', { p_track_id: t.id }).then(() => {}, () => {});
-    } catch {
+    } catch (e: any) {
+      // switching songs quickly cancels the older play() — that's not an error
+      if (my !== startSeq.current || e?.name === 'AbortError') return;
       setError('Could not play this track.');
     }
   }, []);

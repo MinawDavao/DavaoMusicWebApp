@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import type { Band, Gig, Track } from './db';
 
-export const BAND_COLS: string = 'id, owner_id, name, handle, logo_url, banner_url, home_base, bio, is_verified, created_at, band_genres(genre_id, genres(name))';
+export const BAND_COLS: string = 'id, owner_id, name, handle, logo_url, banner_url, banner_crop, home_base, bio, is_verified, created_at, band_genres(genre_id, genres(name))';
 
 export function genreNames(b: Pick<Band, 'band_genres'>): string[] {
   return (b.band_genres || []).map((g) => g.genres?.name).filter(Boolean) as string[];
