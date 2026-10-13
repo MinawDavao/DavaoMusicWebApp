@@ -7,11 +7,11 @@ import { errorMessage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { ErrorNote, Spinner } from '../components/ui';
-import { AccountPicker } from '../components/MembersEditor';
 import {
-  H, KINDS, PERSON, boxScore, byArrival, clockLeftMs, normEvent, normPlayer, periodName, fmtClock, gameDate, gameTime, hbtn, kindPts, useServerOffset, useTick,
-  type GamePlayer, type HoopEvent, type HoopGame, type Kind, useHoopAdmin,
+  GP_COLS, H, KINDS, boxScore, byArrival, clockLeftMs, normEvent, normPlayer, periodName, fmtClock, gameDate, gameTime, hbtn, kindPts, useServerOffset, useTick,
+  type GamePlayer, type HoopEvent, type HoopGame, type Kind, useClub,
 } from './lib';
+import { MemberPicker } from './HoopPlayer';
 import { GameForm } from './HoopGames';
 import { HoopChat } from './HoopChat';
 import { HoopFace } from './HoopFace';
@@ -29,8 +29,9 @@ const short = (name?: string | null) => {
 
 export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const go = useNav();
-  const { user, isModerator: isMainAdmin } = useAuth();
-  const isModerator = useHoopAdmin();   // main admin or Hoop admin
+  const { user } = useAuth();
+  const { club, isAdmin: isModerator, isOwner: isMainAdmin, me } = useClub();
+  const clubHome = { name: 'hoopClub' as const, club: club!.id };
   const [game, setGame] = useState<HoopGame | null | undefined>(undefined);
   const [players, setPlayers] = useState<GamePlayer[]>([]);
   const [events, setEvents] = useState<HoopEvent[]>([]);
@@ -57,26 +58,23 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const my = ++loadSeq.current;   // ignore answers that come back after a newer reload
     const { data: g } = await supabase.from('hoop_games').select('id, session_id').eq('id', id).maybeSingle();
     const sid = (g as any)?.session_id || id;
-    const cols = `*, profiles!hoop_game_players_profile_id_fkey(${PERSON})`;
+    const cols = GP_COLS;
     const [{ data }, { data: bk }, { data: ses }] = await Promise.all([
       supabase.from('hoop_game_players').select(cols).eq('game_id', id).order('booked_at'),
       sid === id ? Promise.resolve({ data: null }) : supabase.from('hoop_game_players').select(cols).eq('game_id', sid).order('booked_at'),
-      supabase.from('hoop_games').select('*, hoop_game_players(profile_id, guest_id, team)').or(`id.eq.${sid},session_id.eq.${sid}`).order('created_at'),
+      supabase.from('hoop_games').select('*, hoop_game_players(profile_id, guest_id, member_id, team)').or(`id.eq.${sid},session_id.eq.${sid}`).order('created_at'),
     ]);
     if (my !== loadSeq.current) return;
     const rows = ((data as any[]) || []).map(normPlayer);
     setPlayers(rows);
     const book = sid === id ? rows : ((bk as any[]) || []).map(normPlayer);
     setBookings(book);
-    setSession(((ses as any[]) || []).map((g) => ({ ...g, hoop_game_players: (g.hoop_game_players || []).map((x: any) => ({ profile_id: x.profile_id || x.guest_id, team: x.team })) })));
-    const ids = [...new Set([...rows, ...book].filter((r) => !r.is_guest).map((r) => r.profile_id))];
-    if (ids.length) {
-      const { data: cards } = await supabase.from('hoop_players').select('profile_id, jersey_number, card_photo_url, card_photo_crop').in('profile_id', ids);
-      const m: Record<string, number | null> = {};
-      const f: Record<string, { url: string; crop: any }> = {};
-      ((cards as any[]) || []).forEach((c) => { m[c.profile_id] = c.jersey_number; if (c.card_photo_url) f[c.profile_id] = { url: c.card_photo_url, crop: c.card_photo_crop }; });
-      setJersey(m); setFaces(f);
-    }
+    setSession(((ses as any[]) || []).map((g) => ({ ...g, hoop_game_players: (g.hoop_game_players || []).map((x: any) => ({ profile_id: x.member_id || x.guest_id || x.profile_id, team: x.team })) })));
+    // jersey numbers + card photos come with each booking (from the player's club card)
+    const m: Record<string, number | null> = {};
+    const f: Record<string, { url: string; crop: any }> = {};
+    [...rows, ...book].forEach((r) => { if (r.is_guest) return; m[r.profile_id] = r.jersey ?? null; if (r.face) f[r.profile_id] = r.face; });
+    setJersey(m); setFaces(f);
   }, [id]);
 
   const load = useCallback(async () => {
@@ -134,7 +132,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   if (game === undefined) return <Spinner label="Loading game…" />;
   if (game === null) return (
     <div className="px-3 py-6 space-y-3">
-      <button onClick={() => go({ name: 'hoop' })} className={`${hbtn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" />All games</button>
+      <button onClick={() => go(clubHome)} className={`${hbtn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" />All games</button>
       <p className="text-center text-[#A8A29E] py-10">This game isn’t available anymore.</p>
     </div>
   );
@@ -146,7 +144,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const teamA = players.filter((p) => p.team === 'A');
   const teamB = players.filter((p) => p.team === 'B');
   const bench = players.filter((p) => !p.team);
-  const myBooking = user ? bookings.find((p) => p.profile_id === user.id) : undefined;
+  const myBooking = user ? bookings.find((p) => p.account_id === user.id) : undefined;
+  const isMember = me?.status === 'active';
   const mine = !!myBooking;
   const full = bookings.length >= root.slots;
   const canBook = isFirst && game.status === 'scheduled' && new Date(game.starts_at).getTime() > Date.now();
@@ -164,8 +163,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const periods = game.periods ?? 4;
   // guests (not on the app) use their guest id as the player key; writes go to the right column
   const isGuest = (pid: string) => !!everyone.find((p) => p.profile_id === pid)?.is_guest;
-  const col = (pid: string) => (isGuest(pid) ? 'guest_id' : 'profile_id');
-  const who = (pid: string) => (isGuest(pid) ? { guest_id: pid, guest_name: nameOf(pid) } : { profile_id: pid });
+  const col = (pid: string) => (isGuest(pid) ? 'guest_id' : 'member_id');
+  const who = (pid: string) => (isGuest(pid) ? { guest_id: pid, guest_name: nameOf(pid) } : { member_id: pid });
   // first come, first play: arrival order (arrivals live on the schedule's bookings)
   const bookingOf = (pid: string) => bookings.find((b) => b.profile_id === pid);
   const queue = [...bookings].sort(byArrival);
@@ -188,9 +187,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
 
   // ---------- booking
-  const book = () => run(() => (mine
+  const book = () => (!mine && !isMember && !isModerator ? Promise.resolve(go({ name: 'hoopClub', club: club!.id, tab: 'me' })) : run(() => (mine
     ? supabase.from('hoop_game_players').delete().eq('game_id', sessionId).eq('profile_id', user!.id)
-    : supabase.from('hoop_game_players').insert({ game_id: sessionId, profile_id: user!.id }))).then(loadPlayers);
+    : supabase.from('hoop_game_players').insert({ game_id: sessionId, profile_id: user!.id }))).then(loadPlayers));
 
   // ---------- admin: teams
   const writeTeam = async (pid: string, team: 'A' | 'B' | null) => {
@@ -201,7 +200,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     }
     if (!team) return { error: null };
     // upsert: a double tap (or a slow reload) never fails with “already on this game”
-    return supabase.from('hoop_game_players').upsert({ game_id: game.id, ...who(pid), team }, { onConflict: isGuest(pid) ? 'game_id,guest_id' : 'game_id,profile_id' });
+    return supabase.from('hoop_game_players').upsert({ game_id: game.id, ...who(pid), team }, { onConflict: isGuest(pid) ? 'game_id,guest_id' : 'game_id,member_id' });
   };
   const setTeam = (pid: string, team: 'A' | 'B' | null) => run(() => writeTeam(pid, team) as any).then(loadPlayers);
   const togglePaid = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ paid: !b.paid, paid_at: b.paid ? null : new Date().toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
@@ -249,9 +248,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     await run(() => supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid));
     load();
   };
-  const addPlayer = async (pid: string) => {
+  /** Admin: a club member (with or without an account), or any Fan account — adding them also approves their club card. */
+  const addPlayer = async (p: { member_id?: string; profile_id?: string }) => {
     setAdding(false);
-    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, profile_id: pid }));
+    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p }));
     loadPlayers();
   };
   /** Mixes the players already on a team into two new random teams. */
@@ -312,7 +312,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const restore = () => patchGame({ status: 'scheduled' });
   const deleteGame = async () => {
     const played = isFirst ? session.filter((g) => g.status === 'final' || g.status === 'live').length : (game.status === 'final' || game.status === 'live' ? 1 : 0);
-    if (played > 0 && !isMainAdmin) return setErr('Only the main admin can delete a game that was already played.');
+    if (played > 0 && !isMainAdmin) return setErr('Only the club owner can delete a game that was already played.');
     if (!(await confirmDelete({
       title: isFirst ? 'Delete this whole schedule?' : `Delete Game ${gameNo}?`,
       message: isFirst
@@ -320,7 +320,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         : `Its score and every player’s stats from this game are deleted for good.`,
       typeToConfirm: true,
     }))) return;
-    if (await run(() => supabase.from('hoop_games').delete().eq('id', game.id))) go(isFirst ? { name: 'hoop' } : { name: 'hoopGame', id: sessionId });
+    if (await run(() => supabase.from('hoop_games').delete().eq('id', game.id))) go(isFirst ? clubHome : { name: 'hoopGame', id: sessionId });
   };
 
   // ---------- admin: clock
@@ -342,7 +342,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   // ---------- admin: stats
   const addEvent = async (pid: string, kind: Kind) => {
     setErr(null);
-    const { data, error } = await supabase.from('hoop_events').insert({ game_id: game.id, ...(isGuest(pid) ? { guest_id: pid } : { profile_id: pid }), team: 'A', kind }).select('*').single();
+    const { data, error } = await supabase.from('hoop_events').insert({ game_id: game.id, ...(isGuest(pid) ? { guest_id: pid } : { member_id: pid }), team: 'A', kind }).select('*').single();
     if (error) { setErr(errorMessage(error)); return false; }
     setEvents((xs) => (xs.some((x) => x.id === (data as any).id) ? xs : [...xs, normEvent(data)]));
     if (navigator.vibrate) navigator.vibrate(15);
@@ -383,7 +383,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         const l = lines[p.profile_id];
         return (
           <button key={p.profile_id} onClick={() => setSel(on ? null : p.profile_id)} aria-pressed={on}
-            className={`w-full flex items-center gap-2 p-1.5 rounded-xl border text-left cursor-pointer transition-colors ${on ? 'border-[#F28C14] bg-[#F28C14]/15' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}>
+            className={`w-full flex items-center gap-2 p-1.5 rounded-xl border text-left cursor-pointer transition-colors ${on ? 'border-[var(--hp)] bg-[var(--hp)]/15' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}>
             <span className="w-7 h-7 rounded-lg flex items-center justify-center font-hoop italic font-black text-[15px] flex-shrink-0" style={{ background: team === 'A' ? H.orange : '#3A3A3A', color: team === 'A' ? '#111' : '#F4F1EE' }}>{jersey[p.profile_id] ?? '–'}</span>
             <span className="flex-1 min-w-0">
               <span className="block text-[12px] font-bold text-white truncate">{short(p.profiles?.display_name)}</span>
@@ -422,7 +422,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 const r = arrivalRank(p.profile_id);
                 return (
                   <button onClick={() => toggleArrived(b)} disabled={busy} aria-pressed={!!b.arrived_at} title={b.arrived_at ? 'Arrived — tap to undo' : 'Tap when this player arrives at the court'}
-                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black cursor-pointer border ${b.arrived_at ? 'bg-[#F28C14]/20 text-[#F28C14] border-[#F28C14]/50' : 'bg-white/[0.04] text-[#A8A29E] border-white/15 border-dashed'}`}>
+                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black cursor-pointer border ${b.arrived_at ? 'bg-[var(--hp)]/20 text-[var(--hp)] border-[var(--hp)]/50' : 'bg-white/[0.04] text-[#A8A29E] border-white/15 border-dashed'}`}>
                     {b.arrived_at ? <><CheckCircle2 className="w-2.5 h-2.5" />ARRIVED #{r}</> : 'NOT HERE YET'}
                   </button>
                 );
@@ -439,7 +439,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <div className="flex rounded-lg overflow-hidden border border-white/15 text-[10px] font-black">
           {(['A', null, 'B'] as const).map((tm) => (
             <button key={String(tm)} onClick={() => setTeam(p.profile_id, tm)} disabled={busy}
-              className={`flex-1 px-2 py-1.5 cursor-pointer truncate ${t === tm ? (tm === 'A' ? 'bg-[#F28C14] text-[#111]' : tm === 'B' ? 'bg-[#D6D3D1] text-[#111]' : 'bg-white/20 text-white') : 'text-[#A8A29E] hover:bg-white/10'}`}>
+              className={`flex-1 px-2 py-1.5 cursor-pointer truncate ${t === tm ? (tm === 'A' ? 'bg-[var(--hp)] text-[#111]' : tm === 'B' ? 'bg-[#D6D3D1] text-[#111]' : 'bg-white/20 text-white') : 'text-[#A8A29E] hover:bg-white/10'}`}>
               {tm === 'A' ? game.team_a.toUpperCase() : tm === 'B' ? game.team_b.toUpperCase() : 'SITTING OUT'}
             </button>
           ))}
@@ -453,7 +453,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const rosterManager = (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-[13px] font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-[#F28C14]" />Players ({bookings.length}/{root.slots}) · <span className="text-[#53E6D4]">{paidCount} paid</span> · <span className="text-[#F28C14]">{arrivedN} here</span></p>
+        <p className="text-[13px] font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-[var(--hp)]" />Players ({bookings.length}/{root.slots}) · <span className="text-[#53E6D4]">{paidCount} paid</span> · <span className="text-[var(--hp)]">{arrivedN} here</span></p>
         <div className="flex flex-wrap gap-1.5">
           <button onClick={autoPick} disabled={busy || bookings.length < 2} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`} title="Pick the players who have played the fewest games"><Sparkles className="w-3.5 h-3.5" />Fewest games</button>
           <button onClick={shuffle} disabled={busy} className={`${hbtn.ghost} !px-2.5 !py-1.5 !text-xs`}><Shuffle className="w-3.5 h-3.5" />Shuffle</button>
@@ -471,8 +471,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         {teamA.length} on {game.team_a} · {teamB.length} on {game.team_b}
         {(session.length > 1 || !isFirst) && <> · <span className="text-[#8FE36B] font-bold">FRESH</span> = hasn’t played yet today, sorted first</>}
       </p>
-      <p className="text-[11px] text-[#A8A29E]">First come, first play — tap <span className="text-[#F28C14] font-bold">NOT HERE YET</span> when a player arrives. The list follows arrival order. <span className="text-white font-bold">Guests</span> play and score, but their stats aren’t saved.</p>
-      {adding && <AccountPicker autoFocus roles={['fan']} exclude={everyone.map((p) => p.profile_id)} onPick={(p) => addPlayer(p.id)} onCancel={() => setAdding(false)} />}
+      <p className="text-[11px] text-[#A8A29E]">First come, first play — tap <span className="text-[var(--hp)] font-bold">NOT HERE YET</span> when a player arrives. The list follows arrival order. <span className="text-white font-bold">Guests</span> play and score, but their stats aren’t saved.</p>
+      {adding && <MemberPicker clubId={club!.id} exclude={everyone.map((p) => p.profile_id)} excludeAccounts={everyone.map((p) => p.account_id || '')} onPick={addPlayer} onCancel={() => setAdding(false)} />}
       {everyone.length === 0 && <p className="text-[12px] text-[#A8A29E]">No one has booked yet. You can add players with “Add”.</p>}
       {sortedForRoster.map((p) => rosterRow(bookings.find((b) => b.profile_id === p.profile_id) || p))}
     </div>
@@ -498,7 +498,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               return (
                 <tr key={p.profile_id} className="border-b border-white/[0.05] last:border-0">
                   <td className="px-3 py-1.5">
-                    <button onClick={() => !p.is_guest && go({ name: 'hoopPlayer', id: p.profile_id })} className={`flex items-center gap-1.5 font-bold text-white whitespace-nowrap ${p.is_guest ? 'cursor-default' : 'hover:text-[#F28C14] cursor-pointer'}`}>
+                    <button onClick={() => !p.is_guest && go({ name: 'hoopPlayer', id: p.profile_id })} className={`flex items-center gap-1.5 font-bold text-white whitespace-nowrap ${p.is_guest ? 'cursor-default' : 'hover:text-[var(--hp)] cursor-pointer'}`}>
                       <span className="text-[#A8A29E] font-mono w-5 text-right">{jersey[p.profile_id] ?? ''}</span>{short(p.profiles?.display_name)}
                       {p.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1]">GUEST</span>}
                     </button>
@@ -518,16 +518,16 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
   return (
     <div className="px-3 py-4 space-y-4">
-      <button onClick={() => go({ name: 'hoop' })} className={`${hbtn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" />All games</button>
+      <button onClick={() => go(clubHome)} className={`${hbtn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" />All games</button>
 
       {/* mini scoreboard that stays on screen while scrolling */}
       {showScore && !boardVisible && (
         <div className="fixed left-0 right-0 z-30 flex justify-center pointer-events-none" style={{ top: headerH + 6 }}>
           <div className="pointer-events-auto flex items-center gap-2.5 pl-3 pr-3 py-1.5 rounded-full border border-white/15 shadow-[0_8px_24px_rgba(0,0,0,0.6)]" style={{ background: 'rgba(20,20,20,0.96)' }}>
-            <span className="text-[10px] font-black uppercase text-[#F28C14] max-w-[70px] truncate">{game.team_a}</span>
+            <span className="text-[10px] font-black uppercase text-[var(--hp)] max-w-[70px] truncate">{game.team_a}</span>
             <span className="font-hoop italic font-black text-[22px] leading-none text-white tabular-nums">{score.A}</span>
             <span className="px-2 py-0.5 rounded-md bg-white/[0.08] text-center leading-tight">
-              <span className={`block font-mono font-bold text-[13px] tabular-nums ${live && game.clock_running && left <= 10000 ? 'text-[#F26A2E]' : 'text-white'}`}>{fmtClock(left)}</span>
+              <span className={`block font-mono font-bold text-[13px] tabular-nums ${live && game.clock_running && left <= 10000 ? 'text-[var(--ha)]' : 'text-white'}`}>{fmtClock(left)}</span>
               <span className="block text-[8px] font-bold tracking-wider text-[#A8A29E]">{game.status === 'final' ? 'FINAL' : game.period > periods ? periodName(game.period, periods) : `P${game.period}/${periods}`}</span>
             </span>
             <span className="font-hoop italic font-black text-[22px] leading-none text-white tabular-nums">{score.B}</span>
@@ -541,8 +541,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <div className="flex gap-1.5 overflow-x-auto -mx-3 px-3 pb-1">
           {session.map((g, i) => (
             <button key={g.id} onClick={() => g.id !== game.id && go({ name: 'hoopGame', id: g.id })}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3 h-9 rounded-full text-[12px] font-bold border cursor-pointer ${g.id === game.id ? 'bg-[#F28C14] border-[#F28C14] text-[#111]' : 'bg-white/[0.05] border-white/15 text-[#E7E5E4]'}`}>
-              {g.status === 'live' && <span className="w-1.5 h-1.5 rounded-full bg-[#F26A2E] animate-pulse" />}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 h-9 rounded-full text-[12px] font-bold border cursor-pointer ${g.id === game.id ? 'bg-[var(--hp)] border-[var(--hp)] text-[#111]' : 'bg-white/[0.05] border-white/15 text-[#E7E5E4]'}`}>
+              {g.status === 'live' && <span className="w-1.5 h-1.5 rounded-full bg-[var(--ha)] animate-pulse" />}
               Game {i + 1}{g.status === 'final' ? ' ✓' : ''}
             </button>
           ))}
@@ -555,25 +555,25 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <div className="p-4 space-y-3">
           <div className="text-center space-y-1">
             <div className="flex items-center justify-center gap-2">
-              <h1 className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">{game.title}{session.length > 1 && <span className="text-[#F28C14]"> · G{gameNo}</span>}</h1>
-              {live && <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#F26A2E] text-[10px] font-black text-white"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE</span>}
+              <h1 className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">{game.title}{session.length > 1 && <span className="text-[var(--hp)]"> · G{gameNo}</span>}</h1>
+              {live && <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[var(--ha)] text-[10px] font-black text-white"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE</span>}
               {game.status === 'final' && <span className="px-1.5 py-0.5 rounded bg-white/15 text-[10px] font-black text-white">FINAL</span>}
               {game.status === 'cancelled' && <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-black text-[#A8A29E]">CANCELLED</span>}
             </div>
             <p className="flex flex-wrap items-center justify-center gap-x-3 text-[11px] text-[#A8A29E]">
-              <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-[#F28C14]" />{gameDate(game.starts_at)} · {gameTime(game.starts_at)}</span>
-              {game.venue && <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-[#F28C14]" />{game.venue}</span>}
+              <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-[var(--hp)]" />{gameDate(game.starts_at)} · {gameTime(game.starts_at)}</span>
+              {game.venue && <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-[var(--hp)]" />{game.venue}</span>}
             </p>
           </div>
 
           {showScore ? (
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <div className="text-center min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-wider text-[#F28C14] truncate">{game.team_a}</p>
+                <p className="text-[11px] font-black uppercase tracking-wider text-[var(--hp)] truncate">{game.team_a}</p>
                 <p className={`font-hoop italic font-black text-[56px] leading-none ${winner === 'B' ? 'text-[#78716C]' : 'text-white'}`}>{score.A}</p>
               </div>
               <div className="text-center px-2">
-                <p className={`font-mono font-bold text-[26px] tabular-nums ${live && left <= 10000 && game.clock_running ? 'text-[#F26A2E]' : 'text-white'}`}>{fmtClock(left)}</p>
+                <p className={`font-mono font-bold text-[26px] tabular-nums ${live && left <= 10000 && game.clock_running ? 'text-[var(--ha)]' : 'text-white'}`}>{fmtClock(left)}</p>
                 <p className="text-[10px] font-bold tracking-wider text-[#A8A29E]">{game.status === 'final' ? 'FINAL' : game.period > periods ? `OVERTIME${game.period - periods > 1 ? ` ${game.period - periods}` : ''}` : `PERIOD ${game.period} OF ${periods}`}</p>
               </div>
               <div className="text-center min-w-0">
@@ -583,7 +583,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             </div>
           ) : (
             <div className="flex items-center justify-center gap-3 text-[13px]">
-              <span className="flex items-center gap-1.5 font-bold text-white"><Users className="w-4 h-4 text-[#F28C14]" />{isFirst ? `${bookings.length} / ${root.slots} booked` : `${teamA.length + teamB.length} picked for this game`}</span>
+              <span className="flex items-center gap-1.5 font-bold text-white"><Users className="w-4 h-4 text-[var(--hp)]" />{isFirst ? `${bookings.length} / ${root.slots} booked` : `${teamA.length + teamB.length} picked for this game`}</span>
             </div>
           )}
 
@@ -591,8 +591,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
           {canBook && (
             mine
-              ? <button onClick={book} disabled={busy} className={`${hbtn.ghost} w-full`}><Check className="w-4 h-4 text-[#F28C14]" />You’re in · Cancel my slot</button>
-              : <button onClick={book} disabled={busy || full} className={`${hbtn.primary} w-full`}>{full ? 'Game is full' : 'Book my slot'}</button>
+              ? <button onClick={book} disabled={busy} className={`${hbtn.ghost} w-full`}><Check className="w-4 h-4 text-[var(--hp)]" />You’re in · Cancel my slot</button>
+              : isMember || isModerator
+              ? <button onClick={book} disabled={busy || full} className={`${hbtn.primary} w-full`}>{full ? 'Game is full' : 'Book my slot'}</button>
+              : <button onClick={book} className={`${hbtn.ghost} w-full !text-xs`}>{me?.status === 'pending' ? 'Waiting for the club to approve your card' : me?.status === 'suspended' ? 'You can’t book in this club' : 'Join this club to book'}</button>
           )}
 
           {/* payment status for a booked player */}
@@ -618,8 +620,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {/* ADMIN CONSOLE */}
       {isModerator && game.status === 'scheduled' && (
-        <section className="rounded-2xl p-3.5 space-y-3 border border-[#F28C14]/40" style={{ background: 'rgba(242,140,20,0.06)' }}>
-          <p className="text-[11px] font-black tracking-wider text-[#F28C14]">ADMIN · {isFirst ? 'GAME SETUP' : `GAME ${gameNo} SETUP`}</p>
+        <section className="rounded-2xl p-3.5 space-y-3 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 6%, transparent)' }}>
+          <p className="text-[11px] font-black tracking-wider text-[var(--hp)]">ADMIN · {isFirst ? 'GAME SETUP' : `GAME ${gameNo} SETUP`}</p>
           {!isFirst && <button onClick={endSchedule} disabled={busy} className={`${hbtn.ghost} w-full !py-2 !text-xs`}><Flag className="w-3.5 h-3.5" />Skip this game & end the schedule</button>}
           {rosterManager}
           {(() => {
@@ -640,7 +642,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <div className="flex gap-1">
                 {[1, 2, 3, 4].map((n) => (
                   <button key={n} onClick={() => setPeriods(n)} disabled={busy} aria-pressed={periods === n}
-                    className={`w-9 h-8 rounded-lg text-[13px] font-black cursor-pointer border ${periods === n ? 'bg-[#F28C14] text-[#111] border-[#F28C14]' : 'bg-white/[0.04] text-[#D6D3D1] border-white/15'}`}>{n}</button>
+                    className={`w-9 h-8 rounded-lg text-[13px] font-black cursor-pointer border ${periods === n ? 'bg-[var(--hp)] text-[#111] border-[var(--hp)]' : 'bg-white/[0.04] text-[#D6D3D1] border-white/15'}`}>{n}</button>
                 ))}
               </div>
             </div>
@@ -662,8 +664,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       )}
 
       {isModerator && live && (
-        <section className="rounded-2xl p-3.5 space-y-3.5 border border-[#F28C14]/40" style={{ background: 'rgba(242,140,20,0.06)' }}>
-          <p className="text-[11px] font-black tracking-wider text-[#F28C14]">ADMIN · LIVE CONSOLE</p>
+        <section className="rounded-2xl p-3.5 space-y-3.5 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 6%, transparent)' }}>
+          <p className="text-[11px] font-black tracking-wider text-[var(--hp)]">ADMIN · LIVE CONSOLE</p>
 
           {/* clock */}
           <div className="flex flex-wrap items-center gap-2">
@@ -679,7 +681,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             </span>
           </div>
 
-          {lastPeriod && <p className="text-[11px] font-bold text-[#F28C14]">{game.period > periods ? 'Overtime' : `Last period (${periods} of ${periods})`} — tap “Finish game” when time’s up{score.A === score.B ? ', or “Overtime” if it’s still tied' : ''}.</p>}
+          {lastPeriod && <p className="text-[11px] font-bold text-[var(--hp)]">{game.period > periods ? 'Overtime' : `Last period (${periods} of ${periods})`} — tap “Finish game” when time’s up{score.A === score.B ? ', or “Overtime” if it’s still tied' : ''}.</p>}
 
           {/* players */}
           <p className="text-[11px] text-[#A8A29E]">Tap a player, then tap what they did.</p>
@@ -692,7 +694,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 <div key={b.profile_id} className="flex items-center gap-2 p-1.5 rounded-xl bg-white/[0.03] border border-white/10">
                   <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={26} />
                   <span className="flex-1 min-w-0 text-[12px] font-bold text-white truncate">{b.profiles?.display_name}</span>
-                  <button onClick={() => setTeam(b.profile_id, 'A')} disabled={busy} className="px-2 py-1 rounded-lg text-[10px] font-black bg-[#F28C14] text-[#111] cursor-pointer max-w-[90px] truncate">+ {game.team_a}</button>
+                  <button onClick={() => setTeam(b.profile_id, 'A')} disabled={busy} className="px-2 py-1 rounded-lg text-[10px] font-black bg-[var(--hp)] text-[#111] cursor-pointer max-w-[90px] truncate">+ {game.team_a}</button>
                   <button onClick={() => setTeam(b.profile_id, 'B')} disabled={busy} className="px-2 py-1 rounded-lg text-[10px] font-black bg-[#D6D3D1] text-[#111] cursor-pointer max-w-[90px] truncate">+ {game.team_b}</button>
                 </div>
               ))}
@@ -704,7 +706,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             <div className="flex items-center gap-2">
               <p className="flex-1 min-w-0 text-[11px] font-bold truncate" style={{ color: sel ? H.orange : '#A8A29E' }}>{sel ? `${nameOf(sel)}${jersey[sel] != null ? ` #${jersey[sel]}` : ''}` : 'No player selected'}</p>
               <button onClick={() => setFixMode(!fixMode)} disabled={!sel} aria-pressed={fixMode}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black border cursor-pointer disabled:opacity-35 ${fixMode ? 'bg-[#F28C14] text-[#111] border-[#F28C14]' : 'bg-white/[0.06] text-white border-white/15'}`}>
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black border cursor-pointer disabled:opacity-35 ${fixMode ? 'bg-[var(--hp)] text-[#111] border-[var(--hp)]' : 'bg-white/[0.06] text-white border-white/15'}`}>
                 <Pencil className="w-3 h-3" />{fixMode ? 'DONE FIXING' : 'FIX STATS'}
               </button>
             </div>
@@ -756,7 +758,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.team === 'A' ? H.orange : '#D6D3D1' }} />
                       <span className="flex-1 min-w-0 truncate text-white">{nameOf(e.profile_id)} <strong style={{ color: k.tone }}>{kindPts(e.kind) ? k.label : k.short}</strong></span>
                       <span className="text-[10px] text-[#A8A29E]">{e.period > periods ? periodName(e.period, periods) : `P${e.period}`}</span>
-                      <button onClick={() => setChanging(changing === e.id ? null : e.id)} aria-label="Change this play" aria-expanded={changing === e.id} className={`cursor-pointer ${changing === e.id ? 'text-[#F28C14]' : 'text-[#A8A29E] hover:text-white'}`}><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setChanging(changing === e.id ? null : e.id)} aria-label="Change this play" aria-expanded={changing === e.id} className={`cursor-pointer ${changing === e.id ? 'text-[var(--hp)]' : 'text-[#A8A29E] hover:text-white'}`}><Pencil className="w-3.5 h-3.5" /></button>
                       <button onClick={() => removeEvent(e)} aria-label="Remove this play" className="text-[#A8A29E] hover:text-[#FF6B7A] cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </div>
                     {changing === e.id && (
@@ -775,7 +777,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           )}
 
           <button onClick={() => setShowTeams(!showTeams)} className="w-full flex items-center justify-between text-[12px] font-bold text-[#D6D3D1] cursor-pointer">
-            <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-[#F28C14]" />Change teams / add a player</span>
+            <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-[var(--hp)]" />Change teams / add a player</span>
             <ChevronRight className={`w-4 h-4 transition-transform ${showTeams ? 'rotate-90' : ''}`} />
           </button>
           {showTeams && rosterManager}
@@ -841,7 +843,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                   <thead>
                     <tr className="text-[#A8A29E] border-b border-white/10">
                       <th className="text-left font-bold px-3 py-2">PLAYER</th>
-                      {cols.map((c) => <th key={c.g.id} className={`font-bold px-2 py-2 text-center ${c.g.id === game.id ? 'text-[#F28C14]' : ''}`}>G{c.n}</th>)}
+                      {cols.map((c) => <th key={c.g.id} className={`font-bold px-2 py-2 text-center ${c.g.id === game.id ? 'text-[var(--hp)]' : ''}`}>G{c.n}</th>)}
                       <th className="font-bold px-3 py-2 text-center">TOTAL</th>
                     </tr>
                   </thead>
@@ -898,20 +900,20 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <section className="space-y-2.5">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">Who’s playing</h2>
-            <span className="text-[12px] font-bold text-[#A8A29E]"><span className="text-[#F28C14] font-black">{players.length}</span> / {root.slots} booked</span>
+            <span className="text-[12px] font-bold text-[#A8A29E]"><span className="text-[var(--hp)] font-black">{players.length}</span> / {root.slots} booked</span>
           </div>
           {players.length === 0 ? <p className="text-[13px] text-[#A8A29E]">No one yet — be the first to book!</p> : (
             <div className="grid grid-cols-4 gap-x-2 gap-y-3">
               {[...players].sort(byQueue).map((p, i) => (
                 <button key={p.profile_id} onClick={() => !p.is_guest && go({ name: 'hoopPlayer', id: p.profile_id })} className={`flex flex-col items-center gap-1 min-w-0 ${p.is_guest ? 'cursor-default' : 'cursor-pointer'}`}>
                   <span className="relative">
-                    <span className="absolute -top-1 -left-1 z-10 min-w-[20px] h-5 px-1 rounded-full bg-[#F28C14] text-[#111] text-[10px] font-black flex items-center justify-center border-2 border-[#111]">{i + 1}</span>
+                    <span className="absolute -top-1 -left-1 z-10 min-w-[20px] h-5 px-1 rounded-full bg-[var(--hp)] text-[#111] text-[10px] font-black flex items-center justify-center border-2 border-[#111]">{i + 1}</span>
                     <HoopFace avatar={p.profiles?.avatar_url} name={p.profiles?.display_name} cardPhoto={faces[p.profile_id]?.url} cardCrop={faces[p.profile_id]?.crop} size={54} />
                     {p.team && <span className="absolute -bottom-1 -right-1 px-1 rounded text-[8px] font-black" style={{ background: p.team === 'A' ? H.orange : '#D6D3D1', color: '#111' }}>{p.team === 'A' ? game.team_a.slice(0, 6) : game.team_b.slice(0, 6)}</span>}
                   </span>
                   <span className="text-[11px] font-bold text-white max-w-full truncate">{short(p.profiles?.display_name)}</span>
                   {(p.is_guest || bookingOf(p.profile_id)?.arrived_at) && (
-                    <span className="-mt-1 text-[8px] font-black tracking-wide text-[#F28C14]">{p.is_guest ? 'GUEST' : ''}{p.is_guest && bookingOf(p.profile_id)?.arrived_at ? ' · ' : ''}{bookingOf(p.profile_id)?.arrived_at ? 'HERE' : ''}</span>
+                    <span className="-mt-1 text-[8px] font-black tracking-wide text-[var(--hp)]">{p.is_guest ? 'GUEST' : ''}{p.is_guest && bookingOf(p.profile_id)?.arrived_at ? ' · ' : ''}{bookingOf(p.profile_id)?.arrived_at ? 'HERE' : ''}</span>
                   )}
                   {(() => {
                     const paid = !!bookings.find((b) => b.profile_id === p.profile_id)?.paid;   // payments live on the schedule's bookings

@@ -12,11 +12,11 @@ import { MentionText } from './Mentions';
 type NType =
   | 'comment' | 'mention_post' | 'mention_comment' | 'reaction' | 'follow' | 'band_follow'
   | 'review_pending' | 'review_approved' | 'rsvp' | 'playlist_like' | 'playlist_copy' | 'venue_tag'
-  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin' | 'hoop_props' | 'hoop_props_approved';
+  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin' | 'hoop_props' | 'hoop_props_approved' | 'hoop_join_request' | 'hoop_join_approved';
 
 interface Notif {
   id: string; type: NType; actor_id: string | null; post_id: string | null; band_id: string | null;
-  gig_id: string | null; playlist_id: string | null; track_id?: string | null; snippet: string | null; read_at: string | null; created_at: string;
+  gig_id: string | null; playlist_id: string | null; track_id?: string | null; hoop_club_id?: string | null; snippet: string | null; read_at: string | null; created_at: string;
   actor?: { id: string; display_name: string; avatar_url: string | null; role: string } | null;
 }
 
@@ -39,6 +39,8 @@ const META: Record<NType, { Icon: React.ElementType; color: string; text: (n: No
   band_member:     { Icon: Users, color: '#53E6D4', text: (n) => `added you as a member of ${n.snippet ? `“${n.snippet}”` : 'their band'}` },
   hoop_props:      { Icon: Star, color: '#F28C14', text: () => 'gave you props on Hoop Method — tap to approve', quote: true },
   hoop_props_approved: { Icon: Star, color: '#F28C14', text: () => 'approved your Hoop Method props' },
+  hoop_join_request: { Icon: UserPlus, color: '#F28C14', text: (n) => `wants to join ${n.snippet || 'your club'} — tap to approve their player card` },
+  hoop_join_approved: { Icon: ShieldCheck, color: '#F28C14', text: (n) => `approved your player card for ${n.snippet || 'the club'} — you can book games now` },
   band_admin:      { Icon: ShieldCheck, color: '#53E6D4', text: (n) => `made you an admin of ${n.snippet ? `“${n.snippet}”` : 'their band page'} — you can now edit it from your account` },
 };
 
@@ -55,6 +57,10 @@ function routeFor(n: Notif, myId: string): Route {
       return { name: 'hoopPlayer' };
     case 'hoop_props_approved':
       return n.actor_id ? { name: 'hoopPlayer', id: n.actor_id } : { name: 'hoop' };
+    case 'hoop_join_request':
+      return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'manage' } : { name: 'hoop' };
+    case 'hoop_join_approved':
+      return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'me' } : { name: 'hoop' };
     case 'review_pending':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile', id: myId };
     case 'review_approved':

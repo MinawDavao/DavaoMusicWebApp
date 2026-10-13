@@ -30,9 +30,11 @@ export interface TradingCardProps {
   photoUrl?: string | null;
   crop?: CardCrop;
   onCropChange?: (c: CardCrop) => void;
+  /** the club this card belongs to (badge top-left) */
+  club?: { name: string; logo_url: string | null } | null;
 }
 
-export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, photoUrl, crop, onCropChange }) => {
+export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, photoUrl, crop, onCropChange, club }) => {
   const url = photoUrl !== undefined ? photoUrl : (card.card_photo_url || person.avatar_url);
   const c = crop || cropOf(card.card_photo_url ? card.card_photo_crop : null);
   const editing = !!onCropChange;
@@ -45,6 +47,8 @@ export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, p
   const pos = card.position ? (POS_SHORT[card.position] || card.position.slice(0, 3).toUpperCase()) : '';
   const lastSize = last.length > 9 ? Math.max(6, 92 / last.length) : 10.5;
   const firstSize = first.length > 22 ? Math.max(3, 100 / first.length) : 4.6;
+  const clubName = (club?.name || 'Basketball Club').replace(/^hoop method\s+/i, '') || 'Basketball Club';
+  const clubSize = clubName.length > 14 ? Math.max(2.6, 58 / clubName.length) : 4.2;
 
   return (
     <div className="relative w-full aspect-[5/7] select-none" style={{ containerType: 'inline-size' }}>
@@ -104,9 +108,9 @@ export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, p
 
           {/* club badge */}
           <div className="absolute flex items-center pointer-events-none" style={{ left: cq(6.5), top: cq(6.5), gap: cq(2) }}>
-            <img src="/hoop-method-logo.jpg" alt="" className="object-cover" style={{ width: cq(11), height: cq(11), borderRadius: '50%', border: `${cq(0.5)} solid #FFD45A`, boxShadow: `0 0 ${cq(2)} rgba(255,200,70,0.8)` }} />
-            <span className="font-hoop font-bold uppercase leading-none text-white" style={{ fontSize: cq(3.2), letterSpacing: cq(0.5), textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
-              Sunday<br /><span style={{ color: '#FFD45A', fontSize: cq(4.2) }}>Hoop Method</span>
+            <img src={club?.logo_url || '/hoop-ball.png'} alt="" className="object-cover bg-[#F6EFEC]" style={{ width: cq(11), height: cq(11), borderRadius: '50%', border: `${cq(0.5)} solid #FFD45A`, boxShadow: `0 0 ${cq(2)} rgba(255,200,70,0.8)` }} />
+            <span className="font-hoop font-bold uppercase leading-none text-white" style={{ fontSize: cq(3.2), letterSpacing: cq(0.5), textShadow: '0 1px 3px rgba(0,0,0,0.9)', maxWidth: cq(52) }}>
+              Hoop Method<br /><span className="block" style={{ color: '#FFD45A', fontSize: cq(clubSize), letterSpacing: cq(0.2), marginTop: cq(0.4) }}>{clubName}</span>
             </span>
           </div>
 
@@ -192,7 +196,7 @@ export async function saveCardImage(node: HTMLElement, fileName: string): Promis
   const file = new File([blob], fileName, { type: 'image/png' });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (nav.canShare?.({ files: [file] })) {
-    try { await nav.share({ files: [file], title: 'My Sunday Hoop Method card' }); return 'shared'; }
+    try { await nav.share({ files: [file], title: 'My Hoop Method card' }); return 'shared'; }
     catch (e: any) { if (e?.name === 'AbortError') return 'cancelled'; }
   }
   const a = document.createElement('a');

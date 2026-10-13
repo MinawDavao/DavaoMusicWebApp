@@ -98,7 +98,7 @@ export const HoopChat: React.FC<{ scheduleId: string; canChat: boolean; title?: 
   return (
     <section className="space-y-2.5">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="font-hoop italic font-black text-[22px] uppercase text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-[#F28C14]" />Team chat</h2>
+        <h2 className="font-hoop italic font-black text-[22px] uppercase text-white flex items-center gap-2"><MessageCircle className="w-5 h-5 text-[var(--hp)]" />Team chat</h2>
         {msgs && <span className="text-[11px] text-[#A8A29E]">{title || 'Booked players'}</span>}
       </div>
 
@@ -138,7 +138,7 @@ export const HoopChat: React.FC<{ scheduleId: string; canChat: boolean; title?: 
                     <button onClick={() => canDelete && setSel(sel === m.id ? null : m.id)}
                       className={`text-left whitespace-pre-wrap break-words ${canDelete ? 'cursor-pointer' : 'cursor-default'} ${onlyEmoji
                         ? 'text-[34px] leading-tight px-0.5'
-                        : `px-3 py-2 rounded-2xl text-[13px] leading-snug ${mine ? 'bg-[#F28C14] text-[#111] rounded-br-md' : 'bg-white/[0.08] text-white rounded-bl-md'}`}`}>
+                        : `px-3 py-2 rounded-2xl text-[13px] leading-snug ${mine ? 'bg-[var(--hp)] text-[#111] rounded-br-md' : 'bg-white/[0.08] text-white rounded-bl-md'}`}`}>
                       {m.body}
                     </button>
                     <span className="px-1 mt-0.5 flex items-center gap-2 text-[9px] text-[#78716C]">
@@ -164,11 +164,11 @@ export const HoopChat: React.FC<{ scheduleId: string; canChat: boolean; title?: 
           {err && <p className="px-3 pt-2 text-[11px] font-bold text-[#FF8A9C]">{err}</p>}
           <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-center gap-1.5 p-2 border-t border-white/10">
             <button type="button" onClick={() => setEmoji(!emoji)} aria-pressed={emoji} aria-label="Emojis"
-              className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center cursor-pointer ${emoji ? 'bg-[#F28C14] text-[#111]' : 'text-[#D6D3D1] hover:bg-white/10'}`}><Smile className="w-5 h-5" /></button>
+              className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center cursor-pointer ${emoji ? 'bg-[var(--hp)] text-[#111]' : 'text-[#D6D3D1] hover:bg-white/10'}`}><Smile className="w-5 h-5" /></button>
             <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value.slice(0, 500))} placeholder="Message the squad…" aria-label="Chat message"
-              className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-[#151515] border border-white/15 text-[14px] text-white placeholder:text-[#78716C] outline-none focus:border-[#F28C14]" />
+              className="flex-1 min-w-0 h-10 px-3.5 rounded-xl bg-[#151515] border border-white/15 text-[14px] text-white placeholder:text-[#78716C] outline-none focus:border-[var(--hp)]" />
             <button type="submit" disabled={busy || !text.trim()} aria-label="Send"
-              className="w-10 h-10 flex-shrink-0 rounded-xl bg-[#F28C14] text-[#111] flex items-center justify-center cursor-pointer disabled:opacity-40"><Send className="w-4 h-4" /></button>
+              className="w-10 h-10 flex-shrink-0 rounded-xl bg-[var(--hp)] text-[#111] flex items-center justify-center cursor-pointer disabled:opacity-40"><Send className="w-4 h-4" /></button>
           </form>
         </div>
       )}

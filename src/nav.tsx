@@ -14,9 +14,9 @@ export type Route =
   | { name: 'admin' }
   | { name: 'messages' }
   | { name: 'hoop' }
+  | { name: 'hoopClub'; club: string; tab?: 'games' | 'players' | 'me' | 'manage' }
   | { name: 'hoopGame'; id: string }
   | { name: 'hoopPlayer'; id?: string }
-  | { name: 'hoopPlayers' }
   | { name: 'chat'; id: string; listing?: string };
 
 export const NavContext = createContext<(r: Route) => void>(() => {});

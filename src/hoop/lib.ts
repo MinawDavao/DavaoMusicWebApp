@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, type CSSProperties } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../context/AuthContext';
 
 // ---------------------------------------------------------------- look & feel (from the Sunday Hoop Method logo)
 export const H = {
@@ -8,8 +7,8 @@ export const H = {
   surface: '#1A1A1A',
   card: '#222222',
   line: 'rgba(255,255,255,0.10)',
-  orange: '#F28C14',      // logo orange
-  ball: '#F26A2E',        // basketball orange
+  orange: 'var(--hp)',    // club colour (default: logo orange #F28C14)
+  ball: 'var(--ha)',      // club accent (default: basketball orange #F26A2E)
   gray: '#7A7A7A',        // logo "HOOP" gray
   cream: '#F6EFEC',       // paper background of the logo
   text: '#F4F1EE',
@@ -17,12 +16,12 @@ export const H = {
 };
 
 export const hbtn = {
-  primary: 'inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#F28C14] text-[#111] font-bold text-sm hover:bg-[#FF9C2A] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors',
+  primary: 'inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[var(--hp)] text-[#111] font-bold text-sm hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors',
   ghost: 'inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/[0.06] border border-white/15 text-[#F4F1EE] font-bold text-sm hover:bg-white/10 disabled:opacity-50 cursor-pointer transition-colors',
   danger: 'inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#E5484D] text-white font-bold text-sm hover:bg-[#D13C41] disabled:opacity-50 cursor-pointer',
   icon: 'inline-flex items-center justify-center w-9 h-9 rounded-xl bg-white/[0.06] border border-white/15 text-[#D6D3D1] hover:text-white hover:bg-white/10 cursor-pointer',
 };
-export const hinput = 'w-full min-h-[44px] px-3.5 rounded-xl bg-[#151515] border border-white/15 text-[14px] text-white placeholder:text-[#78716C] outline-none focus:border-[#F28C14]';
+export const hinput = 'w-full min-h-[44px] px-3.5 rounded-xl bg-[#151515] border border-white/15 text-[14px] text-white placeholder:text-[#78716C] outline-none focus:border-[var(--hp)]';
 
 // ---------------------------------------------------------------- data
 export interface HoopPerson { id: string; display_name: string; username: string; avatar_url: string | null; role: string; is_verified?: boolean }
@@ -33,24 +32,36 @@ export interface HoopGame {
   period: number; period_seconds: number; clock_running: boolean; clock_started_at: string | null; clock_elapsed_ms: number;
   started_at: string | null; ended_at: string | null; created_at: string; session_id: string | null; created_by: string | null; closed_at?: string | null; periods?: number;
 }
-/** A booking / team row. For a GUEST (not on the app) profile_id holds the guest's id and is_guest is true — see normPlayer. */
+/**
+ * A booking / team row. `profile_id` here is the PLAYER KEY: the club member id, or for a GUEST the guest id
+ * (see normPlayer). The real account id (if any) is `account_id`.
+ */
 export interface GamePlayer {
   game_id: string; profile_id: string; team: 'A' | 'B' | null; booked_at: string; paid?: boolean; paid_at?: string | null;
   arrived_at?: string | null; guest_id?: string | null; guest_name?: string | null; is_guest?: boolean; profiles?: HoopPerson | null;
+  member_id?: string | null; account_id?: string | null; jersey?: number | null; face?: { url: string; crop: any } | null;
 }
 export type Kind = 'p1' | 'p2' | 'p3' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'foul';
-export interface HoopEvent { id: string; game_id: string; profile_id: string; guest_id?: string | null; team: 'A' | 'B'; kind: Kind; period: number; created_at: string }
+export interface HoopEvent { id: string; game_id: string; profile_id: string; account_id?: string | null; member_id?: string | null; guest_id?: string | null; team: 'A' | 'B'; kind: Kind; period: number; created_at: string }
 export interface HoopStats {
-  profile_id: string; games: number; wins: number; losses: number;
+  member_id: string; games: number; wins: number; losses: number;
   pts: number; threes: number; reb: number; ast: number; stl: number; blk: number; tov: number; fouls: number;
   ppg: number; rpg: number; apg: number; spg: number; bpg: number; tpg: number; topg: number; fpg: number; best_pts: number;
 }
 
-/** Guests have no account: use their guest id in place of profile_id so every list / key works the same. */
-export const normPlayer = (r: any): GamePlayer => (r?.guest_id
-  ? { ...r, profile_id: r.guest_id, is_guest: true, profiles: { id: r.guest_id, display_name: r.guest_name || 'Guest', username: '', avatar_url: null, role: 'guest' } }
-  : r);
-export const normEvent = (e: any): HoopEvent => (e?.guest_id ? { ...e, profile_id: e.guest_id } : e);
+/** Columns for a booking row with the player's account and club card. */
+export const GP_COLS = `*, profiles!hoop_game_players_profile_id_fkey(${'id, display_name, username, avatar_url, role, is_verified'}), member:hoop_members!hoop_game_players_member_id_fkey(id, name, photo_url, jersey_number, card_photo_url, card_photo_crop)`;
+/** Every booking is keyed by the club member id (guests: their guest id), so lists / keys work the same for everyone. */
+export const normPlayer = (r: any): GamePlayer => {
+  if (r?.guest_id) return { ...r, account_id: null, profile_id: r.guest_id, is_guest: true, profiles: { id: r.guest_id, display_name: r.guest_name || 'Guest', username: '', avatar_url: null, role: 'guest' } };
+  const m = r?.member;
+  return {
+    ...r, account_id: r?.profile_id ?? null, profile_id: r?.member_id || r?.profile_id,
+    profiles: r?.profiles || { id: r?.member_id, display_name: m?.name || 'Player', username: '', avatar_url: m?.photo_url ?? null, role: 'offline' },
+    jersey: m?.jersey_number ?? null, face: m?.card_photo_url ? { url: m.card_photo_url, crop: m.card_photo_crop } : null,
+  };
+};
+export const normEvent = (e: any): HoopEvent => ({ ...e, account_id: e?.profile_id ?? null, profile_id: e?.member_id || e?.guest_id || e?.profile_id });
 /** First come, first play: players who arrived (in arrival order), then everyone else in booking order. */
 export const byArrival = (a: Pick<GamePlayer, 'arrived_at' | 'booked_at'>, b: Pick<GamePlayer, 'arrived_at' | 'booked_at'>) =>
   (a.arrived_at ? 0 : 1) - (b.arrived_at ? 0 : 1)
@@ -130,31 +141,73 @@ export function useTick(active: boolean) {
 export const gameDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 export const gameTime = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
-export async function fetchStats(ids: string[]): Promise<Record<string, HoopStats>> {
-  if (!ids.length) return {};
-  const { data } = await supabase.from('hoop_player_stats').select('*').in('profile_id', ids);
+/** Career stats per club card (member id). */
+export async function fetchStats(memberIds: string[]): Promise<Record<string, HoopStats>> {
+  if (!memberIds.length) return {};
+  const { data } = await supabase.from('hoop_member_stats').select('*').in('member_id', memberIds);
   const out: Record<string, HoopStats> = {};
-  ((data as HoopStats[]) || []).forEach((s) => { out[s.profile_id] = s; });
+  ((data as HoopStats[]) || []).forEach((s) => { out[s.member_id] = s; });
   return out;
 }
 
 export const fmt1 = (n: number | null | undefined) => (n == null ? '0.0' : Number(n).toFixed(1));
 
-// ---------------------------------------------------------------- Hoop admins
-/** True for the main admin (moderators) and for members the main admin made Hoop admins. Updates live. */
-export function useHoopAdmin(): boolean {
-  const { user, isModerator } = useAuth();
-  const [hoop, setHoop] = useState(false);
-  useEffect(() => {
-    if (!user || isModerator) { setHoop(false); return; }
-    let alive = true;
-    const check = () => supabase.from('hoop_admins').select('profile_id').eq('profile_id', user.id).maybeSingle()
-      .then(({ data }) => { if (alive) setHoop(!!data); });
-    check();
-    const ch = supabase.channel(`hoop-admin-${user.id}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_admins' }, () => check())
-      .subscribe();
-    return () => { alive = false; supabase.removeChannel(ch); };
-  }, [user?.id, isModerator]); // eslint-disable-line react-hooks/exhaustive-deps
-  return isModerator || hoop;
+// ---------------------------------------------------------------- clubs
+export interface HoopClub {
+  id: string; name: string; tagline: string | null; description: string | null; rules: string | null; location: string | null;
+  logo_url: string | null; cover_url: string | null; theme: { primary?: string; accent?: string } | null; owner_id: string | null;
+  is_hidden: boolean; created_at: string;
 }
+/** One player card per club. Offline players (no account) have no profile_id and use name / photo_url. */
+export interface HoopMember {
+  id: string; club_id: string; profile_id: string | null; name: string | null; photo_url: string | null;
+  jersey_number: number | null; position: string | null; height: string | null; card_photo_url: string | null; card_photo_crop: any;
+  status: 'pending' | 'active' | 'suspended'; note: string | null; created_at: string; approved_at: string | null;
+  profiles?: (HoopPerson & { is_suspended?: boolean }) | null;
+}
+export const MEMBER_COLS = `*, profiles!hoop_members_profile_id_fkey(${PERSON}, is_suspended)`;
+/** The face / name shown for a member: their account, or (offline players) the name + photo the admin entered. */
+export const personOf = (m: Pick<HoopMember, 'id' | 'name' | 'photo_url' | 'profiles'>): HoopPerson =>
+  m.profiles || { id: m.id, display_name: m.name || 'Player', username: '', avatar_url: m.photo_url, role: 'offline' };
+
+export const THEMES: { name: string; primary: string; accent: string }[] = [
+  { name: 'Hoop Orange', primary: '#F28C14', accent: '#F26A2E' },
+  { name: 'Gold', primary: '#F5C542', accent: '#E8A317' },
+  { name: 'Lime', primary: '#9BE15D', accent: '#4CC38A' },
+  { name: 'Teal', primary: '#3DDBD9', accent: '#1FB5C7' },
+  { name: 'Sky', primary: '#5AB8FF', accent: '#3D7DFF' },
+  { name: 'Violet', primary: '#B894FF', accent: '#8E6BFF' },
+  { name: 'Pink', primary: '#FF7EB6', accent: '#FF4F8B' },
+  { name: 'Red', primary: '#FF6B5B', accent: '#E5484D' },
+  { name: 'Silver', primary: '#D9DEE5', accent: '#9BA6B2' },
+];
+const HEX = /^#[0-9a-f]{6}$/i;
+/** Dark text sits on the club colour, so very dark custom colours are lightened until they're readable. */
+function readable(hex: string) {
+  if (!HEX.test(hex)) return null;
+  let [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const lum = () => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  for (let i = 0; i < 12 && lum() < 0.5; i++) { r = r + (255 - r) * 0.18; g = g + (255 - g) * 0.18; b = b + (255 - b) * 0.18; }
+  return '#' + [r, g, b].map((x) => Math.round(x).toString(16).padStart(2, '0')).join('');
+}
+export const themeVars = (t?: HoopClub['theme'] | null) => ({
+  '--hp': readable(t?.primary || '') || '#F28C14',
+  '--ha': readable(t?.accent || '') || '#F26A2E',
+}) as CSSProperties;
+
+/** The club the screen is about (null on the clubs list), with what the viewer may do there. */
+export interface ClubCtx {
+  club: HoopClub | null; isAdmin: boolean; isOwner: boolean; me: HoopMember | null; reload: () => void;
+}
+export const ClubContext = createContext<ClubCtx>({ club: null, isAdmin: false, isOwner: false, me: null, reload: () => {} });
+export const useClub = () => useContext(ClubContext);
+
+/** Club rules are stored one per line: "Title — text" (the title part is optional). */
+export const parseRules = (rules: string | null | undefined): [string, string][] =>
+  (rules || '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+    const m = l.match(/^(.{2,60}?)\s+[—–-]\s+(.+)$/);
+    return m ? [m[1], m[2]] : ['', l];
+  });
+
+/** True for the club's owner / admins and the main admin (inside a club screen). */
+export const useHoopAdmin = (): boolean => useClub().isAdmin;

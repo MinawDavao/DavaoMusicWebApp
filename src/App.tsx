@@ -40,7 +40,8 @@ function parseHash(): Route {
     case 'welcome': return { name: 'onboarding' };
     case 'admin': return { name: 'admin' };
     case 'messages': return b ? { name: 'chat', id: b, listing: c === 'deal' && d ? d : undefined } : { name: 'messages' };
-    case 'hoop': return b === 'game' && c ? { name: 'hoopGame', id: c } : b === 'player' ? { name: 'hoopPlayer', id: c || undefined } : b === 'me' ? { name: 'hoopPlayer' } : b === 'players' ? { name: 'hoopPlayers' } : { name: 'hoop' };
+    case 'hoop': return b === 'c' && c ? { name: 'hoopClub', club: c, tab: (['games', 'players', 'me', 'manage'] as const).find((t) => t === d) }
+      : b === 'game' && c ? { name: 'hoopGame', id: c } : b === 'player' ? { name: 'hoopPlayer', id: c || undefined } : b === 'me' ? { name: 'hoopPlayer' } : { name: 'hoop' };
     case 'home': return b === 'admin' ? { name: 'admin' } : { name: 'home' };
     default: return { name: 'home' };
   }
@@ -56,8 +57,8 @@ function toHash(r: Route): string {
     case 'admin': return '#/home/admin';
     case 'hoop': return '#/hoop';
     case 'hoopGame': return `#/hoop/game/${r.id}`;
+    case 'hoopClub': return `#/hoop/c/${r.club}${r.tab && r.tab !== 'games' ? `/${r.tab}` : ''}`;
     case 'hoopPlayer': return r.id ? `#/hoop/player/${r.id}` : '#/hoop/me';
-    case 'hoopPlayers': return '#/hoop/players';
     case 'chat': return r.listing ? `#/messages/${r.id}/deal/${r.listing}` : `#/messages/${r.id}`;
     default: return `#/${r.name}`;
   }
@@ -125,7 +126,7 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </button>
           ) : (
             <div className="relative flex items-center gap-2" ref={ref}>
-              {profile?.role === 'fan' && <button onClick={() => go({ name: 'hoop' })} aria-label="Sunday Hoop Method basketball club" title="Hoop Method"
+              {profile?.role === 'fan' && <button onClick={() => go({ name: 'hoop' })} aria-label="Hoop Method basketball clubs" title="Hoop Method"
                 className="w-[38px] h-[38px] rounded-full bg-[#F28C14]/12 border border-[#F28C14]/45 text-[#F28C14] hover:bg-[#F28C14]/25 flex items-center justify-center cursor-pointer">
                 <BallIcon />
               </button>}
