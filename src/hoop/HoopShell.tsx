@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, IdCard, LayoutGrid, LogIn, Music, Settings, Trophy } from 'lucide-react';
+import { CalendarDays, IdCard, LayoutGrid, LogIn, MessageCircle, Music, Settings, Trophy } from 'lucide-react';
 import type { Route } from '../nav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ import { HoopGames } from './HoopGames';
 import { HoopGameScreen } from './HoopGame';
 import { HoopPlayerScreen, HoopPlayers, MyClubCard } from './HoopPlayer';
 import { HoopManage } from './HoopManage';
+import { HoopChat, chatSeenKey } from './HoopChat';
 
 /** Basketball outline icon (header button). */
 export const BallIcon: React.FC<{ className?: string }> = ({ className = 'w-[18px] h-[18px]' }) => (
@@ -93,6 +94,27 @@ function useClubData(clubId: string | null): ClubCtx & { loading: boolean } {
   };
 }
 
+/** True when the club chat has a message newer than what this phone last read (and not from me). */
+function useChatUnread(clubId: string | null, canChat: boolean, myId?: string) {
+  const [latest, setLatest] = useState<string | null>(null);
+  const [seen, setSeen] = useState<string>('');
+  useEffect(() => {
+    if (!clubId || !canChat) { setLatest(null); return; }
+    const readSeen = () => { try { setSeen(localStorage.getItem(chatSeenKey(clubId)) || ''); } catch { setSeen(''); } };
+    readSeen();
+    supabase.from('hoop_club_chat').select('created_at, author_id').eq('club_id', clubId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }) => setLatest(data && (data as any).author_id !== myId ? (data as any).created_at : null));
+    const ch = supabase.channel(`hoop-chat-dot-${clubId}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hoop_club_chat', filter: `club_id=eq.${clubId}` }, (p: any) => {
+        if (p.new?.author_id !== myId) setLatest(p.new?.created_at ?? null);
+      })
+      .subscribe();
+    window.addEventListener('hoop-chat-seen', readSeen);
+    return () => { supabase.removeChannel(ch); window.removeEventListener('hoop-chat-seen', readSeen); };
+  }, [clubId, canChat, myId]);
+  return !!latest && latest > seen;
+}
+
 /** Basketball mode: its own look (each club's colours), header and bottom menu. */
 export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
   const { user, profile, loading, isModerator } = useAuth();
@@ -100,6 +122,8 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
   const clubId = res?.club ?? null;
   const ctx = useClubData(clubId);
   const club = ctx.club;
+  const canChat = ctx.isAdmin || ctx.me?.status === 'active';
+  const unread = useChatUnread(club && route.name !== 'hoop' ? club.id : null, canChat, user?.id);
 
   let screen: React.ReactNode;
   if (loading) screen = <Spinner label="Warming up…" />;
@@ -137,6 +161,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
     case 'hoopPlayer': screen = <HoopPlayerScreen key={res.member || 'none'} id={res.member!} />; break;
     case 'hoopClub':
       screen = route.tab === 'players' ? <HoopPlayers key={club!.id} />
+        : route.tab === 'chat' ? <div className="px-3 py-4"><HoopChat key={club!.id} clubId={club!.id} canChat={canChat} title={club!.name} /></div>
         : route.tab === 'me' ? <MyClubCard key={club!.id} />
         : route.tab === 'manage' && ctx.isAdmin ? <HoopManage key={club!.id} />
         : <HoopGames key={club!.id} />;
@@ -150,6 +175,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
   const tabs: { key: string; label: string; Icon: React.ElementType }[] = [
     { key: 'games', label: 'Games', Icon: CalendarDays },
     { key: 'players', label: 'Players', Icon: Trophy },
+    { key: 'chat', label: 'Chat', Icon: MessageCircle },
     { key: 'me', label: 'My Card', Icon: IdCard },
     ...(ctx.isAdmin ? [{ key: 'manage', label: 'Manage', Icon: Settings }] : []),
   ];
@@ -204,7 +230,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
                   const on = tab === key;
                   return (
                     <button key={key} onClick={() => go({ name: 'hoopClub', club: club!.id, tab: key as any })} className={`flex-1 py-1.5 rounded-xl text-[10px] font-bold flex flex-col items-center gap-1 cursor-pointer ${on ? 'bg-[var(--hp)] text-[#111]' : 'text-[#A8A29E] hover:text-white'}`}>
-                      <Icon className="w-4 h-4" />{label}
+                      <span className="relative"><Icon className="w-4 h-4" />{key === 'chat' && unread && !on && <span className="absolute -top-1 -right-1.5 w-2.5 h-2.5 rounded-full bg-[#FF4D5E] border-2 border-[#1A1A1A]" aria-label="New messages" />}</span>{label}
                     </button>
                   );
                 })}

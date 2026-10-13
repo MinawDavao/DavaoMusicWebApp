@@ -40,7 +40,7 @@ function parseHash(): Route {
     case 'welcome': return { name: 'onboarding' };
     case 'admin': return { name: 'admin' };
     case 'messages': return b ? { name: 'chat', id: b, listing: c === 'deal' && d ? d : undefined } : { name: 'messages' };
-    case 'hoop': return b === 'c' && c ? { name: 'hoopClub', club: c, tab: (['games', 'players', 'me', 'manage'] as const).find((t) => t === d) }
+    case 'hoop': return b === 'c' && c ? { name: 'hoopClub', club: c, tab: (['games', 'players', 'chat', 'me', 'manage'] as const).find((t) => t === d) }
       : b === 'game' && c ? { name: 'hoopGame', id: c } : b === 'player' ? { name: 'hoopPlayer', id: c || undefined } : b === 'me' ? { name: 'hoopPlayer' } : { name: 'hoop' };
     case 'home': return b === 'admin' ? { name: 'admin' } : { name: 'home' };
     default: return { name: 'home' };

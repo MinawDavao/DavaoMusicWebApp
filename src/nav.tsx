@@ -14,7 +14,7 @@ export type Route =
   | { name: 'admin' }
   | { name: 'messages' }
   | { name: 'hoop' }
-  | { name: 'hoopClub'; club: string; tab?: 'games' | 'players' | 'me' | 'manage' }
+  | { name: 'hoopClub'; club: string; tab?: 'games' | 'players' | 'chat' | 'me' | 'manage' }
   | { name: 'hoopGame'; id: string }
   | { name: 'hoopPlayer'; id?: string }
   | { name: 'chat'; id: string; listing?: string };

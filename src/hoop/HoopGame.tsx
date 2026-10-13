@@ -13,7 +13,6 @@ import {
 } from './lib';
 import { MemberPicker } from './HoopPlayer';
 import { GameForm } from './HoopGames';
-import { HoopChat } from './HoopChat';
 import { HoopFace } from './HoopFace';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { MessageButton } from '../screens/MessagesScreen';
@@ -931,8 +930,6 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         </section>
       )}
 
-      {/* GROUP CHAT for everyone booked on this schedule */}
-      {game.status !== 'cancelled' && <HoopChat scheduleId={sessionId} canChat={isModerator || mine} title={`${bookings.filter((b) => !b.is_guest).length} players`} />}
 
       {editing && <GameForm game={game} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
     </div>
