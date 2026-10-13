@@ -177,6 +177,28 @@ export const HoopManage: React.FC = () => {
       </div>
       <ErrorNote text={err} />
 
+      {/* ADMINS */}
+      <Section icon={ShieldCheck} title="Club admins" sub="Assign a backup admin so games can still run when you’re not around. They can schedule games, pick teams, mark payments, run live scores, approve players and edit this page.">
+        {addAdmin
+          ? <AccountPicker autoFocus roles={['fan']} exclude={admins.map((a) => a.profile_id)} onPick={(p) => addAdminFn(p.id)} onCancel={() => setAddAdmin(false)} />
+          : <button onClick={() => (isOwner ? setAddAdmin(true) : setErr('Only the club owner can assign admins. Message the owner if you need another admin.'))} disabled={busy} className={`${hbtn.primary} w-full !py-3 !text-base`}><ShieldCheck className="w-5 h-5" />Assign admin</button>}
+        <p className="text-[10px] text-[#78716C]">Search their name — they need a MINAW DAVAO Fan account. Assigned admins can do everything you do here, except add/remove admins, delete played games or delete the club.</p>
+        <div className="space-y-1.5">
+          {admins.map((a) => (
+            <div key={a.profile_id} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.03] border border-white/10">
+              <Avatar src={a.profiles?.avatar_url} name={a.profiles?.display_name} size={34} />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[13px] font-bold text-white truncate">{a.profiles?.display_name || 'Member'}</span>
+                <span className="block text-[11px] text-[#A8A29E] truncate">@{a.profiles?.username}</span>
+              </span>
+              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black ${a.role === 'owner' ? 'bg-[var(--hp)] text-[#111]' : 'bg-[var(--hp)]/15 text-[var(--hp)] border border-[var(--hp)]/40'}`}>{a.role === 'owner' && <Crown className="w-3 h-3" />}{a.role.toUpperCase()}</span>
+              {isOwner && a.role !== 'owner' && <button onClick={() => removeAdmin(a)} disabled={busy} aria-label={`Remove ${a.profiles?.display_name}`} className="w-8 h-8 rounded-lg text-[#A8A29E] hover:text-[#FF6B7A] flex items-center justify-center cursor-pointer"><Trash2 className="w-4 h-4" /></button>}
+            </div>
+          ))}
+        </div>
+
+      </Section>
+
       {/* JOIN REQUESTS */}
       <Section icon={UserPlus} title={`Join requests${pending.length ? ` (${pending.length})` : ''}`} sub="New players send their card here. Approve to make their card and let them book games.">
         {pending.length === 0
@@ -265,26 +287,6 @@ export const HoopManage: React.FC = () => {
             ))}
           </div>
         )}
-      </Section>
-
-      {/* ADMINS */}
-      <Section icon={ShieldCheck} title="Club admins" sub="Admins can run games (schedule, teams, payments, live scores), approve and suspend players, and edit this page. Only the owner adds or removes admins.">
-        <div className="space-y-1.5">
-          {admins.map((a) => (
-            <div key={a.profile_id} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.03] border border-white/10">
-              <Avatar src={a.profiles?.avatar_url} name={a.profiles?.display_name} size={34} />
-              <span className="flex-1 min-w-0">
-                <span className="block text-[13px] font-bold text-white truncate">{a.profiles?.display_name || 'Member'}</span>
-                <span className="block text-[11px] text-[#A8A29E] truncate">@{a.profiles?.username}</span>
-              </span>
-              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black ${a.role === 'owner' ? 'bg-[var(--hp)] text-[#111]' : 'bg-[var(--hp)]/15 text-[var(--hp)] border border-[var(--hp)]/40'}`}>{a.role === 'owner' && <Crown className="w-3 h-3" />}{a.role.toUpperCase()}</span>
-              {isOwner && a.role !== 'owner' && <button onClick={() => removeAdmin(a)} disabled={busy} aria-label={`Remove ${a.profiles?.display_name}`} className="w-8 h-8 rounded-lg text-[#A8A29E] hover:text-[#FF6B7A] flex items-center justify-center cursor-pointer"><Trash2 className="w-4 h-4" /></button>}
-            </div>
-          ))}
-        </div>
-        {isOwner && (addAdmin
-          ? <AccountPicker autoFocus roles={['fan']} exclude={admins.map((a) => a.profile_id)} onPick={(p) => addAdminFn(p.id)} onCancel={() => setAddAdmin(false)} />
-          : <button onClick={() => setAddAdmin(true)} disabled={busy} className={`${hbtn.ghost} w-full`}><UserPlus className="w-4 h-4" />Add a club admin</button>)}
       </Section>
 
       {/* DANGER ZONE */}
