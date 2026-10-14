@@ -12,7 +12,7 @@ import { MentionText } from './Mentions';
 type NType =
   | 'comment' | 'mention_post' | 'mention_comment' | 'reaction' | 'follow' | 'band_follow'
   | 'review_pending' | 'review_approved' | 'rsvp' | 'playlist_like' | 'playlist_copy' | 'venue_tag'
-  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin' | 'hoop_props' | 'hoop_props_approved' | 'hoop_join_request' | 'hoop_join_approved';
+  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin' | 'hoop_props' | 'hoop_props_approved' | 'hoop_join_request' | 'hoop_join_approved' | 'hoop_club_admin' | 'hoop_club_creator';
 
 interface Notif {
   id: string; type: NType; actor_id: string | null; post_id: string | null; band_id: string | null;
@@ -40,6 +40,8 @@ const META: Record<NType, { Icon: React.ElementType; color: string; text: (n: No
   hoop_props:      { Icon: Star, color: '#F28C14', text: () => 'gave you props on Hoop Method — tap to approve', quote: true },
   hoop_props_approved: { Icon: Star, color: '#F28C14', text: () => 'approved your Hoop Method props' },
   hoop_join_request: { Icon: UserPlus, color: '#F28C14', text: (n) => `wants to join ${n.snippet || 'your club'} — tap to approve their player card` },
+  hoop_club_admin: { Icon: ShieldCheck, color: '#F28C14', text: (n) => `made you an admin of ${n.snippet || 'their club'} — you can run games and approve players` },
+  hoop_club_creator: { Icon: Star, color: '#F28C14', text: () => 'allowed you to create your own basketball club on Hoop Method' },
   hoop_join_approved: { Icon: ShieldCheck, color: '#F28C14', text: (n) => `approved your player card for ${n.snippet || 'the club'} — you can book games now` },
   band_admin:      { Icon: ShieldCheck, color: '#53E6D4', text: (n) => `made you an admin of ${n.snippet ? `“${n.snippet}”` : 'their band page'} — you can now edit it from your account` },
 };
@@ -61,6 +63,10 @@ function routeFor(n: Notif, myId: string): Route {
       return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'manage' } : { name: 'hoop' };
     case 'hoop_join_approved':
       return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'me' } : { name: 'hoop' };
+    case 'hoop_club_admin':
+      return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'manage' } : { name: 'hoop' };
+    case 'hoop_club_creator':
+      return { name: 'hoop' };
     case 'review_pending':
       return n.band_id ? { name: 'band', id: n.band_id } : { name: 'profile', id: myId };
     case 'review_approved':
@@ -72,8 +78,13 @@ function routeFor(n: Notif, myId: string): Route {
   }
 }
 
-/** Bell with an unread badge; opens a panel with your latest notifications. Updates live. */
-export const NotificationBell: React.FC = () => {
+const isHoop = (t?: string | null) => !!t && t.startsWith('hoop_');
+
+/**
+ * Bell with an unread badge; opens a panel with your latest notifications. Updates live.
+ * `hoop`: the Hoop Method bell — only basketball notifications, in the club's colours.
+ */
+export const NotificationBell: React.FC<{ hoop?: boolean }> = ({ hoop = false }) => {
   const go = useNav();
   const { user, refresh } = useAuth();
   const uid = user?.id;
@@ -85,15 +96,19 @@ export const NotificationBell: React.FC = () => {
 
   const countUnread = useCallback(async () => {
     if (!uid) return;
-    const { count } = await supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', uid).is('read_at', null);
+    let q = supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', uid).is('read_at', null);
+    if (hoop) q = q.like('type', 'hoop%');
+    const { count } = await q;
     setUnread(count || 0);
-  }, [uid]);
+  }, [uid, hoop]);
 
   const loadList = useCallback(async () => {
     if (!uid) return;
-    const { data } = await supabase.from('notifications')
+    let q = supabase.from('notifications')
       .select('*, actor:profiles!notifications_actor_id_fkey(id, display_name, avatar_url, role)')
-      .eq('user_id', uid).order('created_at', { ascending: false }).limit(40);
+      .eq('user_id', uid);
+    if (hoop) q = q.like('type', 'hoop%');
+    const { data } = await q.order('created_at', { ascending: false }).limit(40);
     const rows = (data as Notif[]) || [];
     setList(rows);
     const fresh = rows.filter((n) => !n.read_at).map((n) => n.id);
@@ -103,7 +118,7 @@ export const NotificationBell: React.FC = () => {
       await supabase.from('notifications').update({ read_at: new Date().toISOString() }).in('id', fresh);
       countUnread();
     }
-  }, [uid, countUnread]);
+  }, [uid, hoop, countUnread]);
 
   // badge: on login, every minute, when the tab comes back, and instantly via realtime
   useEffect(() => {
@@ -113,12 +128,12 @@ export const NotificationBell: React.FC = () => {
     const onFocus = () => countUnread();
     window.addEventListener('focus', onFocus);
     const ch = supabase.channel(`notifications-${uid}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` }, () => {
-        setUnread((u) => u + 1);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${uid}` }, (p: any) => {
+        if (!hoop || isHoop(p.new?.type)) setUnread((u) => u + 1);
       })
       .subscribe();
     return () => { clearInterval(t); window.removeEventListener('focus', onFocus); supabase.removeChannel(ch); };
-  }, [uid, countUnread]);
+  }, [uid, hoop, countUnread]);
 
   useEffect(() => { if (open) loadList(); }, [open, loadList]);
 
@@ -131,8 +146,10 @@ export const NotificationBell: React.FC = () => {
   }, []);
 
   const clearAll = async () => {
-    if (!uid || !confirm('Clear all notifications?')) return;
-    await supabase.from('notifications').delete().eq('user_id', uid);
+    if (!uid || !confirm(hoop ? 'Clear all Hoop Method notifications?' : 'Clear all notifications?')) return;
+    let q = supabase.from('notifications').delete().eq('user_id', uid);
+    if (hoop) q = q.like('type', 'hoop%');
+    await q;
     setList([]); setUnread(0);
   };
 
@@ -145,20 +162,22 @@ export const NotificationBell: React.FC = () => {
         aria-label={unread ? `Notifications, ${unread} new` : 'Notifications'}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="relative w-[38px] h-[38px] rounded-full bg-[#161B20] border border-white/15 flex items-center justify-center text-[#EBEBED] hover:text-white cursor-pointer"
+        className={hoop
+          ? 'relative w-9 h-9 rounded-full bg-white/[0.06] border border-white/15 flex items-center justify-center text-[#E7E5E4] hover:text-white cursor-pointer'
+          : 'relative w-[38px] h-[38px] rounded-full bg-[#161B20] border border-white/15 flex items-center justify-center text-[#EBEBED] hover:text-white cursor-pointer'}
       >
         <Bell className="w-[18px] h-[18px]" />
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FF4D6A] text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#0F1417]">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FF4D6A] text-white text-[10px] font-bold flex items-center justify-center border-2 ${hoop ? 'border-[#111]' : 'border-[#0F1417]'}">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div role="dialog" aria-label="Notifications" className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-[64px] sm:top-12 sm:w-[360px] z-50 rounded-2xl bg-[#161B20] border border-white/15 shadow-2xl overflow-hidden">
+        <div role="dialog" aria-label={hoop ? 'Hoop Method notifications' : 'Notifications'} className={`fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-[64px] sm:top-12 sm:w-[360px] z-50 rounded-2xl border border-white/15 shadow-2xl overflow-hidden ${hoop ? 'bg-[#1A1A1A]' : 'bg-[#161B20]'}`}>
           <div className="flex items-center justify-between px-3.5 py-3 border-b border-white/[0.08]">
-            <p className="font-heading font-bold text-[15px] text-white">Notifications</p>
+            <p className={hoop ? 'font-hoop italic font-black text-[18px] uppercase text-white' : 'font-heading font-bold text-[15px] text-white'}>{hoop ? 'Hoop notifications' : 'Notifications'}</p>
             {list && list.length > 0 && (
               <button onClick={clearAll} className="flex items-center gap-1 text-[11px] font-bold text-[#8E9AA7] hover:text-white cursor-pointer"><Trash2 className="w-3.5 h-3.5" />Clear all</button>
             )}
@@ -166,9 +185,9 @@ export const NotificationBell: React.FC = () => {
           <div className="max-h-[65vh] overflow-y-auto">
             {list === null ? <Spinner /> : list.length === 0 ? (
               <div className="px-5 py-10 text-center space-y-1.5">
-                <CheckCheck className="w-7 h-7 mx-auto text-[#53E6D4]" />
+                <CheckCheck className={`w-7 h-7 mx-auto ${hoop ? 'text-[var(--hp)]' : 'text-[#53E6D4]'}`} />
                 <p className="text-[13px] font-bold text-white">You’re all caught up</p>
-                <p className="text-[11px] text-[#8E9AA7]">Comments, tags, follows, likes and testimonials will show up here.</p>
+                <p className="text-[11px] text-[#8E9AA7]">{hoop ? 'Join requests, approvals, admin invites and props will show up here.' : 'Comments, tags, follows, likes and testimonials will show up here.'}</p>
               </div>
             ) : list.map((n) => {
               const m = META[n.type] ?? META.follow;
@@ -177,11 +196,11 @@ export const NotificationBell: React.FC = () => {
                 <button
                   key={n.id}
                   onClick={() => { setOpen(false); if (n.type === 'band_admin') refresh(); go(routeFor(n, uid)); }}
-                  className={`w-full flex gap-3 px-3.5 py-3 text-left border-b border-white/[0.05] cursor-pointer hover:bg-white/5 ${newIds.has(n.id) ? 'bg-[#6045F4]/10' : ''}`}
+                  className={`w-full flex gap-3 px-3.5 py-3 text-left border-b border-white/[0.05] cursor-pointer hover:bg-white/5 ${newIds.has(n.id) ? (hoop ? 'bg-[var(--hp)]/10' : 'bg-[#6045F4]/10') : ''}`}
                 >
                   <span className="relative flex-shrink-0">
                     <Avatar src={n.actor?.avatar_url} name={name} size={40} square={roleMeta(n.actor?.role).square} />
-                    <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#161B20]" style={{ background: m.color }}>
+                    <span className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 ${hoop ? 'border-[#1A1A1A]' : 'border-[#161B20]'}`} style={{ background: m.color }}>
                       <m.Icon className="w-2.5 h-2.5 text-[#0F1417]" strokeWidth={3} />
                     </span>
                   </span>
@@ -190,7 +209,7 @@ export const NotificationBell: React.FC = () => {
                     {m.quote && n.snippet && <span className="block mt-0.5 text-[11px] text-[#8E9AA7] truncate">“<MentionText plain text={n.snippet} className="!whitespace-nowrap" />”</span>}
                     <span className="block mt-0.5 text-[10px] text-[#8E9AA7]">{timeAgo(n.created_at)}</span>
                   </span>
-                  {newIds.has(n.id) && <span className="w-2 h-2 mt-1.5 rounded-full bg-[#53E6D4] flex-shrink-0" aria-label="New" />}
+                  {newIds.has(n.id) && <span className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${hoop ? 'bg-[var(--hp)]' : 'bg-[#53E6D4]'}`} aria-label="New" />}
                 </button>
               );
             })}

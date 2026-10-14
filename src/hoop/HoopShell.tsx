@@ -11,6 +11,7 @@ import { HoopGameScreen } from './HoopGame';
 import { HoopPlayerScreen, HoopPlayers, MyClubCard } from './HoopPlayer';
 import { HoopManage } from './HoopManage';
 import { HoopChat, chatSeenKey } from './HoopChat';
+import { NotificationBell } from '../components/Notifications';
 
 /** Basketball outline icon (header button). */
 export const BallIcon: React.FC<{ className?: string }> = ({ className = 'w-[18px] h-[18px]' }) => (
@@ -218,6 +219,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
                     <LayoutGrid className="w-4 h-4" />
                   </button>
                 )}
+                <NotificationBell hoop />
                 <button onClick={() => go({ name: 'home' })} className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-white/[0.06] border border-white/15 text-[12px] font-bold text-[#E7E5E4] hover:text-white cursor-pointer" aria-label="Back to MINAW DAVAO music">
                   <Music className="w-3.5 h-3.5 text-[#53E6D4]" />MINAW
                 </button>
