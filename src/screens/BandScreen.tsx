@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { confirmDelete } from '../components/ConfirmDelete';
 import {
   ArrowLeft, BadgeCheck, Calendar, Camera, Check, ChevronRight, Disc3, Flag, Globe, Headphones, Mail, MapPin, Music, Pencil, Phone, Play,
-  MessageCircle, Plus, ShieldCheck, Star, Trash2, UserMinus, UserPlus, Users, X,
+  MessageCircle, Plus, ShieldCheck, Star, Trash2, UserMinus, UserPlus, Users, X, Youtube,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { checkFile, errorMessage, timeAgo, toHandle, uploadImage, type Band, type Gig, type Track, removeImageByUrl, roleMeta } from '../lib/db';
@@ -25,6 +25,8 @@ import { PlaylistModal } from '../components/PlaylistModal';
 import { ConnectFeed } from './ConnectScreen';
 import { ReportModal } from '../components/ReportModal';
 import { MAX_TRACKS, TrackUploadForm } from '../components/TrackUpload';
+import { YouTubeCard } from '../components/YouTubeCard';
+import { parseYouTube, youTubeLink } from '../lib/youtube';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, Modal, Panel, Spinner, btn, inputCls } from '../components/ui';
 
 /** A link typed by a band ("open.spotify.com/…") made safe and clickable: https only. */
@@ -213,6 +215,13 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
           </div>
         </div>
       </div>
+
+      {/* FEATURED VIDEO (tap to play) */}
+      {band.video_id && (
+        <Panel tone="gallery" icon={Youtube} title="Featured Video">
+          <YouTubeCard id={band.video_id} start={band.video_start} title={`${band.name} video`} />
+        </Panel>
+      )}
       <ErrorNote text={err} />
       {myBlock && <BlockedBanner block={myBlock} name={band.name} onChange={() => { reloadBlock(); load(); }} />}
       {myAdminRow && !isOwner && (
@@ -368,7 +377,9 @@ const EditBandModal: React.FC<{ band: Band; isOwner: boolean; onClose: () => voi
     name: band.name, handle: band.handle, home_base: band.home_base || '', year_formed: band.year_formed ? String(band.year_formed) : '',
     bio: band.bio || '', influences: band.influences || '', booking_email: band.booking_email || '', mobile: band.mobile || '',
     facebook: band.facebook || '', instagram: band.instagram || '', streaming_url: band.streaming_url || '',
+    video: band.video_id ? youTubeLink(band.video_id, band.video_start) : '',
   });
+  const video = parseYouTube(f.video);
   const [logo, setLogo] = useState(band.logo_url);
   const [banner, setBanner] = useState(band.banner_url);
   const [bannerCrop, setBannerCrop] = useState<CardCrop>(cropOf(band.banner_crop));
@@ -391,11 +402,13 @@ const EditBandModal: React.FC<{ band: Band; isOwner: boolean; onClose: () => voi
     if (nameBlocked('name', 'artist', nameCheck.result)) return setErr('A band page with this name already exists — please choose a different name.');
     if (nameBlocked('handle', 'artist', handleCheck.result)) return setErr('That band username is already taken — please choose a different one.');
     if (f.year_formed && (Number(f.year_formed) < 1950 || Number(f.year_formed) > 2100)) return setErr('Year formed should be between 1950 and 2100.');
+    if (f.video.trim() && !video) return setErr('The featured video should be a YouTube link, e.g. https://youtu.be/… or a youtube.com/watch link.');
     setBusy(true); setErr(null);
     const { error } = await supabase.from('bands').update({
       name: f.name.trim(), handle: toHandle(f.handle), home_base: f.home_base.trim() || null, year_formed: f.year_formed ? Number(f.year_formed) : null,
       bio: f.bio.trim() || null, influences: f.influences.trim() || null, booking_email: f.booking_email.trim() || null, mobile: f.mobile.trim() || null,
       facebook: f.facebook.trim() || null, instagram: f.instagram.trim() || null, streaming_url: f.streaming_url.trim() || null,
+      video_id: video?.id ?? null, video_start: video?.start ?? null,
       open_for_bookings: open, logo_url: logo, banner_url: banner, banner_crop: banner ? bannerCrop : null,
     }).eq('id', band.id);
     if (error) { setBusy(false); return setErr(errorMessage(error)); }
@@ -453,6 +466,12 @@ const EditBandModal: React.FC<{ band: Band; isOwner: boolean; onClose: () => voi
       <Field label="Facebook Page" icon={Globe} htmlFor="e-fb"><input id="e-fb" className={inputCls} value={f.facebook} onChange={set('facebook')} /></Field>
       <Field label="Instagram" icon={Camera} htmlFor="e-ig"><input id="e-ig" className={inputCls} value={f.instagram} onChange={set('instagram')} /></Field>
       <Field label="Spotify / YouTube" icon={Play} htmlFor="e-stream"><input id="e-stream" className={inputCls} value={f.streaming_url} onChange={set('streaming_url')} /></Field>
+      <Field label="Featured video (YouTube link)" icon={Youtube} htmlFor="e-video">
+        <input id="e-video" className={inputCls} value={f.video} onChange={set('video')} placeholder="Paste a YouTube link — shows on your band page" inputMode="url" autoCapitalize="none" />
+      </Field>
+      {f.video.trim() && (video
+        ? <div className="-mt-1.5 space-y-1"><p className="text-[11px] text-[#53E6D4]">✓ Video found{video.start ? ` · starts at ${Math.floor(video.start / 60)}:${String(video.start % 60).padStart(2, '0')}` : ''}. Visitors tap to play it.</p><img src={`https://i.ytimg.com/vi/${video.id}/mqdefault.jpg`} alt="" className="w-40 rounded-lg border border-white/10" /></div>
+        : <p className="-mt-1.5 text-[11px] text-[#FF8A7A]">That doesn’t look like a YouTube video link.</p>)}
       <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={open} onChange={(e) => setOpen(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Open for bookings (show contacts)</label>
       <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><GenrePicker value={genres} onChange={setGenres} /></div>
       <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={band.id} ownerId={band.owner_id} /></div>

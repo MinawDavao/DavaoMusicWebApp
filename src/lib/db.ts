@@ -78,6 +78,9 @@ export interface Band {
   facebook: string | null;
   instagram: string | null;
   streaming_url: string | null;
+  /** featured YouTube video (id only) + start time in seconds */
+  video_id?: string | null;
+  video_start?: number | null;
   open_for_bookings: boolean;
   allow_downloads: boolean;
   is_verified: boolean;
