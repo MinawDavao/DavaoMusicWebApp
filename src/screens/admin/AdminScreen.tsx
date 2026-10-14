@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  BarChart3, CalendarDays, Disc3, Flag, Image as ImageIcon, Megaphone, MessageCircle, MessagesSquare, Music, ShieldCheck, Tag, Users,
+  BarChart3, CalendarDays, Disc3, Flag, Image as ImageIcon, MailCheck, Megaphone, MessageCircle, MessagesSquare, Music, ShieldCheck, Tag, Users,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNav } from '../../nav';
@@ -11,11 +11,13 @@ import { AdminDashboard } from './AdminDashboard';
 import { AdminReports, AdminUsers } from './AdminPeople';
 import { AdminBands, AdminComments, AdminDeals, AdminGigs, AdminImages, AdminMusic, AdminPosts } from './AdminContent';
 import { AdminSponsors } from './AdminSponsors';
+import { AdminSkipVerify } from './AdminSkipVerify';
 
 const TABS: { key: string; label: string; Icon: React.ElementType; El: React.FC<any> }[] = [
   { key: 'dashboard', label: 'Dashboard', Icon: BarChart3, El: AdminDashboard },
   { key: 'reports', label: 'Reports', Icon: Flag, El: AdminReports },
   { key: 'users', label: 'Users', Icon: Users, El: AdminUsers },
+  { key: 'skipcode', label: 'Skip email code', Icon: MailCheck, El: AdminSkipVerify },
   { key: 'posts', label: 'Posts', Icon: MessageCircle, El: AdminPosts },
   { key: 'images', label: 'Images', Icon: ImageIcon, El: AdminImages },
   { key: 'music', label: 'Music', Icon: Disc3, El: AdminMusic },
@@ -93,7 +95,7 @@ const AdminLogin: React.FC = () => {
 
 const GROUPS: { title: string; keys: string[] }[] = [
   { title: 'Overview', keys: ['dashboard', 'reports'] },
-  { title: 'People', keys: ['users'] },
+  { title: 'People', keys: ['users', 'skipcode'] },
   { title: 'Content', keys: ['posts', 'images', 'music', 'bands', 'gigs', 'deals', 'comments'] },
   { title: 'Business', keys: ['sponsors'] },
 ];
