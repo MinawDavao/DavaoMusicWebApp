@@ -27,10 +27,11 @@ import { ReportModal } from '../components/ReportModal';
 import { MAX_TRACKS, TrackUploadForm } from '../components/TrackUpload';
 import { YouTubeCard } from '../components/YouTubeCard';
 import { parseYouTube, youTubeLink } from '../lib/youtube';
+import { LinkText, SocialLink } from '../components/LinkText';
+import { facebookLink, instagramLink, webLink } from '../lib/links';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, Modal, Panel, Spinner, btn, inputCls } from '../components/ui';
 
 /** A link typed by a band ("open.spotify.com/…") made safe and clickable: https only. */
-const webLink = (u: string) => { const v = /^[a-z][a-z0-9+.-]*:/i.test(u.trim()) ? u.trim() : `https://${u.trim()}`; return /^https?:\/\/[^\s]+$/i.test(v) ? v : null; };
 
 type Member = MemberRow;
 interface Photo { id: string; image_url: string; title: string | null; tag: string | null }
@@ -189,15 +190,16 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
           </div>
           {genres.length > 0 && <div className="flex flex-wrap gap-1.5">{genres.map((g) => <span key={g} className="px-2 py-0.5 rounded-full bg-[#6045F4] text-white text-[10px] font-bold">{g}</span>)}</div>}
           {band.home_base && <p className="flex items-center gap-1.5 text-[13px] font-bold text-[#53E6D4]"><MapPin className="w-3.5 h-3.5" />{band.home_base}</p>}
-          {band.bio && <p className="text-[13px] text-[#8E9AA7] leading-relaxed whitespace-pre-line">{band.bio}</p>}
+          {band.bio && <LinkText text={band.bio} className="text-[13px] text-[#8E9AA7] leading-relaxed whitespace-pre-line break-words" />}
           {band.influences && <p className="text-xs text-[#8E9AA7]"><strong className="text-white">Influences:</strong> {band.influences}</p>}
-          {band.open_for_bookings && (band.booking_email || band.mobile || band.facebook || band.instagram || band.streaming_url) && (
+          {/* social links show for everyone; email / mobile only when open for bookings */}
+          {((band.open_for_bookings && (band.booking_email || band.mobile)) || band.facebook || band.instagram || webLink(band.streaming_url)) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
-              {band.booking_email && <a href={`mailto:${band.booking_email}`} className="flex items-center gap-1.5 text-[#EBEBED]"><Mail className="w-3.5 h-3.5 text-[#53E6D4]" />{band.booking_email}</a>}
-              {band.mobile && <a href={`tel:${band.mobile}`} className="flex items-center gap-1.5 text-[#EBEBED]"><Phone className="w-3.5 h-3.5 text-[#53E6D4]" />{band.mobile}</a>}
-              {band.facebook && <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-[#53E6D4]" />{band.facebook}</span>}
-              {band.instagram && <span className="flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />{band.instagram}</span>}
-              {band.streaming_url && webLink(band.streaming_url) && <a href={webLink(band.streaming_url)!} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[#53E6D4] underline"><Play className="w-3.5 h-3.5" />Listen elsewhere</a>}
+              {band.open_for_bookings && band.booking_email && <a href={`mailto:${band.booking_email}`} className="flex items-center gap-1.5 text-[#EBEBED] underline decoration-white/30 underline-offset-2"><Mail className="w-3.5 h-3.5 text-[#53E6D4]" />{band.booking_email}</a>}
+              {band.open_for_bookings && band.mobile && <a href={`tel:${band.mobile.replace(/[^\d+]/g, '')}`} className="flex items-center gap-1.5 text-[#EBEBED] underline decoration-white/30 underline-offset-2"><Phone className="w-3.5 h-3.5 text-[#53E6D4]" />{band.mobile}</a>}
+              {band.facebook && <SocialLink href={facebookLink(band.facebook)} icon={Globe}>{band.facebook}</SocialLink>}
+              {band.instagram && <SocialLink href={instagramLink(band.instagram)} icon={Camera}>{band.instagram}</SocialLink>}
+              {webLink(band.streaming_url) && <a href={webLink(band.streaming_url)!} target="_blank" rel="noopener noreferrer nofollow" className="flex items-center gap-1.5 text-[#53E6D4] underline"><Play className="w-3.5 h-3.5" />Listen elsewhere</a>}
             </div>
           )}
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/[0.08]">

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNav } from '../nav';
 import { Avatar } from './ui';
+import { linkify } from './LinkText';
 import { roleMeta, type Role } from '../lib/db';
 
 // ---------------------------------------------------------------- username lookup (cached)
@@ -47,7 +48,7 @@ export const MentionText: React.FC<{ text: string; className?: string; plain?: b
   for (const m of text.matchAll(MENTION_RE)) {
     const start = (m.index ?? 0) + m[1].length;
     const uname = m[2].toLowerCase();
-    parts.push(text.slice(last, start));
+    parts.push(...(plain ? [text.slice(last, start)] : linkify(text.slice(last, start), `t${last}-`)));
     const who = cache.get(uname);
     if (who && plain) {
       parts.push(<strong key={start} className={roleMeta(who.role).text}>{who.display_name}</strong>);  // no link (e.g. inside a notification button)
@@ -68,7 +69,7 @@ export const MentionText: React.FC<{ text: string; className?: string; plain?: b
     }
     last = start + 1 + m[2].length;
   }
-  parts.push(text.slice(last));
+  parts.push(...(plain ? [text.slice(last)] : linkify(text.slice(last), `t${last}-`)));
   return <span className={`whitespace-pre-line ${className}`}>{parts}</span>;
 };
 

@@ -21,6 +21,8 @@ import { Testimonials } from '../components/Testimonials';
 import { BlockMenu, BlockedBanner, BlockedList, useMyBlock } from '../components/BlockMenu';
 import { CardBackdrop, CardBackgroundAdjuster, DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
 import { VenueFields, checkVenue, venueInfoFrom, venuePatch } from '../components/VenueFields';
+import { LinkText, SocialLink } from '../components/LinkText';
+import { facebookLink, instagramLink } from '../lib/links';
 import { Avatar, EmptyState, ErrorNote, Field, FilePick, OkNote, Panel, Spinner, btn, inputCls } from '../components/ui';
 
 export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
@@ -172,11 +174,11 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
             )}
             {p.role === 'venue' && p.venue_type && <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFB800]/15 text-[#FFC34D] text-[10px] font-bold"><Building2 className="w-3 h-3" />{p.venue_type}</span>}
             {p.district && <p className="flex items-center gap-1.5 font-mono text-xs"><MapPin className="w-3.5 h-3.5 text-[#53E6D4]" />{p.district}</p>}
-            {p.bio ? <p className="text-[13px] text-[#8E9AA7] leading-relaxed whitespace-pre-line">{p.bio}</p> : isMe && <p className="text-[13px] text-[#8E9AA7] italic">Add a short bio so the scene knows who you are.</p>}
+            {p.bio ? <LinkText text={p.bio} className="text-[13px] text-[#8E9AA7] leading-relaxed whitespace-pre-line break-words" /> : isMe && <p className="text-[13px] text-[#8E9AA7] italic">Add a short bio so the scene knows who you are.</p>}
             {(p.instagram || p.facebook) && (
               <div className="flex flex-wrap gap-4 text-xs">
-                {p.instagram && <span className="flex items-center gap-1.5"><Camera className="w-3.5 h-3.5 text-[#53E6D4]" />{p.instagram}</span>}
-                {p.facebook && <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-[#53E6D4]" />{p.facebook}</span>}
+                {p.instagram && <SocialLink href={instagramLink(p.instagram)} icon={Camera}>{p.instagram}</SocialLink>}
+                {p.facebook && <SocialLink href={facebookLink(p.facebook)} icon={Globe}>{p.facebook}</SocialLink>}
               </div>
             )}
             {p.role === 'venue' && (p.venue_address || p.venue_capacity || p.venue_contact || p.venue_map_url) && (
