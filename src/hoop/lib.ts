@@ -40,6 +40,8 @@ export interface GamePlayer {
   game_id: string; profile_id: string; team: 'A' | 'B' | null; booked_at: string; paid?: boolean; paid_at?: string | null;
   arrived_at?: string | null; guest_id?: string | null; guest_name?: string | null; is_guest?: boolean; profiles?: HoopPerson | null;
   member_id?: string | null; account_id?: string | null; jersey?: number | null; face?: { url: string; crop: any } | null;
+  /** the player was removed from the club (row kept only for past box scores) */ removed?: boolean;
+  member_status?: 'pending' | 'active' | 'suspended' | null;
 }
 export type Kind = 'p1' | 'p2' | 'p3' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'foul';
 export interface HoopEvent { id: string; game_id: string; profile_id: string; account_id?: string | null; member_id?: string | null; guest_id?: string | null; team: 'A' | 'B'; kind: Kind; period: number; created_at: string }
@@ -50,7 +52,7 @@ export interface HoopStats {
 }
 
 /** Columns for a booking row with the player's account and club card. */
-export const GP_COLS = `*, profiles!hoop_game_players_profile_id_fkey(${'id, display_name, username, avatar_url, role, is_verified'}), member:hoop_members!hoop_game_players_member_id_fkey(id, name, photo_url, jersey_number, card_photo_url, card_photo_crop)`;
+export const GP_COLS = `*, profiles!hoop_game_players_profile_id_fkey(${'id, display_name, username, avatar_url, role, is_verified'}), member:hoop_members!hoop_game_players_member_id_fkey(id, name, photo_url, jersey_number, card_photo_url, card_photo_crop, status)`;
 /** Every booking is keyed by the club member id (guests: their guest id), so lists / keys work the same for everyone. */
 export const normPlayer = (r: any): GamePlayer => {
   if (r?.guest_id) return { ...r, account_id: null, profile_id: r.guest_id, is_guest: true, profiles: { id: r.guest_id, display_name: r.guest_name || 'Guest', username: '', avatar_url: null, role: 'guest' } };
@@ -58,6 +60,7 @@ export const normPlayer = (r: any): GamePlayer => {
   return {
     ...r, account_id: r?.profile_id ?? null, profile_id: r?.member_id || r?.profile_id,
     profiles: r?.profiles || { id: r?.member_id, display_name: m?.name || 'Player', username: '', avatar_url: m?.photo_url ?? null, role: 'offline' },
+    member_status: m?.status ?? null,
     jersey: m?.jersey_number ?? null, face: m?.card_photo_url ? { url: m.card_photo_url, crop: m.card_photo_crop } : null,
   };
 };

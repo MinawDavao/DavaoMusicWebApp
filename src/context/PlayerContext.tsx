@@ -124,6 +124,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [current, resume]);
 
   const stop = useCallback(() => {
+    startSeq.current++;   // a song still loading won't start after the player is closed
     audio.current?.pause();
     setCurrent(null);
     setQ([], -1);

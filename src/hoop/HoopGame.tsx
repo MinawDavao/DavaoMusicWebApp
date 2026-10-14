@@ -175,12 +175,13 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const bookingOf = (pid: string) => bookings.find((b) => b.profile_id === pid);
   const queue = [...bookings].sort(byArrival);
   const arrivedN = bookings.filter((b) => b.arrived_at).length;
+  const canPlay = (b: GamePlayer) => !b.removed && b.member_status !== 'suspended';
   // ---------- NEXT UP: the line-up for the next game, ready before this one even starts.
   // Games each player will have played once THIS game is done (this game counts for whoever is on a team),
   // fewest first; ties go to whoever arrived first (then booking order). Once arrivals are marked, only players at the court.
   const afterThis = (pid: string) => (played[pid] || 0) + (players.some((p) => p.profile_id === pid && p.team) ? 1 : 0);
   const perTeam = Math.max(teamA.length, teamB.length) || MIN_PER_TEAM;
-  const lineupPool = arrivedN ? bookings.filter((b) => b.arrived_at) : bookings;
+  const lineupPool = bookings.filter((b) => canPlay(b) && (!arrivedN || b.arrived_at));
   const lineupOrder = [...lineupPool].sort((a, b) => afterThis(a.profile_id) - afterThis(b.profile_id) || byArrival(a, b));
   const nextUp = lineupOrder.slice(0, perTeam * 2).map((b, i) => ({ b, team: (i % 2 === 0 ? 'A' : 'B') as 'A' | 'B' }));
   const waitingAfter = lineupOrder.slice(perTeam * 2);
@@ -209,6 +210,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   // ---------- admin: teams
   const writeTeam = async (pid: string, team: 'A' | 'B' | null) => {
     const row = players.find((p) => p.profile_id === pid);
+    if (row?.team && team !== row.team && events.some((e) => e.profile_id === pid)) {
+      return { error: { message: `${nameOf(pid)} already has stats in this game, so they stay on ${row.team === 'A' ? game.team_a : game.team_b} (their stats and games played need it). To fix a wrong stat, use FIX STATS.` } };
+    }
     if (isFirst || row) {
       if (!isFirst && !team && !events.some((e) => e.profile_id === pid)) return supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid);
       return supabase.from('hoop_game_players').update({ team }).eq('game_id', game.id).eq(col(pid), pid);
@@ -241,7 +245,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const n = Number(prompt('Players per team?', '5'));
     if (!(n >= 1 && n <= 30)) return;
     // fewest games first; ties go to whoever arrived first. Once arrivals are marked, players not at the court yet are skipped.
-    const pool = arrivedN ? bookings.filter((b) => b.arrived_at) : bookings;
+    const pool = bookings.filter((b) => canPlay(b) && (!arrivedN || b.arrived_at));
     if (pool.length < n * 2 && !confirm(`Only ${pool.length} ${arrivedN ? 'arrived' : 'booked'} — fill the teams anyway?`)) return;
     const order = [...pool].sort((a, b) => (played[a.profile_id] || 0) - (played[b.profile_id] || 0) || byArrival(a, b));
     const pick = order.slice(0, n * 2).map((b) => b.profile_id);
@@ -814,11 +818,11 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       )}
 
       {/* NEXT UP: next game's line-up, prepared while this game is being set up / played */}
-      {!root.closed_at && game.status !== 'cancelled' && bookings.length > 0 && !session.some((g) => g.status === 'scheduled' && g.session_id && g.id !== game.id && g.created_at > game.created_at) && (
+      {!root.closed_at && game.status !== 'cancelled' && bookings.length > 0 && (session.length === 0 || session[session.length - 1].id === game.id) && (
         <section className="rounded-2xl p-3.5 space-y-3 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 7%, #161616)' }}>
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-[11px] font-black tracking-wider text-[var(--hp)]">NEXT UP · GAME {gameNo + 1}</p>
+              <p className="text-[11px] font-black tracking-wider text-[var(--hp)]">NEXT UP · GAME {Math.max(session.length, 1) + 1}</p>
               <p className="text-[11px] text-[#A8A29E] mt-0.5">Fewest games first, then who arrived first{arrivedN ? ' (only players at the court)' : ''}. Updates live.</p>
             </div>
             <span className="px-2 py-1 rounded-lg bg-white/[0.06] text-[10px] font-bold text-[#D6D3D1] whitespace-nowrap">{perTeam} vs {perTeam}</span>
@@ -863,7 +867,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       ) : isModerator && game.status === 'final' && !session.some((g) => g.status === 'live') && (
         <div className="space-y-2">
           {!session.some((g) => g.status === 'scheduled' && g.session_id) && (
-            <button onClick={nextGame} className={`${hbtn.primary} w-full !py-3 !text-base`}><Plus className="w-5 h-5" />Start Game {session.length + 1} with the Next up line-up</button>
+            <button onClick={nextGame} disabled={busy} className={`${hbtn.primary} w-full !py-3 !text-base`}><Plus className="w-5 h-5" />Start Game {session.length + 1} with the Next up line-up</button>
           )}
           <button onClick={endSchedule} disabled={busy} className={`${hbtn.ghost} w-full !py-3`}><Flag className="w-4 h-4" />End schedule — no more games today</button>
         </div>

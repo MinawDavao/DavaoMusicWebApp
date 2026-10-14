@@ -81,8 +81,10 @@ export const HoopChat: React.FC<{ clubId: string; canChat: boolean; title?: stri
     if (last) markChatSeen(clubId, last.created_at);
   }, [msgs, clubId]);
 
+  const textRef = useRef(text);
+  textRef.current = text;   // what's in the box at send time (a photo upload can take a while)
   const send = async (image?: string) => {
-    const body = text.trim();
+    const body = textRef.current.trim();
     if ((!body && !image) || busy || !user) return;
     setBusy(true); setErr(null);
     const { data, error } = await supabase.from('hoop_club_chat').insert({ club_id: clubId, author_id: user.id, body, image_url: image ?? null })

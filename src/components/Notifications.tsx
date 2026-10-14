@@ -115,7 +115,9 @@ export const NotificationBell: React.FC<{ hoop?: boolean }> = ({ hoop = false })
     setNewIds(new Set(fresh));
     if (fresh.length) {
       // only mark the ones we actually showed (a new one may have arrived meanwhile)
-      await supabase.from('notifications').update({ read_at: new Date().toISOString() }).in('id', fresh);
+      let mark = supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('user_id', uid).is('read_at', null).lte('created_at', rows[0].created_at);
+      if (hoop) mark = mark.like('type', 'hoop%');
+      await mark;
       countUnread();
     }
   }, [uid, hoop, countUnread]);
@@ -168,7 +170,7 @@ export const NotificationBell: React.FC<{ hoop?: boolean }> = ({ hoop = false })
       >
         <Bell className="w-[18px] h-[18px]" />
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FF4D6A] text-white text-[10px] font-bold flex items-center justify-center border-2 ${hoop ? 'border-[#111]' : 'border-[#0F1417]'}">
+          <span className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#FF4D6A] text-white text-[10px] font-bold flex items-center justify-center border-2 ${hoop ? 'border-[#111]' : 'border-[#0F1417]'}`}>
             {unread > 99 ? '99+' : unread}
           </span>
         )}

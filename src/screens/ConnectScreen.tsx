@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { BadgeCheck, Building2, Camera, Check, Search, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Pencil, Play, Send, Trash2, X, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -285,11 +285,14 @@ const Comments: React.FC<{ postId: string; startOpen?: boolean; onReport: (id: s
 
   useEffect(() => { if (open) load(); }, [open, load]);
 
+  const sending = useRef(false);
   const send = async () => {
     if (!user) return go({ name: 'auth' });
-    if (!text.trim()) return;
+    if (!text.trim() || sending.current) return;   // Enter + tap won't post twice
+    sending.current = true;
     setErr(null);
     const { error } = await supabase.from('comments').insert({ post_id: postId, author_id: user.id, content: text.trim() });
+    sending.current = false;
     if (error) return setErr(errorMessage(error));
     setText(''); load(); onChange();
   };

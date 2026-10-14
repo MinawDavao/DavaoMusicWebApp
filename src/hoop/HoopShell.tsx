@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarDays, IdCard, LayoutGrid, LogIn, MessageCircle, Music, Settings, Trophy } from 'lucide-react';
 import type { Route } from '../nav';
 import { supabase } from '../lib/supabase';
@@ -59,20 +59,26 @@ function useResolve(route: Route, userId: string | undefined) {
     })();
     return () => { alive = false; };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return res && res.key === key ? res : null;
+  // a club tab is known right away; while another screen resolves, keep the last club (no header / colour flash)
+  if (route.name === 'hoopClub') return { key, club: route.club, member: undefined, pending: false };
+  if (res && res.key === key) return { ...res, pending: false };
+  return res ? { key, club: res.club, member: undefined, pending: true } : null;
 }
 
 /** Loads the club, whether the viewer runs it, and the viewer's own card there. Updates live. */
 function useClubData(clubId: string | null): ClubCtx & { loading: boolean } {
   const { user, isModerator } = useAuth();
   const [state, setState] = useState<{ id: string | null; club: HoopClub | null; role: string | null; me: HoopMember | null }>({ id: null, club: null, role: null, me: null });
+  const seq = useRef(0);
   const load = useCallback(async () => {
+    const my = ++seq.current;   // a slow answer for a previous club is ignored
     if (!clubId) { setState({ id: null, club: null, role: null, me: null }); return; }
     const [{ data: c }, { data: a }, { data: m }] = await Promise.all([
       supabase.from('hoop_clubs').select('*').eq('id', clubId).maybeSingle(),
       user ? supabase.from('hoop_club_admins').select('role').eq('club_id', clubId).eq('profile_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
       user ? supabase.from('hoop_members').select(MEMBER_COLS).eq('club_id', clubId).eq('profile_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
     ]);
+    if (my !== seq.current) return;
     setState({ id: clubId, club: (c as HoopClub) || null, role: (a as any)?.role ?? null, me: (m as any) || null });
   }, [clubId, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -147,7 +153,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
       <button onClick={() => go({ name: 'home' })} className={hbtn.primary}><Music className="w-4 h-4" />Back to MINAW</button>
     </div>
   );
-  else if (!res || ctx.loading) screen = <Spinner label="Loading…" />;
+  else if (!res || ctx.loading || res.pending) screen = <Spinner label="Loading…" />;
   else if (route.name !== 'hoop' && !club) screen = route.name === 'hoopPlayer' && !route.id ? (
     <div className="px-4 py-10 text-center space-y-4">
       <p className="font-hoop italic font-black text-[26px] uppercase text-white">No player card yet</p>

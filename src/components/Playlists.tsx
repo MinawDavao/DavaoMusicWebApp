@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDelete } from './ConfirmDelete';
 import { ChevronDown, Copy, Heart, ListMusic, Megaphone, Pause, Play, Plus, Share2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -83,18 +83,23 @@ export const Playlists: React.FC<{ ownerId?: string; playlistId?: string; isMe?:
     text: `Listen to “${pl.name}” by ${pl.owner?.display_name || 'a fan'} on MINAW DAVAO`,
     url: playlistLink(pl.id),
   });
+  const copying = useRef(false);
   const saveCopy = async (pl: PL) => {
     if (!user) return go({ name: 'auth' });
+    if (copying.current) return;   // a double tap makes one copy
+    copying.current = true;
     setErr(null);
-    const { data, error } = await supabase.from('playlists').insert({
-      owner_id: user.id, name: pl.name, copied_from: pl.id, original_owner_id: pl.original_owner_id || pl.owner_id,
-    }).select('id').single();
-    if (error) return setErr(errorMessage(error));
-    const songs = pl.playlist_tracks.filter((x) => x.tracks).map((x) => ({ playlist_id: (data as any).id, track_id: x.track_id, position: x.position }));
-    if (songs.length) {
-      const { error: e2 } = await supabase.from('playlist_tracks').insert(songs);
-      if (e2) return setErr(errorMessage(e2));
-    }
+    try {
+      const { data, error } = await supabase.from('playlists').insert({
+        owner_id: user.id, name: pl.name, copied_from: pl.id, original_owner_id: pl.original_owner_id || pl.owner_id,
+      }).select('id').single();
+      if (error) return setErr(errorMessage(error));
+      const songs = pl.playlist_tracks.filter((x) => x.tracks).map((x) => ({ playlist_id: (data as any).id, track_id: x.track_id, position: x.position }));
+      if (songs.length) {
+        const { error: e2 } = await supabase.from('playlist_tracks').insert(songs);
+        if (e2) { await supabase.from('playlists').delete().eq('id', (data as any).id); return setErr(errorMessage(e2)); }
+      }
+    } finally { copying.current = false; }
     flash(`Saved a copy of “${pl.name}” to your playlists (credited to ${pl.original?.display_name || pl.owner?.display_name}).`);
   };
 
