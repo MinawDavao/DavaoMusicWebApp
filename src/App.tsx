@@ -41,7 +41,7 @@ function parseHash(): Route {
     case 'admin': return { name: 'admin' };
     case 'messages': return b ? { name: 'chat', id: b, listing: c === 'deal' && d ? d : undefined } : { name: 'messages' };
     case 'hoop': return b === 'c' && c ? { name: 'hoopClub', club: c, tab: (['games', 'players', 'chat', 'me', 'manage'] as const).find((t) => t === d) }
-      : b === 'game' && c ? { name: 'hoopGame', id: c } : b === 'player' ? { name: 'hoopPlayer', id: c || undefined } : b === 'me' ? { name: 'hoopPlayer' } : { name: 'hoop' };
+      : b === 'game' && c ? { name: 'hoopGame', id: c } : b === 'player' ? { name: 'hoopPlayer', id: c || undefined } : b === 'me' ? { name: 'hoopPlayer' } : b === 'designs' ? { name: 'hoopDesigns' } : { name: 'hoop' };
     case 'home': return b === 'admin' ? { name: 'admin' } : { name: 'home' };
     default: return { name: 'home' };
   }
@@ -57,6 +57,7 @@ function toHash(r: Route): string {
     case 'admin': return '#/home/admin';
     case 'hoop': return '#/hoop';
     case 'hoopGame': return `#/hoop/game/${r.id}`;
+    case 'hoopDesigns': return '#/hoop/designs';
     case 'hoopClub': return `#/hoop/c/${r.club}${r.tab && r.tab !== 'games' ? `/${r.tab}` : ''}`;
     case 'hoopPlayer': return r.id ? `#/hoop/player/${r.id}` : '#/hoop/me';
     case 'chat': return r.listing ? `#/messages/${r.id}/deal/${r.listing}` : `#/messages/${r.id}`;

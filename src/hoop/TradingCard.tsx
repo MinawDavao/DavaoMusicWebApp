@@ -189,7 +189,8 @@ function cardFonts(): Promise<string> {
 /** Turns the card into a PNG and opens the phone's share sheet (or downloads it on a computer). */
 export async function saveCardImage(node: HTMLElement, fileName: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const fontEmbedCSS = await cardFonts();
-  const opts = { pixelRatio: 3, cacheBust: true, fontEmbedCSS, backgroundColor: '#050508' };
+  // moving shine effects are left out of the picture (they'd be frozen mid-sweep)
+  const opts = { pixelRatio: 3, cacheBust: true, fontEmbedCSS, backgroundColor: '#050508', filter: (n: HTMLElement) => !(n.dataset && n.dataset.fx === 'anim') };
   await toBlob(node, opts);   // first pass warms up images and fonts (Safari draws them only on the second pass)
   const blob = await toBlob(node, opts);
   if (!blob) throw new Error('Could not make the picture. Please try again.');

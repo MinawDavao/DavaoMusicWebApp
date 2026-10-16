@@ -10,6 +10,7 @@ import { HoopGames } from './HoopGames';
 import { HoopGameScreen } from './HoopGame';
 import { HoopPlayerScreen, HoopPlayers, MyClubCard } from './HoopPlayer';
 import { HoopManage } from './HoopManage';
+import { HoopCardDesigns } from './HoopCardDesigns';
 import { HoopChat, chatSeenKey } from './HoopChat';
 import { NotificationBell } from '../components/Notifications';
 
@@ -24,7 +25,7 @@ export const BallIcon: React.FC<{ className?: string }> = ({ className = 'w-[18p
   </svg>
 );
 
-export const isHoopRoute = (r: Route) => r.name === 'hoop' || r.name === 'hoopClub' || r.name === 'hoopGame' || r.name === 'hoopPlayer';
+export const isHoopRoute = (r: Route) => r.name === 'hoop' || r.name === 'hoopDesigns' || r.name === 'hoopClub' || r.name === 'hoopGame' || r.name === 'hoopPlayer';
 
 /** Which club a screen belongs to (and, for a player card, which card). */
 function useResolve(route: Route, userId: string | undefined) {
@@ -154,7 +155,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
     </div>
   );
   else if (!res || ctx.loading || res.pending) screen = <Spinner label="Loading…" />;
-  else if (route.name !== 'hoop' && !club) screen = route.name === 'hoopPlayer' && !route.id ? (
+  else if (route.name !== 'hoop' && route.name !== 'hoopDesigns' && !club) screen = route.name === 'hoopPlayer' && !route.id ? (
     <div className="px-4 py-10 text-center space-y-4">
       <p className="font-hoop italic font-black text-[26px] uppercase text-white">No player card yet</p>
       <p className="text-[13px] text-[#A8A29E]">Join a club to get your player card. Each club has its own card, jersey number and stats.</p>
@@ -176,6 +177,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
         : route.tab === 'manage' && ctx.isAdmin ? <HoopManage key={club!.id} />
         : <HoopGames key={club!.id} />;
       break;
+    case 'hoopDesigns': screen = <HoopCardDesigns />; break;
     default: screen = <HoopClubs />;
   }
 
@@ -189,7 +191,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
     { key: 'me', label: 'My Card', Icon: IdCard },
     ...(ctx.isAdmin ? [{ key: 'manage', label: 'Manage', Icon: Settings }] : []),
   ];
-  const showClub = !!club && route.name !== 'hoop';
+  const showClub = !!club && route.name !== 'hoop' && route.name !== 'hoopDesigns';
   useEffect(() => { if (showClub) { try { sessionStorage.setItem('hoop-last-club', club!.id); } catch { /* ignore */ } } }, [showClub, club?.id]);
 
   return (

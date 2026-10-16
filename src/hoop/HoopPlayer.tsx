@@ -11,7 +11,8 @@ import { Avatar, ErrorNote, FilePick, Modal, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import { MessageButton } from '../screens/MessagesScreen';
 import { DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
-import { TradingCard, saveCardImage } from './TradingCard';
+import { saveCardImage } from './TradingCard';
+import { ClubCard, OwnerCardPreview, type CardLevel } from './ClubCard';
 import { HoopFace } from './HoopFace';
 import {
   H, MEMBER_COLS, PERSON, boxScore, fetchStats, fmt1, gameDate, hbtn, hinput, normEvent, personOf, themeVars, useClub,
@@ -34,6 +35,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
   const [iFollow, setIFollow] = useState(false);
   const [editing, setEditing] = useState(false);
   const [photoEdit, setPhotoEdit] = useState(false);
+  const [tryLevel, setTryLevel] = useState<CardLevel | null>(null);   // owner-only preview of card 2
   const [linking, setLinking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -143,9 +145,11 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
         </div>
       )}
 
+      <OwnerCardPreview value={tryLevel} onChange={setTryLevel} />
+
       {/* THE CARD (the padded box around it is what gets saved as a picture, glow included) */}
       <div ref={shotRef} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
-        <TradingCard person={person} card={m} stats={s} club={club} />
+        <ClubCard person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} />
       </div>
 
       <div className="space-y-2.5">
@@ -233,7 +237,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
       {m.profile_id && <Props playerId={m.profile_id} playerName={person.display_name} isMe={isMe} />}
 
       {editing && <EditCard member={m} canName={offline && isAdmin} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
-      {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
+      {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} level={tryLevel ?? undefined} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
     </div>
   );
 };
@@ -273,7 +277,7 @@ export const MyClubCard: React.FC = () => {
         </div>
       )}
       <div className="mx-auto max-w-[300px] opacity-70 pointer-events-none" aria-hidden>
-        <TradingCard person={person} card={me} stats={null} club={club} />
+        <ClubCard person={person} card={me} stats={null} club={club} />
       </div>
       <ErrorNote text={err} />
       <div className="flex flex-col gap-2">
@@ -321,7 +325,7 @@ const JoinForm: React.FC<{ club: HoopClub; asAdmin: boolean; onSent: () => void 
         <p className="text-[12px] text-[#A8A29E]">{asAdmin ? 'You run this club, so your card goes live right away.' : 'Fill in your player card. A club admin checks it first — your card is made once they approve it.'}</p>
       </div>
       <div className="mx-auto max-w-[260px]">
-        <TradingCard person={preview} card={{ jersey_number: num === '' ? null : Number(num), position: pos || null }} stats={null} club={club} />
+        <ClubCard person={preview} card={{ jersey_number: num === '' ? null : Number(num), position: pos || null }} stats={null} club={club} />
       </div>
       <div className="space-y-3 p-3.5 rounded-2xl border border-white/10" style={{ background: H.surface }}>
         <div className="grid grid-cols-2 gap-2.5">
@@ -520,7 +524,7 @@ export async function shrinkPhoto(f: File, max = 1600): Promise<File> {
   } catch { return f; }
 }
 
-const CardPhotoEditor: React.FC<{ person: HoopPerson; member: HoopMember; stats: HoopStats | null; club: HoopClub | null; onClose: () => void; onSaved: () => void }> = ({ person, member, stats, club, onClose, onSaved }) => {
+const CardPhotoEditor: React.FC<{ person: HoopPerson; member: HoopMember; stats: HoopStats | null; club: HoopClub | null; level?: CardLevel; onClose: () => void; onSaved: () => void }> = ({ person, member, stats, club, level, onClose, onSaved }) => {
   const { user } = useAuth();
   const [url, setUrl] = useState<string | null>(member.card_photo_url || null);
   const [crop, setCrop] = useState<CardCrop>(member.card_photo_url ? cropOf(member.card_photo_crop) : DEFAULT_CROP);
@@ -571,7 +575,7 @@ const CardPhotoEditor: React.FC<{ person: HoopPerson; member: HoopMember; stats:
     </>}>
       <p className="text-[12px] text-[#A8A29E]">Use an action shot or a hoops photo for this club card. {!member.profile_id ? '' : person.avatar_url ? 'The music profile photo stays the same.' : 'Since there’s no profile photo yet, this will be used as the profile photo too.'}</p>
       <div className="mx-auto w-full max-w-[300px] px-2 py-3">
-        <TradingCard person={person} card={member} stats={stats} club={club} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
+        <ClubCard level={level} person={person} card={member} stats={stats} club={club} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
       </div>
       {url && (
         <div className="flex items-center gap-2.5">

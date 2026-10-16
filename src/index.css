@@ -123,3 +123,10 @@ h1, h2, h3, h4, .font-heading {
 .glow-pill-active {
   box-shadow: 0 0 15px rgba(96, 69, 244, 0.45), inset 0 0 8px rgba(96, 69, 244, 0.25);
 }
+
+/* Hoop card series: the moving shine sweep (left out of saved pictures) */
+@keyframes hoop-sheen { 0% { transform: translateX(-140%) skewX(-18deg); } 55%, 100% { transform: translateX(240%) skewX(-18deg); } }
+@keyframes hoop-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1); } }
+.hoop-sheen { animation: hoop-sheen 5.5s ease-in-out infinite; }
+.hoop-twinkle { animation: hoop-twinkle 2.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+@media (prefers-reduced-motion: reduce) { .hoop-sheen, .hoop-twinkle { animation: none; } .hoop-sheen { display: none; } }

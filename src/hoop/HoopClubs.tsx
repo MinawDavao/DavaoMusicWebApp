@@ -105,6 +105,12 @@ export const HoopClubs: React.FC = () => {
         {isModerator && <button onClick={() => setCreators(true)} className={hbtn.ghost} title="Who can create clubs"><KeyRound className="w-4 h-4 text-[var(--hp)]" />Club creators</button>}
       </div>
 
+      <button onClick={() => go({ name: 'hoopDesigns' })} className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[var(--hp)]/35 text-left cursor-pointer" style={{ background: 'linear-gradient(110deg, color-mix(in srgb, var(--hp) 16%, #141414), #141414 70%)' }}>
+        <span className="flex -space-x-3">{['#F7A51C', '#C98A4B', '#FF2E93', '#B3C7FF', '#E8C25A'].map((c) => <span key={c} className="w-6 h-8 rounded-md border border-black/50" style={{ background: c }} />)}</span>
+        <span className="flex-1 min-w-0"><span className="block font-hoop italic font-black text-[17px] uppercase text-white leading-tight">Card series</span><span className="block text-[11px] text-[#A8A29E]">See the 5 player card designs</span></span>
+        <ChevronRight className="w-4 h-4 text-[#A8A29E]" />
+      </button>
+
       {myClubs.length > 0 && !term && (
         <section className="space-y-2.5">
           <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">My clubs</h2>
