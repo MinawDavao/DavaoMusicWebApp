@@ -101,7 +101,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
     load();
   };
   const saveShot = async () => {
-    if (!shotRef.current) return;
+    if (!shotRef.current || shotRef.current.querySelector('[data-card-loading]')) return;   // card still loading
     setSaving(true); setErr(null); setSaveNote(null);
     try {
       const r = await saveCardImage(shotRef.current, `hoop-card-${person.display_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`);

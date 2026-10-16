@@ -31,7 +31,7 @@ function resolve(usernames: string[]): Promise<void> {
   });
 }
 
-const MENTION_RE = /(^|[^a-z0-9_@])@([a-z0-9_]{3,30})/gi;
+const MENTION_RE = /(^|[^a-z0-9_@/])@([a-z0-9_]{3,30})/gi;   // not after "/": tiktok.com/@band is a link, not a mention
 
 /** Post / comment text with @username tags shown bold and colored (fans mint, artists purple). */
 export const MentionText: React.FC<{ text: string; className?: string; plain?: boolean }> = ({ text, className = '', plain = false }) => {

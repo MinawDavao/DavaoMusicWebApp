@@ -170,7 +170,7 @@ let fontCss: Promise<string> | null = null;
 function cardFonts(): Promise<string> {
   if (fontCss) return fontCss;
   fontCss = (async () => {
-    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;0,900;1,800;1,900&display=swap')).text();
+    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Yellowtail&display=swap')).text();
     const blocks = css.split('/*').filter((b) => b.trim().startsWith('latin */'));
     const out: string[] = [];
     for (const b of blocks) {

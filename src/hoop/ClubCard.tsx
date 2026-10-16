@@ -47,6 +47,10 @@ export function useMemberSchedules(memberId?: string | null): { schedules: numbe
 /** A player's card in their current design (or a forced level, e.g. the main admin's preview). */
 export const ClubCard: React.FC<TradingCardProps & { memberId?: string | null; level?: CardLevel }> = ({ memberId, level, ...p }) => {
   const auto = useMemberSchedules(memberId);
+  if (level == null && memberId && !auto.ready) {
+    // still finding out which card this player has — keep the space, don't flash card 1
+    return <div data-card-loading className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.04] animate-pulse" />;
+  }
   const def = level != null ? CARD_LEVELS.find((l) => l.n === level) || auto.level : auto.level;
   const Comp = def.Comp;
   return <Comp {...p} />;

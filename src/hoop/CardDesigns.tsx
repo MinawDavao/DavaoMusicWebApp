@@ -806,7 +806,7 @@ export const RoyalCard: React.FC<TradingCardProps> = (p) => {
       <img src="/hoop-cards/royal-frame.webp" alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
 
       {/* club logo in the round badge (top-left) */}
-      <At x={9} y={10.85} w={10.2} h={10.2} className="overflow-hidden" style={{ borderRadius: '50%', background: '#F6EFEC', boxShadow: `inset 0 0 ${cq(1)} rgba(0,0,0,0.5)` }}>
+      <At x={9} y={10.85} w={10.2} h={10.2} className="overflow-hidden pointer-events-none" style={{ borderRadius: '50%', background: '#F6EFEC', boxShadow: `inset 0 0 ${cq(1)} rgba(0,0,0,0.5)` }}>
         <img src={f.logo} alt="" className="w-full h-full object-cover" />
       </At>
 
@@ -817,7 +817,7 @@ export const RoyalCard: React.FC<TradingCardProps> = (p) => {
       )}
 
       {/* top shield: number + position */}
-      <At x={35} w={30} y={9.2} h={14.5} className="flex flex-col items-center justify-center font-hoop font-black leading-none">
+      <At x={35} w={30} y={9.2} h={14.5} className="pointer-events-none flex flex-col items-center justify-center font-hoop font-black leading-none">
         <span style={{ fontSize: cq(f.num != null && f.num >= 10 ? 10 : 11), ...textFill(ROYAL_GOLD), filter: `drop-shadow(0 ${cq(0.3)} 0 rgba(0,0,0,0.7))` }}>{f.num ?? '–'}</span>
         {f.pos && <span style={{ fontSize: cq(2.6), color: '#9FE3FF', letterSpacing: cq(0.6), marginTop: cq(0.3) }}>{f.pos}</span>}
       </At>

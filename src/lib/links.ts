@@ -29,6 +29,6 @@ export function facebookLink(v: string | null | undefined): string | null {
 }
 
 /** Finds web addresses inside free text (bios, posts, comments). */
-export const URL_IN_TEXT = /\b((?:https?:\/\/|www\.)[^\s<>()]+|(?:[a-z0-9-]+\.)+(?:com|net|org|ph|io|me|co|app|dev|tv|fm|be|gg|link|page|site|store|shop|music|band)(?:\/[^\s<>()]*)?)/gi;
+export const URL_IN_TEXT = /\b((?:https?:\/\/|www\.)[^\s<>()]+|(?:[a-z0-9-]+\.)+(?:com|net|org|ph|io|me|co|app|dev|tv|fm|be|gg|link|page|site|store|shop|music|band)(?![a-z0-9@-]|\.[a-z0-9])(?:\/[^\s<>()]*)?)/gi;
 /** Trailing punctuation that belongs to the sentence, not the link ("see site.com."). */
 export const trimLinkEnd = (s: string) => s.replace(/[.,!?;:'"’”)\]]+$/, '');
