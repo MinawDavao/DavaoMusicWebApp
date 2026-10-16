@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useClub } from './lib';
+import { HOOP_MAIN_ADMIN_ID, useClub } from './lib';
+import { useAuth } from '../context/AuthContext';
 import { TradingCard, type TradingCardProps } from './TradingCard';
 import { RoyalCard } from './CardDesigns';
 
@@ -43,11 +44,11 @@ export const ClubCard: React.FC<TradingCardProps & { level?: CardLevel }> = ({ l
   return l === 2 ? <RoyalCard {...p} /> : <TradingCard {...p} />;
 };
 
-/** Owner-only switch to try card 2 before the club unlocks it. Renders nothing for everyone else. */
+/** Switch to try card 2 before the club unlocks it — only for the main admin's account. Renders nothing for everyone else. */
 export const OwnerCardPreview: React.FC<{ value: CardLevel | null; onChange: (v: CardLevel | null) => void }> = ({ value, onChange }) => {
-  const { isOwner } = useClub();
+  const { user } = useAuth();
   const { level, finished, ready } = useClubCardLevel();
-  if (!isOwner || !ready || level >= 2) return null;
+  if (user?.id !== HOOP_MAIN_ADMIN_ID || !ready || level >= 2) return null;
   const shown = value ?? level;
   return (
     <div className="rounded-2xl p-2.5 space-y-2 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 6%, transparent)' }}>

@@ -214,3 +214,6 @@ export const parseRules = (rules: string | null | undefined): [string, string][]
 
 /** True for the club's owner / admins and the main admin (inside a club screen). */
 export const useHoopAdmin = (): boolean => useClub().isAdmin;
+
+/** The app's main admin (robertvtemployee@gmail.com). Card series + the card 2 preview are only for this account. */
+export const HOOP_MAIN_ADMIN_ID = '6a06f84b-ef85-4c61-9734-1948af7e2c83';

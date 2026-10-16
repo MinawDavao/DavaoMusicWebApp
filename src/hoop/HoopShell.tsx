@@ -4,7 +4,7 @@ import type { Route } from '../nav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Spinner } from '../components/ui';
-import { ClubContext, H, MEMBER_COLS, hbtn, themeVars, type ClubCtx, type HoopClub, type HoopMember } from './lib';
+import { ClubContext, H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, hbtn, themeVars, type ClubCtx, type HoopClub, type HoopMember } from './lib';
 import { HoopClubs } from './HoopClubs';
 import { HoopGames } from './HoopGames';
 import { HoopGameScreen } from './HoopGame';
@@ -177,7 +177,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
         : route.tab === 'manage' && ctx.isAdmin ? <HoopManage key={club!.id} />
         : <HoopGames key={club!.id} />;
       break;
-    case 'hoopDesigns': screen = <HoopCardDesigns />; break;
+    case 'hoopDesigns': screen = user?.id === HOOP_MAIN_ADMIN_ID ? <HoopCardDesigns /> : <HoopClubs />; break;
     default: screen = <HoopClubs />;
   }
 
