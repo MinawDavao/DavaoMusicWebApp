@@ -186,18 +186,25 @@ function cardFonts(): Promise<string> {
   return fontCss;
 }
 
-/** Turns the card into a PNG and opens the phone's share sheet (or downloads it on a computer). */
-export async function saveCardImage(node: HTMLElement, fileName: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
+/** The card (the padded box around it, glow included) as a PNG. */
+async function cardBlob(node: HTMLElement): Promise<Blob> {
   const fontEmbedCSS = await cardFonts();
   // moving shine effects are left out of the picture (they'd be frozen mid-sweep)
   const opts = { pixelRatio: 3, cacheBust: true, fontEmbedCSS, backgroundColor: '#050508', filter: (n: HTMLElement) => !(n.dataset && n.dataset.fx === 'anim') };
   await toBlob(node, opts);   // first pass warms up images and fonts (Safari draws them only on the second pass)
   const blob = await toBlob(node, opts);
   if (!blob) throw new Error('Could not make the picture. Please try again.');
+  return blob;
+}
+
+type ShareResult = 'shared' | 'downloaded' | 'cancelled';
+/** Opens the phone's share sheet with the picture (Instagram, Facebook, Messenger… are listed there), or downloads it on a computer. */
+async function shareOrDownload(blob: Blob, fileName: string): Promise<ShareResult> {
   const file = new File([blob], fileName, { type: 'image/png' });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (nav.canShare?.({ files: [file] })) {
-    try { await nav.share({ files: [file], title: 'My Hoop Method card' }); return 'shared'; }
+    // files only: Instagram drops share sheets that also carry text
+    try { await nav.share({ files: [file] }); return 'shared'; }
     catch (e: any) { if (e?.name === 'AbortError') return 'cancelled'; }
   }
   const a = document.createElement('a');
@@ -205,4 +212,69 @@ export async function saveCardImage(node: HTMLElement, fileName: string): Promis
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   return 'downloaded';
+}
+
+/** Turns the card into a PNG and opens the phone's share sheet (or downloads it on a computer). */
+export async function saveCardImage(node: HTMLElement, fileName: string): Promise<ShareResult> {
+  return shareOrDownload(await cardBlob(node), fileName);
+}
+
+export type SocialFormat = 'story' | 'post';
+/**
+ * The card on a social-media sized picture:
+ *   story 1080×1920 (9:16 — Facebook & Instagram stories)   post 1080×1350 (4:5 — Instagram feed)
+ * Dark background with a glow in the club colour, club name on top, minawdavao.com at the bottom.
+ * Text stays out of the top/bottom 250px of a story, where Instagram puts its own buttons.
+ */
+export async function shareCardSocial(node: HTMLElement, format: SocialFormat, opts: { fileName: string; clubName?: string | null; color?: string }): Promise<ShareResult> {
+  const W = 1080, H = format === 'story' ? 1920 : 1350;
+  const img = await createImageBitmap(await cardBlob(node));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  if (!ctx) throw new Error('Could not make the picture. Please try again.');
+  const color = /^#[0-9a-f]{6}$/i.test(opts.color || '') ? opts.color! : '#F28C14';   // 6-digit hex (alpha is appended below)
+
+  // background
+  ctx.fillStyle = '#050508'; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, H * 0.42, 0, W / 2, H * 0.42, H * 0.62);
+  glow.addColorStop(0, color + '55'); glow.addColorStop(0.45, color + '18'); glow.addColorStop(1, '#05050800');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+
+  // card (the padded box already has its own dark rounded background)
+  const topText = format === 'story' ? 300 : 110, bottomText = format === 'story' ? H - 270 : H - 52;
+  const room = { w: W - (format === 'story' ? 60 : 200), h: (bottomText - (format === 'story' ? 205 : 170)) - (topText + 40) };
+  const k = Math.min(room.w / img.width, room.h / img.height);
+  const cw = img.width * k, ch = img.height * k;
+  const cy = topText + 40 + (room.h - ch) / 2;
+  ctx.drawImage(img, (W - cw) / 2, cy, cw, ch);
+
+  // text
+  const font = (style: string, px: number) => `${style} ${px}px "Barlow Condensed", "Arial Narrow", Arial, sans-serif`;
+  try { await Promise.all([document.fonts.load(font('italic 900', 60)), document.fonts.load(font('700', 30))]); } catch { /* use the fallback font */ }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const club = (opts.clubName || 'Hoop Method').toUpperCase();
+  let px = format === 'story' ? 64 : 54;
+  ctx.font = font('italic 900', px);
+  while (ctx.measureText(club).width > W - 140 && px > 30) { px -= 2; ctx.font = font('italic 900', px); }
+  ctx.fillStyle = '#FFFFFF'; ctx.fillText(club, W / 2, topText);
+  // invite: "Get your own Player Card. Sign up to MINAWDAVAO.COM and join <club>." — website big and bold
+  const site = format === 'story' ? 78 : 62, small = format === 'story' ? 34 : 28;
+  const fit = (text: string, style: string, size: number) => {
+    let px = size; ctx.font = font(style, px);
+    while (ctx.measureText(text).width > W - 120 && px > 18) { px -= 1; ctx.font = font(style, px); }
+  };
+  const l3 = bottomText, l2 = l3 - small - 14, l1 = l2 - site - 8;
+  fit('GET YOUR OWN PLAYER CARD! SIGN UP TO', '700', small); ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('GET YOUR OWN PLAYER CARD! SIGN UP TO', W / 2, l1);
+  ctx.font = font('italic 900', site); ctx.fillStyle = color;
+  ctx.shadowColor = color + '88'; ctx.shadowBlur = 24;
+  ctx.fillText('MINAWDAVAO.COM', W / 2, l2);
+  ctx.shadowBlur = 0;
+  const join = `AND JOIN ${club}`;
+  fit(join, '700', small); ctx.fillStyle = '#D6D3D1';
+  ctx.fillText(join, W / 2, l3);
+
+  const out = await new Promise<Blob | null>((res) => cv.toBlob(res, 'image/png'));
+  if (!out) throw new Error('Could not make the picture. Please try again.');
+  return shareOrDownload(out, opts.fileName);
 }

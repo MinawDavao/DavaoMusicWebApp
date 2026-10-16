@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDelete } from '../components/ConfirmDelete';
 import {
-  Ban, Camera, Check, Crown, Download, Hourglass, ImageIcon, Link2, MessageSquareQuote, Music, Pencil, RotateCcw, Search, Send, Trash2, UserMinus, UserPlus, X, ZoomIn,
+  Ban, Camera, Check, Share2, Crown, Download, Hourglass, ImageIcon, Link2, MessageSquareQuote, Music, Pencil, RotateCcw, Search, Send, Trash2, UserMinus, UserPlus, X, ZoomIn,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, timeAgo, uploadImage } from '../lib/db';
@@ -11,7 +11,7 @@ import { Avatar, ErrorNote, FilePick, Modal, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import { MessageButton } from '../screens/MessagesScreen';
 import { DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
-import { saveCardImage } from './TradingCard';
+import { saveCardImage, shareCardSocial, type SocialFormat } from './TradingCard';
 import { ClubCard, OwnerCardPreview, type CardLevel } from './ClubCard';
 import { HoopFace } from './HoopFace';
 import {
@@ -36,6 +36,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
   const [editing, setEditing] = useState(false);
   const [photoEdit, setPhotoEdit] = useState(false);
   const [tryLevel, setTryLevel] = useState<CardLevel | null>(null);   // owner-only preview of card 2
+  const [sharing, setSharing] = useState<SocialFormat | null>(null);
   const [linking, setLinking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -109,6 +110,18 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
     } catch (e) { setErr(errorMessage(e)); }
     setSaving(false);
   };
+  const shareSocial = async (format: SocialFormat) => {
+    if (!shotRef.current || shotRef.current.querySelector('[data-card-loading]') || saving || sharing) return;
+    setSharing(format); setErr(null); setSaveNote(null);
+    try {
+      const r = await shareCardSocial(shotRef.current, format, {
+        fileName: `hoop-card-${format}-${person.display_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`,
+        clubName: club?.name, color: getComputedStyle(shotRef.current).getPropertyValue('--hp').trim(),
+      });
+      if (r === 'downloaded') setSaveNote(`Saved! Open ${format === 'story' ? 'Facebook or Instagram and add it to your story' : 'Instagram and post it'} from your photos.`);
+    } catch (e) { setErr(errorMessage(e)); }
+    setSharing(null);
+  };
   const setStatus = async (status: HoopMember['status']) => {
     if (status === 'suspended' && !(await confirmDelete({ title: `Suspend ${person.display_name}?`, message: 'They can’t book games in this club until you unsuspend them. Their card and stats stay.', confirmLabel: 'Suspend' }))) return;
     setBusy(true); setErr(null);
@@ -157,6 +170,22 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setPhotoEdit(true)} className={`${hbtn.primary} !py-2.5 !text-xs`}><Camera className="w-4 h-4" />Card photo</button>
             <button onClick={saveShot} disabled={saving} className={`${hbtn.ghost} !py-2.5 !text-xs`}><Download className="w-4 h-4" />{saving ? 'Making picture…' : 'Save card image'}</button>
+          </div>
+        )}
+        {isMe && (
+          <div className="rounded-2xl p-2.5 space-y-2 border border-white/10" style={{ background: H.surface }}>
+            <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#E7E5E4]"><Share2 className="w-3.5 h-3.5 text-[var(--hp)]" />SHARE MY CARD</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => shareSocial('story')} disabled={!!sharing || saving} className={`${hbtn.ghost} !py-2.5 !text-xs flex-col !gap-0.5`}>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-4 rounded-[3px] border-2 border-current" />{sharing === 'story' ? 'Making…' : 'Story'}</span>
+                <span className="text-[10px] font-normal text-[#A8A29E]">Facebook · Instagram</span>
+              </button>
+              <button onClick={() => shareSocial('post')} disabled={!!sharing || saving} className={`${hbtn.ghost} !py-2.5 !text-xs flex-col !gap-0.5`}>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3.5 rounded-[3px] border-2 border-current" />{sharing === 'post' ? 'Making…' : 'Post'}</span>
+                <span className="text-[10px] font-normal text-[#A8A29E]">Instagram feed</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-[#78716C] text-center leading-snug">Pick Instagram or Facebook from the list that opens.</p>
           </div>
         )}
         {saveNote && <p className="text-center text-[11px] text-[#53E6D4]">{saveNote}</p>}
