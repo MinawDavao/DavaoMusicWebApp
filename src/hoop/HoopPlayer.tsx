@@ -145,11 +145,11 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
         </div>
       )}
 
-      <OwnerCardPreview value={tryLevel} onChange={setTryLevel} />
+      <OwnerCardPreview memberId={m.id} value={tryLevel} onChange={setTryLevel} />
 
       {/* THE CARD (the padded box around it is what gets saved as a picture, glow included) */}
       <div ref={shotRef} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
-        <ClubCard person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} />
+        <ClubCard memberId={m.id} person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} />
       </div>
 
       <div className="space-y-2.5">
@@ -277,7 +277,7 @@ export const MyClubCard: React.FC = () => {
         </div>
       )}
       <div className="mx-auto max-w-[300px] opacity-70 pointer-events-none" aria-hidden>
-        <ClubCard person={person} card={me} stats={null} club={club} />
+        <ClubCard memberId={me.id} person={person} card={me} stats={null} club={club} />
       </div>
       <ErrorNote text={err} />
       <div className="flex flex-col gap-2">
@@ -575,7 +575,7 @@ const CardPhotoEditor: React.FC<{ person: HoopPerson; member: HoopMember; stats:
     </>}>
       <p className="text-[12px] text-[#A8A29E]">Use an action shot or a hoops photo for this club card. {!member.profile_id ? '' : person.avatar_url ? 'The music profile photo stays the same.' : 'Since there’s no profile photo yet, this will be used as the profile photo too.'}</p>
       <div className="mx-auto w-full max-w-[300px] px-2 py-3">
-        <ClubCard level={level} person={person} card={member} stats={stats} club={club} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
+        <ClubCard memberId={member.id} level={level} person={person} card={member} stats={stats} club={club} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
       </div>
       {url && (
         <div className="flex items-center gap-2.5">

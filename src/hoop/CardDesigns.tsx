@@ -871,8 +871,8 @@ export const TiltCard: React.FC<{ children: React.ReactNode; className?: string 
   );
 };
 
-/** The cards in use, in order. Card 2 switches on for the whole club after its 2nd finished schedule (see ClubCard.tsx). */
+/** The cards in use, in order. Each player moves to card 2 after THEIR 2nd finished schedule (see ClubCard.tsx). */
 export const CARD_SERIES: CardSeries[] = [
   { n: 1, key: 'glow', name: 'Glow', tagline: 'Your first card — gold glow and light streaks.', Comp: TradingCard },
-  { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Everyone gets it after the club’s 2nd schedule.', Comp: RoyalCard },
+  { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard },
 ];

@@ -101,7 +101,7 @@ export const HoopCardDesigns: React.FC = () => {
               <p className="font-hoop italic font-black text-[22px] uppercase text-white leading-none">{name}</p>
               <p className="text-[11px] text-[#A8A29E] mt-0.5">{tagline}</p>
             </div>
-            {n > 1 && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] text-[10px] font-bold text-[#D6D3D1] whitespace-nowrap"><Lock className="w-3 h-3" />After 2nd schedule</span>}
+            {n > 1 && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] text-[10px] font-bold text-[#D6D3D1] whitespace-nowrap"><Lock className="w-3 h-3" />After 2 schedules</span>}
           </div>
           <div ref={(el) => { refs.current[n] = el; }} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #22201c 0%, #0B0B0E 60%, #050508 100%)' }}>
             <TiltCard><Comp person={person} card={card} stats={stats} club={clubLite} /></TiltCard>
