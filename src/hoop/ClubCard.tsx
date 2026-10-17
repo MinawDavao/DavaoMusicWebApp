@@ -27,22 +27,29 @@ export const DESIGNS: Record<string, React.FC<TradingCardProps>> = { ...Object.f
 /** A level number, or 'one' for the 1-of-1. */
 export type CardLevel = number | 'one';
 
-/** A 1-of-1's signature picture (null = not signed yet). Refreshes when it's signed (window event 'hoop-signed'). */
-const sigCache = new Map<string, string | null>();
-export function useOneSignature(oneId?: string | null): string | null {
-  const [sig, setSig] = useState<string | null>(oneId ? sigCache.get(oneId) ?? null : null);
+/**
+ * A 1-of-1: its signature picture (null = not signed yet) and whether it still exists (null = still checking;
+ * false = gone, e.g. its schedule was deleted). Refreshes when it's signed (window event 'hoop-signed').
+ */
+type OneInfo = { sig: string | null; exists: boolean | null };
+const oneCache = new Map<string, OneInfo>();
+export function useOneOfOne(oneId?: string | null): OneInfo {
+  const [info, setInfo] = useState<OneInfo>(oneId ? oneCache.get(oneId) ?? { sig: null, exists: null } : { sig: null, exists: null });
   useEffect(() => {
-    if (!oneId) { setSig(null); return; }
+    if (!oneId) { setInfo({ sig: null, exists: null }); return; }
     let live = true;
-    const load = () => supabase.from('hoop_one_of_ones').select('signature_url').eq('id', oneId).maybeSingle()
-      .then(({ data }) => { if (!live) return; const v = (data as any)?.signature_url ?? null; sigCache.set(oneId, v); setSig(v); });
-    setSig(sigCache.get(oneId) ?? null);
-    load();
-    const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.id === oneId) { sigCache.set(oneId, d.url); setSig(d.url); } };
+    setInfo(oneCache.get(oneId) ?? { sig: null, exists: null });
+    supabase.from('hoop_one_of_ones').select('signature_url').eq('id', oneId).maybeSingle()
+      .then(({ data, error }) => {
+        if (!live || error) return;
+        const v: OneInfo = { sig: (data as any)?.signature_url ?? null, exists: !!data };
+        oneCache.set(oneId, v); setInfo(v);
+      });
+    const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.id === oneId) { const v = { sig: d.url, exists: true }; oneCache.set(oneId, v); setInfo(v); } };
     window.addEventListener('hoop-signed', on);
     return () => { live = false; window.removeEventListener('hoop-signed', on); };
   }, [oneId]);
-  return sig;
+  return info;
 }
 export const announceSigned = (id: string, url: string | null) => window.dispatchEvent(new CustomEvent('hoop-signed', { detail: { id, url } }));
 
@@ -82,14 +89,15 @@ export const choiceLevel = (choice?: string | null): CardLevel | null =>
 export const ClubCard: React.FC<TradingCardProps & { memberId?: string | null; level?: CardLevel; choice?: string | null; oneId?: string | null }> = ({ memberId, level, choice, oneId, ...p }) => {
   const auto = useMemberSchedules(memberId);
   const sigId = oneId ?? (choice?.startsWith('one:') ? choice.slice(4) : null);
-  const signature = useOneSignature(sigId);
+  const one = useOneOfOne(sigId);
   if (level == null && memberId && !auto.ready) {
     // still finding out which card this player has — keep the space, don't flash card 1
     return <div data-card-loading className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.04] animate-pulse" />;
   }
-  const picked = choiceLevel(choice);
+  // a picked 1-of-1 that no longer exists falls back to the player's level card
+  const picked = choiceLevel(choice) === 'one' && one.exists === false ? null : choiceLevel(choice);
   const want: CardLevel = level ?? (picked === 'one' || (typeof picked === 'number' && picked <= auto.level.n) ? picked : auto.level.n);
-  if (want === 'one') return <OneOfOneCard {...p} signature={signature} />;
+  if (want === 'one') return <OneOfOneCard {...p} signature={one.sig} />;
   const Comp = (CARD_LEVELS.find((l) => l.n === want) || auto.level).Comp;
   return <Comp {...p} />;
 };

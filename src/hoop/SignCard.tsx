@@ -20,10 +20,9 @@ const W = SIG_ZONE.w * 12, H = SIG_ZONE.h * 12;
 /**
  * "Sign your 1-1 card": the winner signs right on their card with a finger or mouse.
  * Saves a transparent PNG (their own upload) to hoop_one_of_ones.signature_url.
- * demo = the main admin's test pack: shows the signature on the card but saves nothing.
  */
-export const SignCard: React.FC<{ oneId: string | null; current?: string | null; demo?: boolean; onSaved: (url: string | null) => void; onClose: () => void }
-  & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ oneId, current, demo = false, onSaved, onClose, ...card }) => {
+export const SignCard: React.FC<{ oneId: string | null; current?: string | null; onSaved: (url: string | null) => void; onClose: () => void }
+  & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ oneId, current, onSaved, onClose, ...card }) => {
   const { user } = useAuth();
   const canvas = useRef<HTMLCanvasElement>(null);
   const pts = useRef<{ x: number; y: number; t: number }[]>([]);
@@ -77,7 +76,6 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
     try {
       const blob = await new Promise<Blob | null>((res) => canvas.current!.toBlob(res, 'image/png'));
       if (!blob) throw new Error('Could not save the signature. Please try again.');
-      if (demo) { onSaved(URL.createObjectURL(blob)); onClose(); return; }
       if (!oneId || !user) throw new Error('This 1-of-1 card can’t be signed right now.');
       const url = await uploadImage('avatars', user.id, new File([blob], 'signature.png', { type: 'image/png' }));
       const { error } = await supabase.from('hoop_one_of_ones').update({ signature_url: url }).eq('id', oneId);
@@ -93,7 +91,7 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
       <div className="max-w-[440px] mx-auto px-4 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">{demo ? 'TEST · NOTHING SAVED' : 'YOUR 1-OF-1'}</p>
+            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">YOUR 1-OF-1</p>
             <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none flex items-center gap-2"><PenLine className="w-6 h-6 text-[#F6C94C]" />Sign your card</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-5 h-5" /></button>

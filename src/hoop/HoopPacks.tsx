@@ -19,7 +19,7 @@ import { CardBack, TiltCard } from './CardDesigns';
  * designs with the player's own face, and the winner finds the rare 1-of-1 hidden at a random spot.
  */
 interface Pack { id: string; status: 'waiting' | 'ready' | 'opened'; schedule_id: string; member_id: string; created_at: string; game?: { title: string; starts_at: string } | null }
-const GAME = 'game:hoop_games!hoop_packs_schedule_id_fkey(title, starts_at)';
+const GAME = 'game:hoop_games!hoop_packs_schedule_id_fkey(title, starts_at, closed_at)';
 
 export const HoopPacks: React.FC = () => {
   const { user } = useAuth();
@@ -27,7 +27,6 @@ export const HoopPacks: React.FC = () => {
   const [packs, setPacks] = useState<Pack[] | null>(null);
   const [stats, setStats] = useState<HoopStats | null>(null);
   const [opening, setOpening] = useState<Pack | null>(null);
-  const [testing, setTesting] = useState(false);   // TEST pack (main admin only) — remove after testing
   const isMain = user?.id === HOOP_MAIN_ADMIN_ID;
 
   const load = useCallback(async () => {
@@ -50,14 +49,6 @@ export const HoopPacks: React.FC = () => {
       </div>
 
       {isMain && <WinnerPicker clubId={club.id} onDone={load} />}
-
-      {/* TEST — main admin only: try the pack opening with a made-up pack (nothing saved). Remove after testing. */}
-      {isMain && me && (
-        <button onClick={() => setTesting(true)} className={`${hbtn.ghost} w-full !border-dashed !border-[#F6C94C]/60`}>
-          <Sparkles className="w-4 h-4 text-[#F6C94C]" />Test pack opening <span className="text-[10px] font-normal text-[#A8A29E]">(only you · nothing saved)</span>
-        </button>
-      )}
-      {testing && me && <PackOpener demo pack={{ id: 'test', status: 'ready', schedule_id: 'test', member_id: me.id, created_at: '', game: { title: 'Test pack', starts_at: '' } }} me={me} stats={stats} onClose={() => setTesting(false)} />}
 
       {packs === null ? <Spinner label="Loading packs…" />
         : !me || me.status !== 'active' ? (
@@ -97,7 +88,7 @@ export const HoopPacks: React.FC = () => {
 };
 
 // ===================================================================== MAIN ADMIN: pick the 1-of-1 winner
-interface AdminPack { id: string; status: string; schedule_id: string; member_id: string; game?: { title: string; starts_at: string } | null; member?: (HoopMember & { profiles?: any }) | null }
+interface AdminPack { id: string; status: string; schedule_id: string; member_id: string; game?: { title: string; starts_at: string; closed_at?: string | null } | null; member?: (HoopMember & { profiles?: any }) | null }
 interface Draw { schedule_id: string; winner_member_id: string | null; drawn_at: string }
 
 const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId, onDone }) => {
@@ -127,7 +118,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const nameOf = (p?: AdminPack) => (p?.member ? personOf(p.member as any).display_name : 'Player');
 
   if (packs === null) return null;
-  const open = schedules.filter((s) => !s.draw);
+  const open = schedules.filter((s) => !s.draw && !!s.game?.closed_at);   // reopened schedules wait until they're closed again
   const done = schedules.filter((s) => s.draw).slice(0, 5);
 
   const draw = async (scheduleId: string, title: string) => {
@@ -192,8 +183,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
 };
 
 // ===================================================================== opening a pack: 5 face-down cards, flip one by one
-/** demo = the main admin's TEST pack: made up on this phone, nothing is saved (remove with the test button). */
-const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null; onClose: () => void; demo?: boolean }> = ({ pack, me, stats, onClose, demo = false }) => {
+const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null; onClose: () => void }> = ({ pack, me, stats, onClose }) => {
   const go = useNav();
   const { club, reload } = useClub();
   const [res, setRes] = useState<{ cards: string[]; one_slot: number | null; one_id: string | null } | null>(null);
@@ -207,13 +197,6 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
   const person = personOf(me);
 
   useEffect(() => {
-    if (demo) {
-      const K = ['glow', 'royal', 'starlight'];
-      const cards = Array.from({ length: 5 }, () => K[Math.floor(Math.random() * K.length)]);
-      const slot = 1 + Math.floor(Math.random() * 5); cards[slot - 1] = 'oneofone';
-      setRes({ cards, one_slot: slot, one_id: null });
-      return;
-    }
     supabase.rpc('hoop_open_pack', { p_pack: pack.id }).then(({ data, error }) => {
       if (error) return setErr(errorMessage(error));
       setRes(data as any);
@@ -251,7 +234,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
     return <Comp {...cardProps} />;
   };
   useEffect(() => {   // a pack opened before: show the signature the winner already put on it
-    if (!res?.one_id || demo) return;
+    if (!res?.one_id) return;
     supabase.from('hoop_one_of_ones').select('signature_url').eq('id', res.one_id).maybeSingle().then(({ data }) => setSig((data as any)?.signature_url ?? null));
   }, [res?.one_id]);
 
@@ -260,7 +243,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
       <div className="max-w-[480px] mx-auto px-4 py-5 space-y-4 min-h-full">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black tracking-[0.3em] text-[var(--hp)]">{demo ? 'TEST CARD PACK · ONLY YOU' : 'CARD PACK'}</p>
+            <p className="text-[10px] font-black tracking-[0.3em] text-[var(--hp)]">CARD PACK</p>
             <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none">{pack.game?.title || 'Schedule'}</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-5 h-5" /></button>
@@ -313,11 +296,10 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
                 <Crown className="w-9 h-9 mx-auto text-[#F6C94C]" />
                 <p className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">You got the 1-of-1!</p>
                 <p className="text-[12px] text-[#E7E5E4]">Only one player gets this card each schedule — it’s yours now and it’s in your card list on My Card.</p>
-                {(demo || res.one_id) && (
+                {res.one_id && (
                   <button onClick={() => setSigning(true)} className={`${hbtn.primary} w-full`}><PenLine className="w-4 h-4" />{sig ? 'Re-sign your 1-1 card' : 'Sign your 1-1 card now'}</button>
                 )}
-                {demo ? <p className="text-[11px] text-[#F6C94C]">Test pack — nothing was saved.</p>
-                  : res.one_id && <button onClick={useIt} disabled={using} className={`${hbtn.ghost} w-full`}><Crown className="w-4 h-4" />{using ? 'Saving…' : 'Use it on My Card'}</button>}
+                {res.one_id && <button onClick={useIt} disabled={using} className={`${hbtn.ghost} w-full`}><Crown className="w-4 h-4" />{using ? 'Saving…' : 'Use it on My Card'}</button>}
               </div>
             )}
             {all && !res.one_slot && <p className="text-center text-[12px] text-[#A8A29E]">No 1-of-1 this time. Play the next schedule for another pack!</p>}
@@ -327,8 +309,8 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
         )}
       </div>
 
-      {signing && res && <SignCard {...cardProps} oneId={res.one_id} current={sig} demo={demo} onClose={() => setSigning(false)}
-        onSaved={(url) => { setSig(url); if (res.one_id && !demo) announceSigned(res.one_id, url); }} />}
+      {signing && res && <SignCard {...cardProps} oneId={res.one_id} current={sig} onClose={() => setSigning(false)}
+        onSaved={(url) => { setSig(url); if (res.one_id) announceSigned(res.one_id, url); }} />}
       {big !== null && res && (
         <div className="fixed inset-0 z-[80] bg-black/85 flex items-center justify-center p-6" onClick={() => setBig(null)}>
           <div className="w-full max-w-[340px]">{face(big)}</div>
@@ -343,8 +325,10 @@ export function usePackDot(memberId?: string | null, refreshKey?: string): boole
   const [n, setN] = useState(0);
   useEffect(() => {
     if (!memberId) { setN(0); return; }
+    let live = true;
     supabase.from('hoop_packs').select('id', { count: 'exact', head: true }).eq('member_id', memberId).eq('status', 'ready')
-      .then(({ count }) => setN(count || 0));
+      .then(({ count }) => { if (live) setN(count || 0); });
+    return () => { live = false; };
   }, [memberId, refreshKey]);
   return n > 0;
 }

@@ -112,7 +112,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
   const clubId = res?.club ?? null;
   const ctx = useClubData(clubId);
   const club = ctx.club;
-  const packDot = usePackDot(club && route.name !== 'hoop' ? ctx.me?.id : null, route.name === 'hoopClub' ? route.tab : route.name);
+  const packDot = usePackDot(club && route.name !== 'hoop' && ctx.me?.status === 'active' ? ctx.me.id : null, route.name === 'hoopClub' ? route.tab : route.name);
 
   let screen: React.ReactNode;
   if (loading) screen = <Spinner label="Warming up…" />;
