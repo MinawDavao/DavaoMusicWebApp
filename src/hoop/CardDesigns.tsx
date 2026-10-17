@@ -1,7 +1,7 @@
 import React, { useId, useMemo, useRef } from 'react';
 import { Photo, cropOf, useDragCrop } from '../components/CardBackground';
 import { fmt1, type HoopStats } from './lib';
-import { TradingCard, type TradingCardProps } from './TradingCard';
+import { LevelBadge, TradingCard, whiteStroke, type TradingCardProps } from './TradingCard';
 
 /**
  * Hoop Method card SERIES — a player's card gets fancier the more they play.
@@ -45,9 +45,9 @@ function useFace(p: TradingCardProps) {
 const statRow = (s: HoopStats | null) => ([['RPG', s?.rpg], ['APG', s?.apg], ['SPG', s?.spg], ['BPG', s?.bpg]] as [string, number | undefined][]);
 const footer = (s: HoopStats | null) => `${s?.games ?? 0} GP · ${s ? `${s.wins}-${s.losses}` : '0-0'} · BEST ${s?.best_pts ?? 0}`;
 
-const Shell: React.FC<{ children: React.ReactNode; radius?: number; shadow?: string }> = ({ children, radius = 5, shadow = 'rgba(0,0,0,0.6)' }) => (
+const Shell: React.FC<{ children: React.ReactNode; radius?: number; shadow?: string; glow?: string }> = ({ children, radius = 5, shadow = 'rgba(0,0,0,0.6)', glow }) => (
   <div className="relative w-full aspect-[5/7] select-none" style={{ containerType: 'inline-size' }}>
-    <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: cq(radius), boxShadow: `0 ${cq(2.5)} ${cq(7)} ${shadow}` }}>{children}</div>
+    <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: cq(radius), boxShadow: `${glow ? `${glow}, ` : ''}0 ${cq(2.5)} ${cq(7)} ${shadow}` }}>{children}</div>
   </div>
 );
 /** Place something on the 100 × 140 grid. */
@@ -793,7 +793,7 @@ export const RoyalCard: React.FC<TradingCardProps> = (p) => {
   const editing = !!p.onCropChange;
   const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
   return (
-    <Shell radius={1.6}>
+    <Shell radius={1.6} /* gold rim, then a royal-blue glow around the whole card */ glow={`0 0 ${cq(0.9)} rgba(255,214,110,0.95), 0 0 ${cq(2.6)} rgba(240,180,60,0.6), 0 0 ${cq(5)} rgba(50,110,255,0.95), 0 0 ${cq(10)} rgba(40,95,245,0.7), 0 0 ${cq(16)} rgba(30,80,230,0.4)`}>
       <div className="absolute inset-0" style={{ background: '#0A1430' }} />
       {/* photo shows through the frame's hollow centre */}
       <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
@@ -815,6 +815,9 @@ export const RoyalCard: React.FC<TradingCardProps> = (p) => {
           <span className="flex items-center rounded-full font-bold text-white" style={{ gap: cq(1), padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
         </At>
       )}
+
+      {/* LEVEL 2 CARD over the bottom-right of the photo */}
+      <At r={16.5} y={77} w={17} className="flex justify-center"><LevelBadge n={2} scale={0.85} tone="royal" /></At>
 
       {/* top shield: number + position */}
       <At x={35} w={30} y={9.2} h={14.5} className="pointer-events-none flex flex-col items-center justify-center font-hoop font-black leading-none">
@@ -842,6 +845,92 @@ export const RoyalCard: React.FC<TradingCardProps> = (p) => {
 
       {/* glossy light streak on top of everything (club artwork, transparent PNG) */}
       <img src="/hoop-cards/royal-gloss.webp" alt="" draggable={false} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+    </Shell>
+  );
+};
+
+// =====================================================================================================
+// LEVEL 3 · STARLIGHT — the club's own "HOOP METHOD" glitter & gold frame (public/hoop-cards/level3-frame.webp,
+// photo window transparent with its soft shadow). Logo in the left circle, number + position in the right one,
+// PPG and "LEVEL 3 CARD" over the bottom of the photo, last name on the plate, other stats in the bottom bar.
+// Text is white with a black stroke; LEVEL 3 and the first name use the script font.
+// =====================================================================================================
+/** White letters with a black stroke and a light gold glow. */
+const whiteGold = (w = 0.3) => whiteStroke(w, '#000000', true);
+const silver = (w = 0.3) => whiteGold(w);
+const goldText = () => whiteGold(0.2);
+
+export const StarlightCard: React.FC<TradingCardProps> = (p) => {
+  const f = useFace(p);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const last = f.last.toUpperCase();
+  const lastSize = Math.min(6.4, 18.6 / Math.max(1, last.length * 0.5));          // fits the name plate
+  const club = f.clubName.toUpperCase();
+  const clubSize = Math.min(2.9, 19.5 / Math.max(1, club.length * 0.5));   // stays clear of the plate's two stars
+  const stats: [string, number | undefined][] = [['APG', f.s?.apg], ['RPG', f.s?.rpg], ['BPG', f.s?.bpg], ['SPG', f.s?.spg]];
+  return (
+    <Shell radius={1.6} /* soft silver glow around the whole card */ glow={`0 0 ${cq(1.2)} rgba(240,244,250,0.85), 0 0 ${cq(4)} rgba(220,228,242,0.55), 0 0 ${cq(9)} rgba(200,212,235,0.3)`}>
+      <div className="absolute inset-0" style={{ background: '#0A1430' }} />
+      {/* photo behind the frame's window */}
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(8.6), right: cq(8.6), top: cq(19), height: cq(108.5), background: 'radial-gradient(90% 60% at 50% 30%, #2C4C8C 0%, #12224A 60%, #0A1430 100%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(246,201,76,0.22)" />
+        {/* darker bottom so PPG, LEVEL and the name read well over any photo */}
+        <span className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, transparent 0%, transparent 62%, rgba(6,14,40,0.55) 80%, rgba(6,14,40,0.85) 100%)' }} />
+      </div>
+      <img src="/hoop-cards/level3-frame.webp" alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+
+      {editing && (
+        <At x={0} r={0} y={60} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ gap: cq(1), padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+
+      <div className="absolute inset-0 pointer-events-none font-hoop leading-none">
+        {/* club line in the small plate under HOOP METHOD */}
+        <At x={38.2} w={25} y={16.1} h={5} className="flex items-center justify-center" style={{ paddingTop: cq(0.25) }}>
+          <span className="font-black whitespace-nowrap" style={{ fontSize: cq(clubSize), letterSpacing: cq(0.35), ...goldText() }}>{club}</span>
+        </At>
+        {/* left circle: club logo */}
+        <At x={10.05} y={21.15} w={12.45} h={12.45} className="overflow-hidden" style={{ borderRadius: '50%', background: '#F6EFEC', boxShadow: `inset 0 0 0 ${cq(0.25)} rgba(138,90,14,0.9)` }}>
+          <img src={f.logo} alt="" className="w-full h-full object-cover" style={{ transform: 'scale(1.06)' }} />
+        </At>
+        {/* right circle: number + position */}
+        <At x={78.3} y={21.4} w={12} h={12} className="flex flex-col items-center justify-center">
+          <span className="font-black" style={{ fontSize: cq(f.num != null && f.num >= 10 ? 7.4 : 8.4), ...silver(0.28) }}>{f.num ?? '–'}</span>
+          {f.pos && <span className="font-black" style={{ fontSize: cq(2.3), letterSpacing: cq(0.3), marginTop: cq(0.3), ...goldText() }}>{f.pos}</span>}
+        </At>
+
+        {/* PPG (left) and LEVEL 3 CARD (right) over the bottom of the photo */}
+        <At x={11} w={24} y={102.5} className="flex flex-col items-center">
+          <span className="font-black" style={{ fontSize: cq(10), ...silver(0.35) }}>{fmt1(f.s?.ppg)}</span>
+          <span className="font-black" style={{ fontSize: cq(3.4), letterSpacing: cq(0.5), marginTop: cq(0.6), ...goldText() }}>PPG</span>
+        </At>
+        <At r={11} w={22} y={101} className="flex justify-center"><LevelBadge n={3} glow /></At>
+
+        {/* first name above the plate, last name big on the plate */}
+        {f.first && (
+          <At x={24} r={24} y={110.2} className="flex justify-center">
+            <span className="whitespace-nowrap" style={{ fontFamily: '"Yellowtail", "Brush Script MT", cursive', fontSize: cq(Math.min(5.6, 80 / Math.max(1, f.first.length * 0.62))), lineHeight: 1.1, padding: `0 ${cq(1.2)}`, ...whiteGold(0.25) }}>{f.first}</span>
+          </At>
+        )}
+        <At x={40.4} w={19.4} y={117.7} h={7.4} className="flex items-center justify-center">
+          <span className="font-black whitespace-nowrap" style={{ fontSize: cq(lastSize), ...silver(0.3) }}>{last}</span>
+        </At>
+
+        {/* other stats in the bottom bar */}
+        <At x={18} r={18} y={127.9} h={6.3} className="grid grid-cols-4 items-center">
+          {stats.map(([k, v]) => (
+            <span key={k} className="flex items-baseline justify-center" style={{ gap: cq(0.6), paddingTop: cq(0.3) }}>
+              <span className="font-black" style={{ fontSize: cq(4.1), ...silver(0.22) }}>{fmt1(v)}</span>
+              <span className="font-black" style={{ fontSize: cq(1.9), letterSpacing: cq(0.2), ...goldText() }}>{k}</span>
+            </span>
+          ))}
+        </At>
+      </div>
     </Shell>
   );
 };
@@ -875,4 +964,5 @@ export const TiltCard: React.FC<{ children: React.ReactNode; className?: string 
 export const CARD_SERIES: CardSeries[] = [
   { n: 1, key: 'glow', name: 'Glow', tagline: 'Your first card — gold glow and light streaks.', Comp: TradingCard },
   { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard },
+  { n: 3, key: 'starlight', name: 'Starlight', tagline: 'HOOP METHOD glitter & gold frame — logo and number circles, PPG and LEVEL 3 over the photo. Players get it after their 3rd finished schedule.', Comp: StarlightCard },
 ];

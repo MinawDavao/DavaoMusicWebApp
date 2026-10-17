@@ -34,6 +34,38 @@ export interface TradingCardProps {
   club?: { name: string; logo_url: string | null } | null;
 }
 
+/** White letters with a black stroke and a soft drop shadow (8-way text-shadow = a solid outline that also shows in saved pictures). */
+export const whiteStroke = (w = 0.3, stroke = '#000000', glow = false): React.CSSProperties => {
+  const o = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]]
+    .map(([x, y]) => `${cq(x * w)} ${cq(y * w)} 0 ${stroke}`).join(', ');
+  // optional soft warm-gold glow around the letters (kept light)
+  const g = glow ? `, 0 0 ${cq(1.2 + w * 3)} rgba(255,222,140,0.85), 0 0 ${cq(2.6 + w * 6)} rgba(255,196,80,0.45)` : '';
+  return { color: '#FFFFFF', textShadow: `${o}, 0 ${cq(w + 0.35)} ${cq(0.5)} rgba(0,0,0,0.6)${g}` };
+};
+
+/** "LEVEL n CARD" — on every card design, so players see which card they're on (card n = their n-th finished schedule).
+ *  tone 'royal': gold letters with a navy outline (card 2). */
+const LEVEL_GOLD = 'linear-gradient(180deg, #FFF8DC 0%, #FFE08A 30%, #E0A93A 58%, #FFF1B8 80%, #C9902A 100%)';
+export const LevelBadge: React.FC<{ n: number; scale?: number; glow?: boolean; tone?: 'white' | 'royal' }> = ({ n, scale = 1, glow = false, tone = 'white' }) => {
+  const royal = (num: boolean): React.CSSProperties => ({
+    background: LEVEL_GOLD, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+    filter: [
+      `drop-shadow(0 0 ${cq(0.22 * scale)} #0A1A4A)`, `drop-shadow(0 0 ${cq(0.22 * scale)} #0A1A4A)`,
+      `drop-shadow(0 ${cq(0.35 * scale)} ${cq(0.3 * scale)} rgba(0,0,0,0.6))`,
+    ].join(' '),
+  });
+  const word = tone === 'royal' ? royal(false) : whiteStroke(0.22 * scale, '#000000', glow);
+  const num = tone === 'royal' ? royal(true) : whiteStroke(0.32 * scale, '#000000', glow);
+  return (
+    <div className="flex flex-col items-center leading-none pointer-events-none select-none">
+      <span className="font-hoop font-black" style={{ fontSize: cq(3.4 * scale), letterSpacing: cq(0.5 * scale), padding: `${cq(0.3)} ${cq(0.6)}`, ...word }}>LEVEL</span>
+      <span style={{ fontFamily: '"Yellowtail", "Brush Script MT", cursive', fontSize: cq((tone === 'royal' ? 13.5 : 12) * scale), lineHeight: 0.95, padding: `0 ${cq(1.8 * scale)}`,
+        ...(tone === 'royal' ? { marginTop: cq(-1.8 * scale), marginBottom: cq(-0.8 * scale) } : {}), ...num }}>{n}</span>
+      <span className="font-hoop font-black" style={{ fontSize: cq(3.4 * scale), letterSpacing: cq(0.5 * scale), padding: `${cq(0.3)} ${cq(0.6)}`, ...word }}>CARD</span>
+    </div>
+  );
+};
+
 export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, photoUrl, crop, onCropChange, club }) => {
   const url = photoUrl !== undefined ? photoUrl : (card.card_photo_url || person.avatar_url);
   const c = crop || cropOf(card.card_photo_url ? card.card_photo_crop : null);
@@ -135,6 +167,7 @@ export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, p
               }}>
                 <span>P</span><span>P</span><span>G</span>
               </div>
+              <div className="ml-auto" style={{ marginBottom: cq(0.6), marginRight: cq(1) }}><LevelBadge n={1} scale={0.85} /></div>
             </div>
 
             <div className="grid grid-cols-4" style={{ marginTop: cq(2.4), paddingTop: cq(2), borderTop: `${cq(0.3)} solid rgba(255,212,90,0.55)` }}>
@@ -170,7 +203,7 @@ let fontCss: Promise<string> | null = null;
 function cardFonts(): Promise<string> {
   if (fontCss) return fontCss;
   fontCss = (async () => {
-    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;0,900;1,800;1,900&family=Yellowtail&display=swap')).text();
+    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;0,800;0,900;1,800;1,900&family=Yellowtail&display=swap')).text();
     const blocks = css.split('/*').filter((b) => b.trim().startsWith('latin */'));
     const out: string[] = [];
     for (const b of blocks) {

@@ -3,20 +3,21 @@ import { supabase } from '../lib/supabase';
 import { HOOP_MAIN_ADMIN_ID } from './lib';
 import { useAuth } from '../context/AuthContext';
 import { TradingCard, type TradingCardProps } from './TradingCard';
-import { RoyalCard } from './CardDesigns';
+import { RoyalCard, StarlightCard } from './CardDesigns';
 
 /**
  * Each PLAYER's card design, based on how many finished (closed) schedules THEY played in
  * (view public.hoop_member_schedules — on a team in a final game of that schedule).
  *   0–1 schedules → Card 1 · Glow
- *   2+  schedules → Card 2 · Royal Crest
- *   Card 3 (3rd schedule) — design coming; add it to CARD_LEVELS below when it's ready.
+ *   2   schedules → Card 2 · Royal Crest
+ *   3+  schedules → Card 3 · Starlight
  */
 export interface CardLevelDef { n: number; name: string; fromSchedules: number; Comp: React.FC<TradingCardProps> }
 export const CARD_LEVELS: CardLevelDef[] = [
   { n: 1, name: 'Glow', fromSchedules: 0, Comp: TradingCard },
   { n: 2, name: 'Royal Crest', fromSchedules: 2, Comp: RoyalCard },
-  // { n: 3, name: '…', fromSchedules: 3, Comp: … },
+  { n: 3, name: 'Starlight', fromSchedules: 3, Comp: StarlightCard },
+  // { n: 4, name: '…', fromSchedules: 4, Comp: … },
 ];
 export type CardLevel = number;
 
