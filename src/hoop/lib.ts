@@ -166,6 +166,8 @@ export interface HoopMember {
   id: string; club_id: string; profile_id: string | null; name: string | null; photo_url: string | null;
   jersey_number: number | null; position: string | null; height: string | null; card_photo_url: string | null; card_photo_crop: any;
   status: 'pending' | 'active' | 'suspended'; note: string | null; created_at: string; approved_at: string | null;
+  /** the player's own pick for their My Card: 'level1'…'level3' or 'one:<1-of-1 id>' (null = follow their level) */
+  card_choice?: string | null;
   profiles?: (HoopPerson & { is_suspended?: boolean }) | null;
 }
 export const MEMBER_COLS = `*, profiles!hoop_members_profile_id_fkey(${PERSON}, is_suspended)`;

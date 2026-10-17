@@ -14,6 +14,7 @@ import { DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackgroun
 import { cardBlob, socialPicture, type SocialFormat } from './TradingCard';
 import { ShareSheet, type ReadyPicture } from './ShareSheet';
 import { ClubCard, OwnerCardPreview, type CardLevel } from './ClubCard';
+import { MyCards } from './MyCards';
 import { HoopFace } from './HoopFace';
 import {
   H, MEMBER_COLS, PERSON, boxScore, fetchStats, fmt1, gameDate, hbtn, hinput, normEvent, personOf, themeVars, useClub,
@@ -163,7 +164,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {/* THE CARD (the padded box around it is what gets saved as a picture, glow included) */}
       <div ref={shotRef} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
-        <ClubCard memberId={m.id} person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} />
+        <ClubCard memberId={m.id} person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} choice={isMe ? m.card_choice : undefined} />
       </div>
 
       <div className="space-y-2.5">
@@ -205,6 +206,8 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
         {offline && <p className="text-center text-[11px] text-[#A8A29E]">Added by the club (not on the app). Stats are saved on this card.</p>}
         <ErrorNote text={err} />
       </div>
+
+      {isMe && m.status === 'active' && <MyCards memberId={m.id} choice={m.card_choice} onChanged={load} person={person} card={m} stats={s} club={club} />}
 
       {/* CLUB ADMIN TOOLS */}
       {isAdmin && !isMe && (
@@ -268,7 +271,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {editing && <EditCard member={m} canName={offline && isAdmin} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {ready && <ShareSheet pic={ready} onClose={() => setReady(null)} />}
-      {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} level={tryLevel ?? undefined} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
+      {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} level={tryLevel ?? undefined} choice={isMe ? m.card_choice : undefined} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
     </div>
   );
 };
@@ -555,7 +558,7 @@ export async function shrinkPhoto(f: File, max = 1600): Promise<File> {
   } catch { return f; }
 }
 
-const CardPhotoEditor: React.FC<{ person: HoopPerson; member: HoopMember; stats: HoopStats | null; club: HoopClub | null; level?: CardLevel; onClose: () => void; onSaved: () => void }> = ({ person, member, stats, club, level, onClose, onSaved }) => {
+const CardPhotoEditor: React.FC<{ person: HoopPerson; member: HoopMember; stats: HoopStats | null; club: HoopClub | null; level?: CardLevel; choice?: string | null; onClose: () => void; onSaved: () => void }> = ({ person, member, stats, club, level, choice, onClose, onSaved }) => {
   const { user } = useAuth();
   const [url, setUrl] = useState<string | null>(member.card_photo_url || null);
   const [crop, setCrop] = useState<CardCrop>(member.card_photo_url ? cropOf(member.card_photo_crop) : DEFAULT_CROP);
@@ -606,7 +609,7 @@ const CardPhotoEditor: React.FC<{ person: HoopPerson; member: HoopMember; stats:
     </>}>
       <p className="text-[12px] text-[#A8A29E]">Use an action shot or a hoops photo for this club card. {!member.profile_id ? '' : person.avatar_url ? 'The music profile photo stays the same.' : 'Since there’s no profile photo yet, this will be used as the profile photo too.'}</p>
       <div className="mx-auto w-full max-w-[300px] px-2 py-3">
-        <ClubCard memberId={member.id} level={level} person={person} card={member} stats={stats} club={club} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
+        <ClubCard memberId={member.id} level={level} choice={choice} person={person} card={member} stats={stats} club={club} photoUrl={url ?? person.avatar_url} crop={url ? crop : cropOf(null)} onCropChange={url ? setCrop : undefined} />
       </div>
       {url && (
         <div className="flex items-center gap-2.5">

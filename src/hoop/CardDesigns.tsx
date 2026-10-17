@@ -11,7 +11,7 @@ import { LevelBadge, TradingCard, whiteStroke, type TradingCardProps } from './T
  * Original designs (no real card brand's look, names or logos).
  */
 
-export interface CardSeries { n: number; key: string; name: string; tagline: string; Comp: React.FC<TradingCardProps> }
+export interface CardSeries { n: number; key: string; name: string; tagline: string; Comp: React.FC<TradingCardProps>; unlock?: string }
 
 // ------------------------------------------------------------------------------------------------ shared bits
 const cq = (n: number) => `${n}cqw`;
@@ -642,7 +642,7 @@ export const BlackGoldCard: React.FC<TradingCardProps> = (p) => {
         ); })}
       </At>
       <At x={12} r={12} y={127.4} className="flex justify-between font-hoop font-bold uppercase" style={{ fontSize: cq(2.4), color: '#9C7E45', letterSpacing: cq(0.3) }}>
-        <span>{footer(f.s)}</span><span style={textFill(GOLD_V)}>SERIES 5 · BLACK GOLD</span>
+        <span>{footer(f.s)}</span><span style={textFill(GOLD_V)}>ONE OF ONE · 1/1</span>
       </At>
 
       <Sparkles seed={55} n={16} color="#FFE7A0" area={[4, 4, 96, 136]} size={[0.5, 1.8]} />
@@ -935,6 +935,61 @@ export const StarlightCard: React.FC<TradingCardProps> = (p) => {
   );
 };
 
+// =====================================================================================================
+// 1-OF-1 — the club's own 1-of-1 artwork (public/hoop-cards/oneofone-frame.webp: notched card, transparent photo
+// window + corners). Photo behind, the player's NAME ONLY on the gold plate, golden glow around the card.
+// CARD BACK — the club's own back artwork (public/hoop-cards/card-back.webp) with an orange glow.
+// =====================================================================================================
+/** Where the winner's signature sits on the 1-of-1 (card grid units: 100 wide × 140 tall) — over the lower photo, above the shield. */
+export const SIG_ZONE = { x: 12, y: 70, w: 76, h: 26 };
+
+export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signature?: string | null }> = (props) => {
+  const { glow = true, signature, ...p } = props;
+  const f = useFace(p as TradingCardProps);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const name = (p as TradingCardProps).person.display_name.trim().toUpperCase();
+  const size = Math.min(4.8, 62 / Math.max(1, name.length * 0.52));
+  return (
+    <div className="relative w-full aspect-[5/7] select-none" style={{
+      containerType: 'inline-size',
+      filter: glow ? `drop-shadow(0 0 ${cq(1)} rgba(255,214,110,0.95)) drop-shadow(0 0 ${cq(3.5)} rgba(255,184,60,0.7)) drop-shadow(0 0 ${cq(8)} rgba(240,160,40,0.4))` : undefined,
+    }}>
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(11.5), right: cq(11.5), top: cq(26), height: cq(93), background: 'radial-gradient(90% 60% at 50% 30%, #3A3220 0%, #15120C 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(242,210,122,0.25)" />
+      </div>
+      <img src="/hoop-cards/oneofone-frame.webp" alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {editing && (
+        <At x={0} r={0} y={62} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {/* the winner's own signature (transparent picture), written across the photo */}
+      {signature && (
+        <At x={SIG_ZONE.x} y={SIG_ZONE.y} w={SIG_ZONE.w} h={SIG_ZONE.h} className="pointer-events-none">
+          <img src={signature} alt="Signed" draggable={false} className="w-full h-full object-contain" style={{ filter: `drop-shadow(0 ${cq(0.25)} ${cq(0.3)} rgba(0,0,0,0.55))` }} />
+        </At>
+      )}
+      {/* name only, on the gold plate */}
+      <At x={18} r={18} y={121.7} h={6.8} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop font-black whitespace-nowrap leading-none" style={{ fontSize: cq(size), letterSpacing: cq(0.35), color: '#141A3A', textShadow: `0 ${cq(0.2)} 0 rgba(255,240,190,0.65)` }}>{name}</span>
+      </At>
+    </div>
+  );
+};
+
+export const CardBack: React.FC<{ club?: { name: string; logo_url: string | null } | null; glow?: boolean }> = ({ glow = true }) => (
+  <div className="relative w-full aspect-[5/7] select-none" style={{
+    containerType: 'inline-size',
+    filter: glow ? `drop-shadow(0 0 ${cq(1)} rgba(255,150,60,0.95)) drop-shadow(0 0 ${cq(4)} rgba(255,120,30,0.65)) drop-shadow(0 0 ${cq(9)} rgba(255,100,20,0.35))` : undefined,
+  }}>
+    <img src="/hoop-cards/card-back.webp" alt="" draggable={false} className="absolute inset-0 w-full h-full" />
+  </div>
+);
+
 // ------------------------------------------------------------------------------------------------ tilt
 /**
  * Tilting a card with a finger / mouse: the card turns slightly in 3D and the glare (and the holo rainbow)
@@ -963,6 +1018,7 @@ export const TiltCard: React.FC<{ children: React.ReactNode; className?: string 
 /** The cards in use, in order. Each player moves to card 2 after THEIR 2nd finished schedule (see ClubCard.tsx). */
 export const CARD_SERIES: CardSeries[] = [
   { n: 1, key: 'glow', name: 'Glow', tagline: 'Your first card — gold glow and light streaks.', Comp: TradingCard },
-  { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard },
-  { n: 3, key: 'starlight', name: 'Starlight', tagline: 'HOOP METHOD glitter & gold frame — logo and number circles, PPG and LEVEL 3 over the photo. Players get it after their 3rd finished schedule.', Comp: StarlightCard },
+  { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard, unlock: 'After 2 schedules' },
+  { n: 3, key: 'starlight', name: 'Starlight', tagline: 'HOOP METHOD glitter & gold frame — logo and number circles, PPG and LEVEL 3 over the photo. Players get it after their 3rd finished schedule.', Comp: StarlightCard, unlock: 'After 3 schedules' },
+  { n: 4, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — only the player you pick wins it from a card pack each schedule. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
 ];

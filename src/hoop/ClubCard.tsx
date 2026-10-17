@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { HOOP_MAIN_ADMIN_ID } from './lib';
 import { useAuth } from '../context/AuthContext';
 import { TradingCard, type TradingCardProps } from './TradingCard';
-import { RoyalCard, StarlightCard } from './CardDesigns';
+import { OneOfOneCard, RoyalCard, StarlightCard } from './CardDesigns';
 
 /**
  * Each PLAYER's card design, based on how many finished (closed) schedules THEY played in
@@ -11,15 +11,40 @@ import { RoyalCard, StarlightCard } from './CardDesigns';
  *   0–1 schedules → Card 1 · Glow
  *   2   schedules → Card 2 · Royal Crest
  *   3+  schedules → Card 3 · Starlight
+ * (the database repeats these numbers in private.hoop_member_level — change both together)
+ * Plus the rare 1-of-1, won from a card pack. A player has every level card up to theirs (+ any 1-of-1s) and can pick
+ * which one their own My Card shows (hoop_members.card_choice: 'level1'…'level3' or 'one:<id>'). Others always see the earned level.
  */
-export interface CardLevelDef { n: number; name: string; fromSchedules: number; Comp: React.FC<TradingCardProps> }
+export interface CardLevelDef { n: number; key: string; name: string; fromSchedules: number; Comp: React.FC<TradingCardProps> }
 export const CARD_LEVELS: CardLevelDef[] = [
-  { n: 1, name: 'Glow', fromSchedules: 0, Comp: TradingCard },
-  { n: 2, name: 'Royal Crest', fromSchedules: 2, Comp: RoyalCard },
-  { n: 3, name: 'Starlight', fromSchedules: 3, Comp: StarlightCard },
-  // { n: 4, name: '…', fromSchedules: 4, Comp: … },
+  { n: 1, key: 'glow', name: 'Glow', fromSchedules: 0, Comp: TradingCard },
+  { n: 2, key: 'royal', name: 'Royal Crest', fromSchedules: 2, Comp: RoyalCard },
+  { n: 3, key: 'starlight', name: 'Starlight', fromSchedules: 3, Comp: StarlightCard },
+  // { n: 4, key: '…', name: '…', fromSchedules: 4, Comp: … },
 ];
-export type CardLevel = number;
+/** Every design by its key (card packs use these keys). */
+export const DESIGNS: Record<string, React.FC<TradingCardProps>> = { ...Object.fromEntries(CARD_LEVELS.map((l) => [l.key, l.Comp])), oneofone: OneOfOneCard };
+/** A level number, or 'one' for the 1-of-1. */
+export type CardLevel = number | 'one';
+
+/** A 1-of-1's signature picture (null = not signed yet). Refreshes when it's signed (window event 'hoop-signed'). */
+const sigCache = new Map<string, string | null>();
+export function useOneSignature(oneId?: string | null): string | null {
+  const [sig, setSig] = useState<string | null>(oneId ? sigCache.get(oneId) ?? null : null);
+  useEffect(() => {
+    if (!oneId) { setSig(null); return; }
+    let live = true;
+    const load = () => supabase.from('hoop_one_of_ones').select('signature_url').eq('id', oneId).maybeSingle()
+      .then(({ data }) => { if (!live) return; const v = (data as any)?.signature_url ?? null; sigCache.set(oneId, v); setSig(v); });
+    setSig(sigCache.get(oneId) ?? null);
+    load();
+    const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.id === oneId) { sigCache.set(oneId, d.url); setSig(d.url); } };
+    window.addEventListener('hoop-signed', on);
+    return () => { live = false; window.removeEventListener('hoop-signed', on); };
+  }, [oneId]);
+  return sig;
+}
+export const announceSigned = (id: string, url: string | null) => window.dispatchEvent(new CustomEvent('hoop-signed', { detail: { id, url } }));
 
 export const levelFor = (schedules: number): CardLevelDef =>
   [...CARD_LEVELS].reverse().find((l) => schedules >= l.fromSchedules) || CARD_LEVELS[0];
@@ -45,15 +70,27 @@ export function useMemberSchedules(memberId?: string | null): { schedules: numbe
   return { schedules, level: levelFor(schedules), ready: n !== null };
 }
 
-/** A player's card in their current design (or a forced level, e.g. the main admin's preview). */
-export const ClubCard: React.FC<TradingCardProps & { memberId?: string | null; level?: CardLevel }> = ({ memberId, level, ...p }) => {
+/** The level/1-of-1 a card_choice points at ('level2' → 2, 'one:…' → 'one'), or null. */
+export const choiceLevel = (choice?: string | null): CardLevel | null =>
+  !choice ? null : choice.startsWith('one:') ? 'one' : /^level\d$/.test(choice) ? Number(choice.slice(5)) : null;
+
+/**
+ * A player's card. Shows their earned level, unless:
+ *   level  — forced (the main admin's preview, a card from the list)
+ *   choice — the player's own pick (only pass this on their OWN My Card; checked against what they've earned)
+ */
+export const ClubCard: React.FC<TradingCardProps & { memberId?: string | null; level?: CardLevel; choice?: string | null; oneId?: string | null }> = ({ memberId, level, choice, oneId, ...p }) => {
   const auto = useMemberSchedules(memberId);
+  const sigId = oneId ?? (choice?.startsWith('one:') ? choice.slice(4) : null);
+  const signature = useOneSignature(sigId);
   if (level == null && memberId && !auto.ready) {
     // still finding out which card this player has — keep the space, don't flash card 1
     return <div data-card-loading className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.04] animate-pulse" />;
   }
-  const def = level != null ? CARD_LEVELS.find((l) => l.n === level) || auto.level : auto.level;
-  const Comp = def.Comp;
+  const picked = choiceLevel(choice);
+  const want: CardLevel = level ?? (picked === 'one' || (typeof picked === 'number' && picked <= auto.level.n) ? picked : auto.level.n);
+  if (want === 'one') return <OneOfOneCard {...p} signature={signature} />;
+  const Comp = (CARD_LEVELS.find((l) => l.n === want) || auto.level).Comp;
   return <Comp {...p} />;
 };
 
@@ -69,10 +106,10 @@ export const OwnerCardPreview: React.FC<{ memberId: string; value: CardLevel | n
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-black tracking-wider text-[var(--hp)]">OWNER PREVIEW</p>
         <div className="flex gap-1.5 flex-wrap justify-end">
-          {CARD_LEVELS.map((l) => (
-            <button key={l.n} onClick={() => onChange(l.n === level.n ? null : l.n)}
-              className={`h-7 px-3 rounded-full text-[11px] font-bold border cursor-pointer ${shown === l.n ? 'bg-[var(--hp)] border-[var(--hp)] text-[#111]' : 'bg-[#151515] border-white/15 text-[#E7E5E4]'}`}>
-              Card {l.n}{l.n > 1 ? ` · ${l.name}` : ''}
+          {[...CARD_LEVELS.map((l) => ({ v: l.n as CardLevel, label: `Card ${l.n}${l.n > 1 ? ` · ${l.name}` : ''}` })), { v: 'one' as CardLevel, label: '1 of 1' }].map(({ v, label }) => (
+            <button key={String(v)} onClick={() => onChange(v === level.n ? null : v)}
+              className={`h-7 px-3 rounded-full text-[11px] font-bold border cursor-pointer ${shown === v ? 'bg-[var(--hp)] border-[var(--hp)] text-[#111]' : 'bg-[#151515] border-white/15 text-[#E7E5E4]'}`}>
+              {label}
             </button>
           ))}
         </div>
