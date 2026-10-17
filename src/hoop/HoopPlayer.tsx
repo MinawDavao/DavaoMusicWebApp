@@ -11,7 +11,8 @@ import { Avatar, ErrorNote, FilePick, Modal, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import { MessageButton } from '../screens/MessagesScreen';
 import { DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
-import { saveCardImage, shareCardSocial, type SocialFormat } from './TradingCard';
+import { cardBlob, socialPicture, type SocialFormat } from './TradingCard';
+import { ShareSheet, type ReadyPicture } from './ShareSheet';
 import { ClubCard, OwnerCardPreview, type CardLevel } from './ClubCard';
 import { HoopFace } from './HoopFace';
 import {
@@ -37,6 +38,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
   const [photoEdit, setPhotoEdit] = useState(false);
   const [tryLevel, setTryLevel] = useState<CardLevel | null>(null);   // owner-only preview of card 2
   const [sharing, setSharing] = useState<SocialFormat | null>(null);
+  const [ready, setReady] = useState<ReadyPicture | null>(null);   // picture made → ask before opening Instagram / Facebook
   const [linking, setLinking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -105,8 +107,8 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
     if (!shotRef.current || shotRef.current.querySelector('[data-card-loading]')) return;   // card still loading
     setSaving(true); setErr(null); setSaveNote(null);
     try {
-      const r = await saveCardImage(shotRef.current, `hoop-card-${person.display_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`);
-      if (r === 'downloaded') setSaveNote('Saved! Check your Downloads / Photos.');
+      const blob = await cardBlob(shotRef.current);
+      setReady({ blob, kind: 'card', fileName: `hoop-card-${person.display_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png` });
     } catch (e) { setErr(errorMessage(e)); }
     setSaving(false);
   };
@@ -114,11 +116,10 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
     if (!shotRef.current || shotRef.current.querySelector('[data-card-loading]') || saving || sharing) return;
     setSharing(format); setErr(null); setSaveNote(null);
     try {
-      const r = await shareCardSocial(shotRef.current, format, {
-        fileName: `hoop-card-${format}-${person.display_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`,
+      const blob = await socialPicture(shotRef.current, format, {
         clubName: club?.name, color: getComputedStyle(shotRef.current).getPropertyValue('--hp').trim(),
       });
-      if (r === 'downloaded') setSaveNote(`Saved! Open ${format === 'story' ? 'Facebook or Instagram and add it to your story' : 'Instagram and post it'} from your photos.`);
+      setReady({ blob, kind: format, fileName: `hoop-card-${format}-${person.display_name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png` });
     } catch (e) { setErr(errorMessage(e)); }
     setSharing(null);
   };
@@ -185,7 +186,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
                 <span className="text-[10px] font-normal text-[#A8A29E]">Instagram feed</span>
               </button>
             </div>
-            <p className="text-[10px] text-[#78716C] text-center leading-snug">Pick Instagram or Facebook from the list that opens.</p>
+            <p className="text-[10px] text-[#78716C] text-center leading-snug">We make the picture first, then ask before opening Instagram or Facebook.</p>
           </div>
         )}
         {saveNote && <p className="text-center text-[11px] text-[#53E6D4]">{saveNote}</p>}
@@ -266,6 +267,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
       {m.profile_id && <Props playerId={m.profile_id} playerName={person.display_name} isMe={isMe} />}
 
       {editing && <EditCard member={m} canName={offline && isAdmin} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {ready && <ShareSheet pic={ready} onClose={() => setReady(null)} />}
       {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} level={tryLevel ?? undefined} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
     </div>
   );

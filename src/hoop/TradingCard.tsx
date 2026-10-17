@@ -187,7 +187,7 @@ function cardFonts(): Promise<string> {
 }
 
 /** The card (the padded box around it, glow included) as a PNG. */
-async function cardBlob(node: HTMLElement): Promise<Blob> {
+export async function cardBlob(node: HTMLElement): Promise<Blob> {
   const fontEmbedCSS = await cardFonts();
   // moving shine effects are left out of the picture (they'd be frozen mid-sweep)
   const opts = { pixelRatio: 3, cacheBust: true, fontEmbedCSS, backgroundColor: '#050508', filter: (n: HTMLElement) => !(n.dataset && n.dataset.fx === 'anim') };
@@ -198,19 +198,31 @@ async function cardBlob(node: HTMLElement): Promise<Blob> {
 }
 
 type ShareResult = 'shared' | 'downloaded' | 'cancelled';
-/** Opens the phone's share sheet with the picture (Instagram, Facebook, Messenger… are listed there), or downloads it on a computer. */
-async function shareOrDownload(blob: Blob, fileName: string): Promise<ShareResult> {
-  const file = new File([blob], fileName, { type: 'image/png' });
+/** Can this phone/browser hand a picture to other apps (Instagram, Facebook…) through its share menu? */
+export function canSharePicture(blob: Blob, fileName: string): boolean {
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (nav.canShare?.({ files: [file] })) {
-    // files only: Instagram drops share sheets that also carry text
-    try { await nav.share({ files: [file] }); return 'shared'; }
-    catch (e: any) { if (e?.name === 'AbortError') return 'cancelled'; }
-  }
+  try { return !!nav.canShare?.({ files: [new File([blob], fileName, { type: 'image/png' })] }); } catch { return false; }
+}
+/** Downloads the picture (computers, and phones without a share menu). */
+export function downloadPicture(blob: Blob, fileName: string) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = fileName;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+/**
+ * Opens the phone's share menu with the picture (Instagram, Facebook, Messenger… are listed there), or downloads it.
+ * Must be called straight from a tap: phones refuse the share menu if seconds passed since the tap,
+ * so make the picture first and call this from a second "Share" button.
+ */
+export async function shareOrDownload(blob: Blob, fileName: string): Promise<ShareResult> {
+  const file = new File([blob], fileName, { type: 'image/png' });
+  if (canSharePicture(blob, fileName)) {
+    // files only: Instagram drops share sheets that also carry text
+    try { await navigator.share({ files: [file] }); return 'shared'; }
+    catch (e: any) { if (e?.name === 'AbortError') return 'cancelled'; }
+  }
+  downloadPicture(blob, fileName);
   return 'downloaded';
 }
 
@@ -226,7 +238,7 @@ export type SocialFormat = 'story' | 'post';
  * Dark background with a glow in the club colour, club name on top, minawdavao.com at the bottom.
  * Text stays out of the top/bottom 250px of a story, where Instagram puts its own buttons.
  */
-export async function shareCardSocial(node: HTMLElement, format: SocialFormat, opts: { fileName: string; clubName?: string | null; color?: string }): Promise<ShareResult> {
+export async function socialPicture(node: HTMLElement, format: SocialFormat, opts: { clubName?: string | null; color?: string }): Promise<Blob> {
   const W = 1080, H = format === 'story' ? 1920 : 1350;
   const img = await createImageBitmap(await cardBlob(node));
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -276,5 +288,5 @@ export async function shareCardSocial(node: HTMLElement, format: SocialFormat, o
 
   const out = await new Promise<Blob | null>((res) => cv.toBlob(res, 'image/png'));
   if (!out) throw new Error('Could not make the picture. Please try again.');
-  return shareOrDownload(out, opts.fileName);
+  return out;
 }
