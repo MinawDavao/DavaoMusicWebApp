@@ -13,7 +13,7 @@ import { OneOfOneCard, RoyalCard, StarlightCard } from './CardDesigns';
  *   3+  schedules → Card 3 · Starlight
  * (the database repeats these numbers in private.hoop_member_level — change both together)
  * Plus the rare 1-of-1, won from a card pack. A player has every level card up to theirs (+ any 1-of-1s) and can pick
- * which one their own My Card shows (hoop_members.card_choice: 'level1'…'level3' or 'one:<id>'). Others always see the earned level.
+ * which card they show (hoop_members.card_choice: 'level1'…'level3' or 'one:<id>') — everyone sees the card they picked.
  */
 export interface CardLevelDef { n: number; key: string; name: string; fromSchedules: number; Comp: React.FC<TradingCardProps> }
 export const CARD_LEVELS: CardLevelDef[] = [
@@ -84,7 +84,7 @@ export const choiceLevel = (choice?: string | null): CardLevel | null =>
 /**
  * A player's card. Shows their earned level, unless:
  *   level  — forced (the main admin's preview, a card from the list)
- *   choice — the player's own pick (only pass this on their OWN My Card; checked against what they've earned)
+ *   choice — the player's pick (hoop_members.card_choice; checked against what they've earned, shown to everyone)
  */
 export const ClubCard: React.FC<TradingCardProps & { memberId?: string | null; level?: CardLevel; choice?: string | null; oneId?: string | null }> = ({ memberId, level, choice, oneId, ...p }) => {
   const auto = useMemberSchedules(memberId);

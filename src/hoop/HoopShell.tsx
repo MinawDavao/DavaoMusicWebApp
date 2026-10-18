@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Spinner } from '../components/ui';
 import { ClubContext, H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, hbtn, themeVars, type ClubCtx, type HoopClub, type HoopMember } from './lib';
+import { ClubBillingBanner } from './ClubBilling';
 import { HoopClubs } from './HoopClubs';
 import { HoopGames } from './HoopGames';
 import { HoopGameScreen } from './HoopGame';
@@ -165,7 +166,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
   const tabs: { key: string; label: string; Icon: React.ElementType }[] = [
     { key: 'games', label: 'Games', Icon: CalendarDays },
     { key: 'players', label: 'Players', Icon: Trophy },
-    { key: 'packs', label: 'Packs', Icon: Gift },
+    ...(club?.oneofone_url ? [{ key: 'packs', label: 'Packs', Icon: Gift }] : []),   // card packs once the club has its 1-of-1 design
     { key: 'me', label: 'My Card', Icon: IdCard },
     ...(ctx.isAdmin ? [{ key: 'manage', label: 'Manage', Icon: Settings }] : []),
   ];
@@ -213,7 +214,10 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
             </div>
           </header>
 
-          <main className="flex-1 pb-28">{screen}</main>
+          <main className="flex-1 pb-28">
+            {showClub && club && user && <ClubBillingBanner club={club} isAdmin={ctx.isAdmin} />}
+            {screen}
+          </main>
 
           {showClub && user && (profile?.role === 'fan' || isModerator) && (
             <nav aria-label="Club menu" className="fixed bottom-3 left-0 right-0 z-40 mx-auto max-w-[420px] px-3">

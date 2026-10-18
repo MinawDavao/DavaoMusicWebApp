@@ -3,7 +3,7 @@ import { Check, Crown, PenLine } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
 import { ErrorNote } from '../components/ui';
-import { CARD_LEVELS, ClubCard, announceSigned, choiceLevel, useMemberSchedules, type CardLevel } from './ClubCard';
+import { CARD_LEVELS, ClubCard, announceSigned, useMemberSchedules, type CardLevel } from './ClubCard';
 import { SignCard } from './SignCard';
 import type { TradingCardProps } from './TradingCard';
 import { hbtn } from './lib';
@@ -30,7 +30,6 @@ export const MyCards: React.FC<{ memberId: string; choice: string | null | undef
     ...CARD_LEVELS.filter((l) => l.n <= level.n).map((l) => ({ key: `level${l.n}`, level: l.n as CardLevel, label: `Level ${l.n}` })),
     ...ones.map((o, i) => ({ key: `one:${o.id}`, level: 'one' as CardLevel, label: ones.length > 1 ? `1 of 1 · #${i + 1}` : '1 of 1', oneId: o.id, signed: !!o.signature_url, sig: o.signature_url })),
   ];
-  const picked = choiceLevel(choice);
   const current = choice && owned.some((o) => o.key === choice) ? choice : `level${level.n}`;
   if (owned.length < 2 && !ones.length) return null;   // only one card so far — nothing to choose yet
 
@@ -74,7 +73,6 @@ export const MyCards: React.FC<{ memberId: string; choice: string | null | undef
       ))}
       {signing && <SignCard {...card} oneId={signing.id} current={signing.current} onClose={() => setSigning(null)}
         onSaved={(url) => { announceSigned(signing.id, url); setOnes((l) => l.map((x) => (x.id === signing.id ? { ...x, signature_url: url } : x))); }} />}
-      {picked === 'one' && <p className="text-[11px] text-[#A8A29E]">Your 1-of-1 shows on your own My Card. Other players see your Level card.</p>}
       <ErrorNote text={err} />
     </section>
   );

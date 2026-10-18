@@ -12,7 +12,7 @@ import { MentionText } from './Mentions';
 type NType =
   | 'comment' | 'mention_post' | 'mention_comment' | 'reaction' | 'follow' | 'band_follow'
   | 'review_pending' | 'review_approved' | 'rsvp' | 'playlist_like' | 'playlist_copy' | 'venue_tag'
-  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin' | 'hoop_props' | 'hoop_props_approved' | 'hoop_join_request' | 'hoop_join_approved' | 'hoop_club_admin' | 'hoop_club_creator' | 'hoop_pack';
+  | 'track_like' | 'track_comment' | 'mention_track_comment' | 'band_member' | 'band_admin' | 'hoop_props' | 'hoop_props_approved' | 'hoop_join_request' | 'hoop_join_approved' | 'hoop_club_admin' | 'hoop_club_creator' | 'hoop_pack' | 'hoop_billing' | 'hoop_club_new';
 
 interface Notif {
   id: string; type: NType; actor_id: string | null; post_id: string | null; band_id: string | null;
@@ -44,6 +44,8 @@ const META: Record<NType, { Icon: React.ElementType; color: string; text: (n: No
   hoop_club_creator: { Icon: Star, color: '#F28C14', text: () => 'allowed you to create your own basketball club on Hoop Method' },
   hoop_join_approved: { Icon: ShieldCheck, color: '#F28C14', text: (n) => `approved your player card for ${n.snippet || 'the club'} — you can book games now` },
   hoop_pack: { Icon: Star, color: '#F6C94C', text: (n) => `opened the ${n.snippet || 'Hoop Method'} card packs — yours is ready! Flip it to see if you pulled the 1-of-1` },
+  hoop_billing: { Icon: ShieldCheck, color: '#53E6D4', text: (n) => `confirmed your GCash payment — ${n.snippet || 'your club is active again'}` },
+  hoop_club_new: { Icon: Star, color: '#F28C14', text: (n) => `created a new club, ${n.snippet ? `“${n.snippet}”` : 'on Hoop Method'} — its 1-month free trial started` },
   band_admin:      { Icon: ShieldCheck, color: '#53E6D4', text: (n) => `made you an admin of ${n.snippet ? `“${n.snippet}”` : 'their band page'} — you can now edit it from your account` },
 };
 
@@ -66,6 +68,9 @@ function routeFor(n: Notif, myId: string): Route {
       return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'me' } : { name: 'hoop' };
     case 'hoop_pack':
       return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'packs' } : { name: 'hoop' };
+    case 'hoop_billing':
+    case 'hoop_club_new':
+      return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'manage' } : { name: 'hoop' };
     case 'hoop_club_admin':
       return n.hoop_club_id ? { name: 'hoopClub', club: n.hoop_club_id, tab: 'manage' } : { name: 'hoop' };
     case 'hoop_club_creator':

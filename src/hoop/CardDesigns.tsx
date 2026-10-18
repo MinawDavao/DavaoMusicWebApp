@@ -943,6 +943,8 @@ export const StarlightCard: React.FC<TradingCardProps> = (p) => {
 /** Where the winner's signature sits on the 1-of-1 (card grid units: 100 wide × 140 tall) — over the lower photo, above the shield. */
 export const SIG_ZONE = { x: 12, y: 70, w: 76, h: 26 };
 
+/** Hoop Method's own 1-of-1 artwork; other clubs use theirs (hoop_clubs.oneofone_url, same layout). */
+export const ONE_FRAME = '/hoop-cards/oneofone-frame.webp';
 export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signature?: string | null }> = (props) => {
   const { glow = true, signature, ...p } = props;
   const f = useFace(p as TradingCardProps);
@@ -961,7 +963,7 @@ export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signatu
         style={{ left: cq(11.5), right: cq(11.5), top: cq(26), height: cq(93), background: 'radial-gradient(90% 60% at 50% 30%, #3A3220 0%, #15120C 70%)' }}>
         <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(242,210,122,0.25)" />
       </div>
-      <img src="/hoop-cards/oneofone-frame.webp" alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      <img src={p.club?.oneofone_url || ONE_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
       {editing && (
         <At x={0} r={0} y={62} className="flex justify-center pointer-events-none">
           <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>

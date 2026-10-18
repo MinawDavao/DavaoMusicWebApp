@@ -160,7 +160,25 @@ export interface HoopClub {
   id: string; name: string; tagline: string | null; description: string | null; rules: string | null; location: string | null;
   logo_url: string | null; cover_url: string | null; theme: { primary?: string; accent?: string } | null; owner_id: string | null;
   is_hidden: boolean; created_at: string;
+  /** subscription: active until (null = no end); billing_free = never pays (the main admin's own clubs) */
+  paid_until?: string | null; billing_free?: boolean;
+  /** this club's own 1-of-1 card artwork (null = no 1-of-1 / card packs yet) */
+  oneofone_url?: string | null;
 }
+
+// ---------- club subscriptions (₱400/month after a 30-day free trial; paid by GCash, confirmed by the main admin)
+export const CLUB_PRICE = 400;
+export const GCASH_NUMBER = '0906 275 2429';
+export const GCASH_QR = '/gcash-qr.png';   // put the GCash QR picture at public/gcash-qr.png (it shows once it's there)
+export const TRIAL_DAYS = 30;
+export function clubBilling(c: Pick<HoopClub, 'paid_until' | 'billing_free' | 'created_at'> | null | undefined) {
+  if (!c || c.billing_free || !c.paid_until) return { free: true, active: true, daysLeft: Infinity, until: null as Date | null, trial: false };
+  const until = new Date(c.paid_until);
+  const ms = until.getTime() - Date.now();
+  const trial = until.getTime() - new Date(c.created_at).getTime() <= (TRIAL_DAYS + 1) * 864e5;   // never extended = still the free month
+  return { free: false, active: ms > 0, daysLeft: Math.max(0, Math.ceil(ms / 864e5)), until, trial };
+}
+export const longDate = (d: Date) => d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
 /** One player card per club. Offline players (no account) have no profile_id and use name / photo_url. */
 export interface HoopMember {
   id: string; club_id: string; profile_id: string | null; name: string | null; photo_url: string | null;

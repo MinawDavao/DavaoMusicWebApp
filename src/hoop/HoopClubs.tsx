@@ -7,6 +7,7 @@ import { useNav } from '../nav';
 import { Avatar, ErrorNote, FilePick, Modal, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import { MessageButton } from '../screens/MessagesScreen';
+import { SubscriptionsOverview } from './ClubBilling';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { HOOP_MAIN_ADMIN_ID, PERSON, THEMES, hbtn, hinput, gameDate, themeVars, type HoopClub, type HoopPerson } from './lib';
 import { shrinkPhoto } from './HoopPlayer';
@@ -101,9 +102,11 @@ export const HoopClubs: React.FC = () => {
       <div className="flex gap-2">
         {canCreate
           ? <button onClick={() => setCreating(true)} className={`${hbtn.primary} flex-1`}><Plus className="w-4 h-4" />Create a club</button>
-          : mainAdminId && <MessageButton to={mainAdminId} label="Want to start a club? Message the admin" draft="Hi! I’d like to start a basketball club on Hoop Method. " className={`${hbtn.ghost} flex-1 !text-xs`} />}
+          : mainAdminId && <MessageButton to={mainAdminId} label="Want to start a club? Message the admin" draft="Hi! I’d like to start a basketball club on Hoop Method (1-month free trial, then ₱400/month). " className={`${hbtn.ghost} flex-1 !text-xs`} />}
         {isModerator && <button onClick={() => setCreators(true)} className={hbtn.ghost} title="Who can create clubs"><KeyRound className="w-4 h-4 text-[var(--hp)]" />Club creators</button>}
       </div>
+
+      {user?.id === HOOP_MAIN_ADMIN_ID && <SubscriptionsOverview clubs={rows as any} />}
 
       {user?.id === HOOP_MAIN_ADMIN_ID && <button onClick={() => go({ name: 'hoopDesigns' })} className="w-full flex items-center gap-3 p-3 rounded-2xl border border-[var(--hp)]/35 text-left cursor-pointer" style={{ background: 'linear-gradient(110deg, color-mix(in srgb, var(--hp) 16%, #141414), #141414 70%)' }}>
         <span className="flex -space-x-3">{['#F7A51C', '#C98A4B', '#FF2E93', '#B3C7FF', '#E8C25A'].map((c) => <span key={c} className="w-6 h-8 rounded-md border border-black/50" style={{ background: c }} />)}</span>
@@ -161,6 +164,7 @@ const CreateClub: React.FC<{ onClose: () => void; onSaved: (id: string) => void 
   const lbl = 'block text-[12px] font-bold text-[#E7E5E4] mb-1';
   return (
     <Modal title="Create a club" onClose={onClose} footer={<>
+      {user?.id !== HOOP_MAIN_ADMIN_ID && <p className="text-[11px] text-[#A8A29E] text-center">Your club is free for the first month. After that it’s ₱400/month by GCash to keep scheduling games.</p>}
       <ErrorNote text={err} />
       <div className="flex gap-2">
         <button onClick={onClose} className={`${hbtn.ghost} flex-1`}><X className="w-4 h-4" />Cancel</button>

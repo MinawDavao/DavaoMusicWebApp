@@ -11,6 +11,7 @@ import { H, MEMBER_COLS, PERSON, THEMES, hbtn, hinput, personOf, useClub, type H
 import { HoopFace } from './HoopFace';
 import { ThemePicker } from './HoopClubs';
 import { AddOfflinePlayer, shrinkPhoto } from './HoopPlayer';
+import { ClubSubscription, OneOfOneDesign } from './ClubBilling';
 
 const Section: React.FC<{ icon: React.ElementType; title: string; sub?: string; children: React.ReactNode; right?: React.ReactNode }> = ({ icon: Icon, title, sub, children, right }) => (
   <section className="rounded-2xl p-3.5 space-y-3 border border-white/10" style={{ background: H.surface }}>
@@ -176,6 +177,10 @@ export const HoopManage: React.FC = () => {
         <p className="text-[12px] text-[#A8A29E] mt-1">Only club admins see this page.</p>
       </div>
       <ErrorNote text={err} />
+
+      {/* SUBSCRIPTION (₱400/month after the free month) + the club's own 1-of-1 card */}
+      <ClubSubscription club={club} onChanged={reload} />
+      <OneOfOneDesign club={club} onChanged={reload} />
 
       {/* ADMINS */}
       <Section icon={ShieldCheck} title="Club admins" sub="Assign a backup admin so games can still run when you’re not around. They can schedule games, pick teams, mark payments, run live scores, approve players and edit this page.">

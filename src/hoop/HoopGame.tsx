@@ -172,7 +172,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     if (g.id === game.id || (g.status !== 'live' && g.status !== 'final')) return;
     g.hoop_game_players.forEach((x) => { if (x.team) played[x.profile_id] = (played[x.profile_id] || 0) + 1; });
   });
-  const sittingOut = bookings.filter((b) => !players.some((p) => p.profile_id === b.profile_id && p.team)).sort(byArrival);
+  // sitting out: in Game 2, 3… whoever played the fewest games today comes first (they're up next), then arrival order
+  const sittingOut = bookings.filter((b) => !players.some((p) => p.profile_id === b.profile_id && p.team))
+    .sort((a, b) => (game.session_id ? (played[a.profile_id] || 0) - (played[b.profile_id] || 0) : 0) || byArrival(a, b));
   const teamOf = (pid: string) => players.find((p) => p.profile_id === pid)?.team ?? null;
   const paidCount = bookings.filter((b) => b.paid).length;
   const periods = game.periods ?? 4;
@@ -311,25 +313,17 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
   const reopenSchedule = () => run(() => supabase.from('hoop_games').update({ closed_at: null }).eq('id', sessionId)).then(loadPlayers);
   const nextGame = async () => {
-    const lineup = nextUp.map(({ b, team }) => `${team === 'A' ? game.team_a : game.team_b}: ${b.profiles?.display_name || 'Player'}`);
-    if (!confirm(`Start Game ${session.length + 1} of this schedule?\n\n`
-      + (lineup.length ? `Teams are set from the “Next up” line-up (you can still change them):\n${lineup.join('\n')}` : 'You’ll pick the teams.'))) return;
+    const lineup = nextUp.map(({ b }) => b.profiles?.display_name || 'Player');
+    if (!confirm(`Start Game ${session.length + 1} of this schedule?\n\nEveryone starts as sitting out — you pick the new teams.`
+      + (lineup.length ? `\n\nUp next (played the least): ${lineup.join(', ')}` : ''))) return;
     setBusy(true); setErr(null);
     const { data, error } = await supabase.from('hoop_games').insert({
       session_id: sessionId, title: root.title, venue: root.venue, starts_at: new Date().toISOString(), slots: root.slots,
       period_seconds: game.period_seconds, periods, team_a: game.team_a, team_b: game.team_b, created_by: user?.id,
     }).select('id').single();
     if (error) { setBusy(false); return setErr(errorMessage(error)); }
-    const gid = (data as any).id as string;
-    const members = nextUp.filter(({ b }) => !b.is_guest).map(({ b, team }) => ({ game_id: gid, member_id: b.profile_id, team }));
-    const guests = nextUp.filter(({ b }) => b.is_guest).map(({ b, team }) => ({ game_id: gid, guest_id: b.profile_id, guest_name: b.profiles?.display_name || 'Guest', team }));
-    const [r1, r2] = await Promise.all([
-      members.length ? supabase.from('hoop_game_players').upsert(members, { onConflict: 'game_id,member_id' }) : Promise.resolve({ error: null }),
-      guests.length ? supabase.from('hoop_game_players').upsert(guests, { onConflict: 'game_id,guest_id' }) : Promise.resolve({ error: null }),
-    ]);
     setBusy(false);
-    if (r1.error || r2.error) alert(`Game ${session.length + 1} was made, but some players couldn’t be put on teams — please check the teams.`);
-    go({ name: 'hoopGame', id: gid });
+    go({ name: 'hoopGame', id: (data as any).id as string });   // no teams yet: everyone is sitting out until the admin picks
   };
 
   // ---------- admin: game flow
@@ -832,7 +826,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[11px] font-black tracking-wider text-[var(--hp)]">NEXT UP · GAME {Math.max(session.length, 1) + 1}</p>
-              <p className="text-[11px] text-[#A8A29E] mt-0.5">Fewest games first, then who arrived first{arrivedN ? ' (only players at the court)' : ''}. Updates live.</p>
+              <p className="text-[11px] text-[#A8A29E] mt-0.5">Who plays next: fewest games first, then who arrived first{arrivedN ? ' (only players at the court)' : ''}. You pick their teams when the next game starts.</p>
             </div>
             <span className="px-2 py-1 rounded-lg bg-white/[0.06] text-[10px] font-bold text-[#D6D3D1] whitespace-nowrap">{perTeam} vs {perTeam}</span>
           </div>
@@ -840,24 +834,20 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             <p className="text-[11px] text-[#FFC34D]">Pick this game’s teams first — the next line-up then skips whoever plays now.</p>
           )}
           {nextUp.length === 0 ? <p className="text-[12px] text-[#A8A29E]">No players yet.</p> : (
-            <div className="grid grid-cols-2 gap-2">
-              {(['A', 'B'] as const).map((tm) => (
-                <div key={tm} className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-wider truncate" style={{ color: tm === 'A' ? H.orange : '#D6D3D1' }}>{tm === 'A' ? game.team_a : game.team_b}</p>
-                  {nextUp.filter((x) => x.team === tm).map(({ b }) => {
-                    const n = afterThis(b.profile_id);
-                    const r = arrivalRank(b.profile_id);
-                    return (
-                      <div key={b.profile_id} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/25 border border-white/10">
-                        <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={24} />
-                        <span className="flex-1 min-w-0 text-[11px] font-bold text-white truncate">{short(b.profiles?.display_name)}</span>
-                        <span className={`px-1 rounded text-[8px] font-black ${n === 0 ? 'bg-[#8FE36B]/15 text-[#8FE36B]' : 'bg-white/10 text-[#D6D3D1]'}`} title={`${n} game${n === 1 ? '' : 's'} played after this one`}>{n === 0 ? 'FRESH' : `${n} GP`}</span>
-                        {r > 0 && <span className="text-[8px] font-black text-[var(--hp)]" title="Arrival order">#{r}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-1.5">
+              {nextUp.map(({ b }, i) => {
+                const n = afterThis(b.profile_id);
+                const r = arrivalRank(b.profile_id);
+                return (
+                  <div key={b.profile_id} className="flex items-center gap-1.5 p-1.5 rounded-lg bg-black/25 border border-white/10">
+                    <span className="w-4 text-[9px] font-black text-[#78716C] text-center">{i + 1}</span>
+                    <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={24} />
+                    <span className="flex-1 min-w-0 text-[11px] font-bold text-white truncate">{short(b.profiles?.display_name)}</span>
+                    <span className={`px-1 rounded text-[8px] font-black ${n === 0 ? 'bg-[#8FE36B]/15 text-[#8FE36B]' : 'bg-white/10 text-[#D6D3D1]'}`} title={`${n} game${n === 1 ? '' : 's'} played after this one`}>{n === 0 ? 'FRESH' : `${n} GP`}</span>
+                    {r > 0 && <span className="text-[8px] font-black text-[var(--hp)]" title="Arrival order">#{r}</span>}
+                  </div>
+                );
+              })}
             </div>
           )}
           {nextUp.length > 0 && nextUp.length < perTeam * 2 && <p className="text-[11px] text-[#FFC34D]">Only {nextUp.length} player{nextUp.length === 1 ? '' : 's'} available{arrivedN ? ' at the court' : ''} — need {perTeam * 2} for {perTeam} vs {perTeam}.</p>}
@@ -876,7 +866,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       ) : isModerator && game.status === 'final' && !session.some((g) => g.status === 'live') && (
         <div className="space-y-2">
           {!session.some((g) => g.status === 'scheduled' && g.session_id) && (
-            <button onClick={nextGame} disabled={busy} className={`${hbtn.primary} w-full !py-3 !text-base`}><Plus className="w-5 h-5" />Start Game {session.length + 1} with the Next up line-up</button>
+            <button onClick={nextGame} disabled={busy} className={`${hbtn.primary} w-full !py-3 !text-base`}><Plus className="w-5 h-5" />Start Game {session.length + 1} — pick new teams</button>
           )}
           <button onClick={endSchedule} disabled={busy} className={`${hbtn.ghost} w-full !py-3`}><Flag className="w-4 h-4" />End schedule — no more games today</button>
         </div>

@@ -6,8 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { confirmDelete } from '../components/ConfirmDelete';
-import { H, HOOP_MAIN_ADMIN_ID, PERSON, fetchStats, gameDate, hbtn, personOf, useClub, type HoopMember, type HoopStats } from './lib';
-import { CARD_LEVELS, DESIGNS, announceSigned, useMemberSchedules } from './ClubCard';
+import { H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, PERSON, fetchStats, gameDate, hbtn, personOf, useClub, type HoopMember, type HoopStats } from './lib';
+import { DESIGNS, announceSigned, levelFor, useMemberSchedules } from './ClubCard';
 import { OneOfOneCard } from './CardDesigns';
 import { SignCard } from './SignCard';
 import { CardBack, TiltCard } from './CardDesigns';
@@ -23,7 +23,7 @@ const GAME = 'game:hoop_games!hoop_packs_schedule_id_fkey(title, starts_at, clos
 
 export const HoopPacks: React.FC = () => {
   const { user } = useAuth();
-  const { club, me } = useClub();
+  const { club, me, isOwner } = useClub();
   const [packs, setPacks] = useState<Pack[] | null>(null);
   const [stats, setStats] = useState<HoopStats | null>(null);
   const [opening, setOpening] = useState<Pack | null>(null);
@@ -42,6 +42,15 @@ export const HoopPacks: React.FC = () => {
   useEffect(() => { load(); }, [load]);
 
   if (!club) return null;
+  if (!club.oneofone_url) return (   // card packs start once the club has its own 1-of-1 design
+    <div className="px-3 py-6">
+      <div className="p-5 rounded-2xl border border-white/10 text-center space-y-2" style={{ background: H.surface }}>
+        <Gift className="w-8 h-8 mx-auto text-[var(--hp)]" />
+        <p className="font-hoop italic font-black text-[20px] uppercase text-white">Card packs coming soon</p>
+        <p className="text-[12px] text-[#A8A29E]">Card packs and the rare 1-of-1 card start once {club.name} has its own 1-of-1 card design.</p>
+      </div>
+    </div>
+  );
   return (
     <div className="px-3 py-4 space-y-5">
       <div className="space-y-1">
@@ -49,7 +58,7 @@ export const HoopPacks: React.FC = () => {
         <p className="text-[12px] text-[#A8A29E]">Play a schedule, get a pack of 5 cards. Flip them one by one — one lucky player each schedule finds the rare <strong className="text-[#F6C94C]">1-of-1</strong> card.</p>
       </div>
 
-      {isMain && <WinnerPicker clubId={club.id} onDone={load} />}
+      {(isMain || isOwner) && <WinnerPicker clubId={club.id} onDone={load} />}
 
       {/* TEST — main admin only: try the pack opening with a made-up pack (nothing saved). Remove after testing. */}
       {isMain && me && (
@@ -143,7 +152,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
 
   return (
     <section className="rounded-2xl p-3 space-y-3 border border-[#F6C94C]/45" style={{ background: 'linear-gradient(160deg, rgba(246,201,76,0.10), rgba(20,20,20,0.6) 60%)' }}>
-      <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#F6C94C]"><Crown className="w-4 h-4" />1-OF-1 DRAW · ONLY YOU SEE THIS</p>
+      <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#F6C94C]"><Crown className="w-4 h-4" />1-OF-1 DRAW · ONLY THE CLUB OWNER SEES THIS</p>
       {open.length === 0 ? (
         <p className="text-[12px] text-[#A8A29E]">No sealed packs right now. When a schedule is closed, pick its lucky winner here — every pack opens once you do.</p>
       ) : open.map((s) => (
@@ -210,11 +219,19 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
   useEffect(() => {
     if (demo) {
       if (!lvl.ready) return;
-      const K = CARD_LEVELS.slice(0, lvl.level.n).map((l) => l.key);   // only designs you've unlocked, like real packs
-      const cards = Array.from({ length: 5 }, () => K[Math.floor(Math.random() * K.length)]);
-      const slot = 1 + Math.floor(Math.random() * 5); cards[slot - 1] = 'oneofone';
-      setRes({ cards, one_slot: slot, one_id: null });
-      return;
+      // like real packs: other players of the club, each in the card design they've earned
+      let live = true;
+      (async () => {
+        const { data: ms } = await supabase.from('hoop_members').select('id').eq('club_id', me.club_id).eq('status', 'active').neq('id', me.id);
+        const ids = ((ms as any[]) || []).map((x) => x.id as string).sort(() => Math.random() - 0.5).slice(0, 5);
+        const { data: sc } = ids.length ? await supabase.from('hoop_member_schedules').select('member_id, schedules').in('member_id', ids) : { data: [] as any[] };
+        const n = (id: string) => ((sc as any[]) || []).find((x) => x.member_id === id)?.schedules ?? 0;
+        const pool = ids.length ? ids.map((id) => `${levelFor(n(id)).key}:${id}`) : [`${lvl.level.key}:${me.id}`];
+        const cards = Array.from({ length: 5 }, (_, i) => pool[i] ?? pool[Math.floor(Math.random() * pool.length)]);
+        const slot = 1 + Math.floor(Math.random() * 5); cards[slot - 1] = 'oneofone';
+        if (live) setRes({ cards, one_slot: slot, one_id: null });
+      })();
+      return () => { live = false; };
     }
     supabase.rpc('hoop_open_pack', { p_pack: pack.id }).then(({ data, error }) => {
       if (error) return setErr(errorMessage(error));
@@ -263,12 +280,30 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
     if (club) go({ name: 'hoopClub', club: club.id, tab: 'me' });
   };
 
-  const cardProps = { person, card: me, stats, club: club ? { name: club.name, logo_url: club.logo_url } : null };
+  const cardProps = { person, card: me, stats, club: club ? { name: club.name, logo_url: club.logo_url, oneofone_url: club.oneofone_url } : null };
+  // each card is another player ('<design>:<member id>'); load those players' cards + stats
+  const [others, setOthers] = useState<Record<string, { m: HoopMember; s: HoopStats | null }>>({});
+  useEffect(() => {
+    const ids = [...new Set(((res?.cards || []) as string[]).filter((k) => k.includes(':')).map((k) => k.split(':')[1]))];
+    if (!ids.length) return;
+    let live = true;
+    Promise.all([supabase.from('hoop_members').select(MEMBER_COLS).in('id', ids), fetchStats(ids)]).then(([{ data }, st]) => {
+      if (!live) return;
+      const o: Record<string, { m: HoopMember; s: HoopStats | null }> = {};
+      ((data as any[]) || []).forEach((m) => { o[m.id] = { m, s: st[m.id] || null }; });
+      setOthers(o);
+    });
+    return () => { live = false; };
+  }, [res]);
   const face = (i: number) => {
     const key = res!.cards[i];
     if (key === 'oneofone') return <OneOfOneCard {...cardProps} signature={sig} />;
-    const Comp = DESIGNS[key] || DESIGNS.glow;
-    return <Comp {...cardProps} />;
+    const [design, id] = key.split(':');
+    const Comp = DESIGNS[design] || DESIGNS.glow;
+    if (!id) return <Comp {...cardProps} />;   // an old pack: the opener's own card
+    const o = others[id];
+    if (!o) return <div className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.06] animate-pulse" />;
+    return <Comp person={personOf(o.m)} card={o.m} stats={o.s} club={cardProps.club} />;
   };
   useEffect(() => {   // a pack opened before: show the signature the winner already put on it
     if (!res?.one_id || demo) return;

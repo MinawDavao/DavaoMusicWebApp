@@ -10,7 +10,7 @@ import { useNav } from '../nav';
 import { Avatar, ErrorNote, FilePick, Modal, Spinner } from '../components/ui';
 import { AccountPicker } from '../components/MembersEditor';
 import { MessageButton } from '../screens/MessagesScreen';
-import { DEFAULT_CROP, cropOf, type CardCrop } from '../components/CardBackground';
+import { DEFAULT_CROP, Photo, cropOf, type CardCrop } from '../components/CardBackground';
 import { cardBlob, socialPicture, type SocialFormat } from './TradingCard';
 import { ShareSheet, type ReadyPicture } from './ShareSheet';
 import { ClubCard, OwnerCardPreview, type CardLevel } from './ClubCard';
@@ -164,7 +164,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {/* THE CARD (the padded box around it is what gets saved as a picture, glow included) */}
       <div ref={shotRef} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
-        <ClubCard memberId={m.id} person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} choice={isMe ? m.card_choice : undefined} />
+        <ClubCard memberId={m.id} person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} choice={m.card_choice} />
       </div>
 
       <div className="space-y-2.5">
@@ -271,7 +271,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {editing && <EditCard member={m} canName={offline && isAdmin} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {ready && <ShareSheet pic={ready} onClose={() => setReady(null)} />}
-      {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} level={tryLevel ?? undefined} choice={isMe ? m.card_choice : undefined} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
+      {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} level={tryLevel ?? undefined} choice={m.card_choice} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
     </div>
   );
 };
@@ -720,6 +720,17 @@ const Props: React.FC<{ playerId: string; playerName: string; isMe: boolean }> =
 };
 
 // ===================================================================== PLAYERS LIST / LEADERS (one club)
+/** A stat leader's big photo (card photo, else account photo), or their initial on the club colour. */
+const LeaderPhoto: React.FC<{ url: string | null; crop: CardCrop; initial: string }> = ({ url, crop, initial }) => {
+  const [bad, setBad] = useState<string | null>(null);
+  if (url && bad !== url) return (
+    <span className="absolute inset-0 transition-transform duration-300 group-hover:scale-105">
+      <Photo url={url} crop={crop} />
+      <img src={url} alt="" className="hidden" onError={() => setBad(url)} />
+    </span>
+  );
+  return <span className="absolute inset-0 flex items-center justify-center font-hoop italic font-black text-[44px] text-[#111]" style={{ background: 'linear-gradient(150deg, var(--hp), color-mix(in srgb, var(--hp) 45%, #111))' }}>{initial}</span>;
+};
 export const HoopPlayers: React.FC = () => {
   const go = useNav();
   const { club } = useClub();
@@ -754,18 +765,26 @@ export const HoopPlayers: React.FC = () => {
             const r = leader(k);
             const unit = { ppg: 'PPG', rpg: 'RPG', apg: 'APG', spg: 'SPG', bpg: 'BPG', tpg: '3PM/G' }[k];
             if (!r || !(r.stats![k] > 0)) return (
-              <div key={k} className="rounded-2xl p-2.5 text-center border border-white/10 flex flex-col items-center justify-center" style={{ background: H.surface }}>
+              <div key={k} className="aspect-[3/4] rounded-2xl p-2.5 text-center border border-white/10 flex flex-col items-center justify-center" style={{ background: H.surface }}>
                 <p className="flex items-center justify-center gap-1 text-[9px] font-black tracking-wider text-[#A8A29E]"><Crown className="w-3 h-3" />{label.toUpperCase()}</p>
                 <p className="mt-3 text-[11px] text-[#78716C]">No leader yet</p>
               </div>
             );
             const p = personOf(r);
+            const photo = r.card_photo_url || p.avatar_url;
             return (
-              <button key={k} onClick={() => go({ name: 'hoopPlayer', id: r.id })} className="rounded-2xl p-2.5 text-center border border-[var(--hp)]/35 cursor-pointer" style={{ background: 'color-mix(in srgb, var(--hp) 10%, transparent)' }}>
-                <p className="flex items-center justify-center gap-1 text-[9px] font-black tracking-wider text-[var(--hp)]"><Crown className="w-3 h-3" />{label.toUpperCase()}</p>
-                <span className="inline-block my-1.5"><HoopFace avatar={p.avatar_url} name={p.display_name} cardPhoto={r.card_photo_url} cardCrop={r.card_photo_crop} size={44} /></span>
-                <p className="text-[11px] font-bold text-white truncate">{p.display_name}</p>
-                <p className="font-hoop font-bold text-[20px] text-white leading-none">{fmt1(r.stats![k])}<span className="ml-1 text-[9px] font-sans font-bold text-[#A8A29E]">{unit}</span></p>
+              <button key={k} onClick={() => go({ name: 'hoopPlayer', id: r.id })} aria-label={`${label} leader: ${p.display_name}, ${fmt1(r.stats![k])} ${unit}`}
+                className="group relative aspect-[3/4] rounded-2xl overflow-hidden text-left cursor-pointer border border-[var(--hp)]/50 bg-[#1A1A1A]"
+                style={{ boxShadow: '0 6px 18px -8px color-mix(in srgb, var(--hp) 70%, transparent)' }}>
+                <LeaderPhoto url={photo} crop={r.card_photo_url ? cropOf(r.card_photo_crop) : DEFAULT_CROP} initial={p.display_name.trim()[0]?.toUpperCase() || '?'} />
+                <span className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,0) 46%, rgba(0,0,0,0.92) 100%)' }} />
+                <span className="absolute top-1.5 left-1.5 right-1.5 flex">
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black tracking-wider text-[#111] bg-[var(--hp)] max-w-full truncate"><Crown className="w-2.5 h-2.5 flex-shrink-0" />{label.toUpperCase()}</span>
+                </span>
+                <span className="absolute left-2 right-2 bottom-1.5">
+                  <span className="block font-hoop italic font-black text-[26px] text-white leading-none" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>{fmt1(r.stats![k])}<span className="ml-1 not-italic font-sans text-[9px] font-bold text-[var(--hp)]">{unit}</span></span>
+                  <span className="block mt-0.5 text-[11px] font-bold text-white/90 truncate">{p.display_name}</span>
+                </span>
               </button>
             );
           })}
