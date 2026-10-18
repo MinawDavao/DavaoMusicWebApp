@@ -8,14 +8,30 @@ import { ErrorNote, Field, Modal, btn, inputCls } from './ui';
 
 const BUCKETS = ['avatars', 'banners', 'band-photos', 'post-images', 'gear-photos', 'tracks'];
 
-/** Best effort: removes every file this person uploaded (their own folder in each bucket, plus their chat photos). */
+/**
+ * Best effort: removes every file this person uploaded (their own folder in each bucket, plus their chat photos) —
+ * except files still used by things that stay after the account is gone (another person's band, a club, another
+ * player's card). Those are listed by the database (my_shared_files).
+ */
 async function removeMyFiles(uid: string) {
+  let keep: string[] = [];
+  try {
+    const { data, error } = await supabase.rpc('my_shared_files');
+    if (error) throw error;
+    keep = ((data as unknown as string[]) || []).map(String);
+  } catch { return; }   // can't tell which files are shared — leave them all rather than break someone else's page
+  const shared = (bucket: string, path: string) => keep.some((x) => x === path || x.endsWith(`/${bucket}/${path}`));
   const wipe = async (bucket: string, folder: string) => {
-    for (let round = 0; round < 20; round++) {
-      const { data } = await supabase.storage.from(bucket).list(folder, { limit: 100 });
-      const files = (data || []).filter((f) => f.id).map((f) => `${folder}/${f.name}`);
-      if (!files.length) return;
-      const { error } = await supabase.storage.from(bucket).remove(files);
+    const files: string[] = [];
+    for (let page = 0; page < 50; page++) {
+      const { data } = await supabase.storage.from(bucket).list(folder, { limit: 100, offset: page * 100 });
+      const got = (data || []).filter((f) => f.id).map((f) => `${folder}/${f.name}`);
+      files.push(...got);
+      if ((data || []).length < 100) break;
+    }
+    const mine = files.filter((f) => !shared(bucket, f));
+    for (let i = 0; i < mine.length; i += 100) {
+      const { error } = await supabase.storage.from(bucket).remove(mine.slice(i, i + 100));
       if (error) return;
     }
   };

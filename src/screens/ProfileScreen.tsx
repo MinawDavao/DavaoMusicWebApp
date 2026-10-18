@@ -285,6 +285,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
   const [vinfo, setVinfo] = useState(venueInfoFrom(profile));
   const isVenue = profile.role === 'venue';
   const [rsvps, setRsvps] = useState(profile.show_rsvps);
+  const [showLists, setShowLists] = useState(profile.show_playlists ?? true);
   const [genres, setGenres] = useState<string[]>([]);
   const [genresLoaded, setGenresLoaded] = useState(false);
   useEffect(() => { if (bandId) fetchBandGenreNames(bandId).then((g) => { setGenres(g); setGenresLoaded(true); }); }, [bandId]);
@@ -301,7 +302,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
     setBusy(true); setErr(null);
     const { error } = await supabase.from('profiles').update({
       display_name: f.display_name.trim(), username: toHandle(f.username), district: f.district.trim() || null, bio: f.bio.trim() || null,
-      instagram: f.instagram.trim() || null, facebook: f.facebook.trim() || null, avatar_url: avatar, show_rsvps: rsvps,
+      instagram: f.instagram.trim() || null, facebook: f.facebook.trim() || null, avatar_url: avatar, show_rsvps: rsvps, show_playlists: showLists,
       card_bg_url: cardBg, card_bg_crop: cardBg ? crop : null, ...(isVenue ? venuePatch(vinfo) : {}),
     }).eq('id', user!.id);
     if (!error && bandId) {
@@ -365,6 +366,7 @@ const EditProfile: React.FC<{ profile: Profile; bandId?: string; onCancel: () =>
       <Field label="Facebook" icon={Globe} htmlFor="p-fb"><input id="p-fb" className={inputCls} value={f.facebook} onChange={set('facebook')} /></Field>
       {isVenue && <div className="space-y-3.5 p-3 rounded-2xl bg-[#0F1417] border border-white/15"><VenueFields value={vinfo} onChange={setVinfo} /></div>}
       {profile.role === 'fan' && <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={rsvps} onChange={(e) => setRsvps(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Show my gig RSVPs on my profile</label>}
+      <label className="flex items-center gap-2.5 text-[13px] text-white cursor-pointer"><input type="checkbox" checked={showLists} onChange={(e) => setShowLists(e.target.checked)} className="w-4 h-4 accent-[#53E6D4]" />Show my public playlists to others</label>
       {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><GenrePicker value={genres} onChange={setGenres} /></div>}
       {profile.role === 'artist' && bandId && <div className="p-3 rounded-2xl bg-[#0F1417] border border-white/15"><MembersEditor bandId={bandId} ownerId={profile.id} /></div>}
       <ErrorNote text={err} />

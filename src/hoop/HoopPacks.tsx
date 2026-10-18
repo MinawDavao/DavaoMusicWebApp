@@ -221,7 +221,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
       setRes(data as any);
       if (pack.status === 'opened') setFlipped([true, true, true, true, true]);   // already opened before: show them all
     });
-  }, [pack.id, lvl.ready]);
+  }, [pack.id, demo && lvl.ready]);
   useEffect(() => {
     const prev = document.body.style.overflow; document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
@@ -235,10 +235,24 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
     setFlipped((f) => f.map((v, j) => (j === i ? true : v)));
     setFresh((f) => f.map((v, j) => (j === i ? true : v)));
     // after the flip lands, show the card full screen (tap to send it back)
-    if (zoom) zoomTimer.current = window.setTimeout(() => setBig(i), 820);
+    if (zoom) {
+      if (zoomTimer.current) window.clearTimeout(zoomTimer.current);   // two quick taps → only the last one zooms
+      zoomTimer.current = window.setTimeout(() => { zoomTimer.current = null; setBig(i); }, 820);
+    }
   };
   const flip = (i: number) => { if (big !== null) return; if (!flipped[i]) flipOne(i, true); else setBig(i); };
-  const flipAll = () => { flipped.forEach((f, i) => { if (!f) setTimeout(() => flipOne(i), 260 * i); }); };
+  const flipTimers = useRef<number[]>([]);
+  useEffect(() => () => flipTimers.current.forEach((t) => window.clearTimeout(t)), []);
+  const flipAll = () => {
+    if (zoomTimer.current) { window.clearTimeout(zoomTimer.current); zoomTimer.current = null; }   // don't pop a card over the rest
+    flipped.forEach((f, i) => { if (!f) flipTimers.current.push(window.setTimeout(() => flipOne(i), 260 * i)); });
+  };
+  useEffect(() => {   // Escape closes the full-screen card (keyboard / computer)
+    if (big === null) return;
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setBig(null); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [big]);
   const useIt = async () => {
     if (!res?.one_id) return;
     setUsing(true); setErr(null);
@@ -336,14 +350,14 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
       {signing && res && <SignCard {...cardProps} oneId={res.one_id} current={sig} demo={demo} onClose={() => setSigning(false)}
         onSaved={(url) => { setSig(url); if (res.one_id && !demo) announceSigned(res.one_id, url); }} />}
       {big !== null && res && (
-        <div role="dialog" aria-label="Your card — tap to go back" onClick={() => setBig(null)}
+        <div role="dialog" aria-modal="true" aria-label="Your card — tap to go back" onClick={() => setBig(null)}
           className="pack-fade-in fixed inset-0 z-[80] flex flex-col items-center justify-center p-5 cursor-pointer"
           style={{ background: res.cards[big] === 'oneofone' ? 'radial-gradient(80% 60% at 50% 45%, rgba(120,84,10,0.85) 0%, rgba(5,4,8,0.96) 70%)' : 'radial-gradient(80% 60% at 50% 45%, rgba(40,36,70,0.9) 0%, rgba(5,4,8,0.96) 70%)' }}>
           {res.cards[big] === 'oneofone' && (
             <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>1 of 1!</p>
           )}
-          <div className="relative w-full max-w-[min(360px,calc((100vh-140px)*0.714))]" style={{ perspective: '1100px' }}>
-            <div className="pack-zoom-in">
+          <div className="relative w-full max-w-[min(360px,calc((100dvh-150px)*0.714))]" style={{ perspective: '1100px' }}>
+            <div key={big} className="pack-zoom-in">
               <TiltCard>{face(big)}</TiltCard>
             </div>
             {res.cards[big] === 'oneofone' && Array.from({ length: 22 }, (_, k) => {
@@ -352,7 +366,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
                 style={{ background: k % 2 ? '#FFE38A' : '#FFFFFF', boxShadow: '0 0 10px #FFC94A', ['--dx' as any]: `${Math.cos(a) * d}px`, ['--dy' as any]: `${Math.sin(a) * d}px` }} />;
             })}
           </div>
-          <p className="mt-4 text-[12px] font-bold text-white/70">Tap anywhere to go back</p>
+          <button autoFocus onClick={() => setBig(null)} className="mt-4 text-[12px] font-bold text-white/70 cursor-pointer">Tap anywhere to go back</button>
         </div>
       )}
     </div>

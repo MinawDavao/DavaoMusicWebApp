@@ -52,7 +52,7 @@ export const HoopClubs: React.FC = () => {
   const match = (c: Row) => !term || [c.name, c.tagline, c.location].some((x) => x?.toLowerCase().includes(term));
   const myClubs = rows.filter((c) => mine[c.id] && mine[c.id] !== 'suspended');
   const others = rows.filter((c) => match(c) && !(myClubs.includes(c) && !term));
-  const mainAdminId = rows[0]?.owner_id ?? null;
+  const mainAdminId = user?.id === HOOP_MAIN_ADMIN_ID ? null : HOOP_MAIN_ADMIN_ID;   // "start a club" requests go to the Hoop main admin
 
   const card = (c: Row) => {
     const st = mine[c.id];

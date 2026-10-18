@@ -51,7 +51,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   // Resume; if the 1-hour signed link expired, fetch a fresh one and continue from the same spot.
+  const loadingRef = useRef(false);   // a new song's link is still loading — don't resume the old audio under its title
   const resume = useCallback(async (a: HTMLAudioElement, t: Track) => {
+    if (loadingRef.current) return;
     try { await a.play(); }
     catch {
       try {
@@ -74,7 +76,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       a.pause();
       setCurrent(t);
       setProgress(0);
-      const src = await trackUrl(t.audio_path);
+      loadingRef.current = true;
+      const src = await trackUrl(t.audio_path).finally(() => { if (my === startSeq.current) loadingRef.current = false; });
       if (my !== startSeq.current) return;
       a.src = src;
       await a.play();
@@ -91,7 +94,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const a = audio.current;
     if (!a) return;
     setError(null);
-    if (current?.id === t.id) { if (a.paused) resume(a, t); else a.pause(); return; }
+    if (current?.id === t.id) {
+      if (list && list.length) setQ(list, Math.max(0, list.findIndex((x) => x.id === t.id)));   // same song from another list → next/prev follow that list
+      if (a.paused) resume(a, t); else a.pause();
+      return;
+    }
     const q = list && list.length ? list : (queueRef.current.some((x) => x.id === t.id) ? queueRef.current : [t]);
     setQ(q, Math.max(0, q.findIndex((x) => x.id === t.id)));
     await start(t);
@@ -125,6 +132,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const stop = useCallback(() => {
     startSeq.current++;   // a song still loading won't start after the player is closed
+    loadingRef.current = false;
     audio.current?.pause();
     setCurrent(null);
     setQ([], -1);

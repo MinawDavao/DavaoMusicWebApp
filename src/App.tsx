@@ -183,6 +183,10 @@ const Shell: React.FC = () => {
 
   const go = useCallback((r: Route) => {
     const h = toHash(r);
+    // going to Log In from a page → come back to that page afterwards
+    if (r.name === 'auth' && !/^#\/(login|signup|welcome)/.test(window.location.hash)) {
+      try { sessionStorage.setItem('minaw-after-login', /^\/admin\/?$/i.test(window.location.pathname) && !window.location.hash ? 'admin' : window.location.hash); } catch { /* ignore */ }
+    }
     if (window.location.hash !== h) window.location.hash = h;
     setRoute(r);
     window.scrollTo({ top: 0 });
@@ -198,9 +202,13 @@ const Shell: React.FC = () => {
   useEffect(() => {
     if (!user || !profile) return;
     if (route.name !== 'auth') return;
+    try { if (sessionStorage.getItem('minaw-resetting')) return; } catch { /* ignore */ }   // still choosing a new password
     if (!termsAccepted || !profile.onboarding_completed) return go({ name: 'onboarding' });
     let back: string | null = null;
     try { back = sessionStorage.getItem('minaw-after-login'); sessionStorage.removeItem('minaw-after-login'); } catch { /* ignore */ }
+    if (back && back !== 'admin' && /^#\/./.test(back)) {
+      window.location.hash = back; setRoute(parseHash()); window.scrollTo({ top: 0 }); return;
+    }
     go(back === 'admin' ? { name: 'admin' } : { name: 'home' });
   }, [user, profile, termsAccepted, route.name, go]);
 

@@ -368,14 +368,15 @@ const PeopleSearch: React.FC<{ q: string; setQ: (v: string) => void }> = ({ q, s
   useEffect(() => {
     const term = q.trim().replace(/^@/, '').replace(/[%_,()\\]/g, ' ').trim();
     if (!term) { setRes(null); return; }
+    let live = true;   // a slow answer for an older search must not replace the newer results
     const t = setTimeout(async () => {
       let req = supabase.from('profiles').select('id, display_name, username, avatar_url, role, district, is_verified, venue_type')
         .or(`display_name.ilike.%${term}%,username.ilike.%${term}%`).order('display_name').limit(30);
       if (role) req = req.eq('role', role);
       const { data } = await req;
-      setRes((data as Person[]) || []);
+      if (live) setRes((data as Person[]) || []);
     }, 250);
-    return () => clearTimeout(t);
+    return () => { live = false; clearTimeout(t); };
   }, [q, role]);
 
   const chip = (v: string, label: string) => (

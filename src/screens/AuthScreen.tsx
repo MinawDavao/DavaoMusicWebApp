@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Headphones, KeyRound, Lock, LogIn, Mail, MailCheck, MapPin, Music, RotateCcw, User, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, type Role } from '../lib/db';
@@ -21,6 +21,8 @@ const digits = (v: string) => v.replace(/\D/g, '').slice(0, 10);
  */
 export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ initialMode = 'login' }) => {
   const go = useNav();
+  const codeOk = useRef(false);   // the reset code already worked (it logs you in) — don't check it twice
+  useEffect(() => () => { try { sessionStorage.removeItem('minaw-resetting'); } catch { /* ignore */ } }, []);
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   // code steps: confirm a new account, or reset a forgotten password
   const [step, setStep] = useState<null | 'verify' | 'forgot' | 'reset'>(null);
@@ -121,7 +123,7 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
     setBusy(false);
     if (error) return setErr(/rate limit|security purposes/i.test(error.message) ? 'Please wait a minute before asking for another code.' : errorMessage(error));
-    setStep('reset'); setCode(''); setPassword(''); setConfirm(''); setCooldown(60);
+    setStep('reset'); codeOk.current = false; setCode(''); setPassword(''); setConfirm(''); setCooldown(60);
     setNote(`If ${email.trim()} has an account, we sent it a 6-digit code. Check your spam folder too.`);
   };
   const resetPassword = async (e: React.FormEvent) => {
@@ -130,12 +132,21 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
     if (password.length < 8) return setErr('New password must be at least 8 characters.');
     if (password !== confirm) return setErr('Passwords don’t match.');
     setBusy(true); setErr(null);
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code, type: 'recovery' });
-    if (error) { setBusy(false); return setErr(/expired|invalid/i.test(error.message) ? 'That code is wrong or has expired. Tap “Send a new code”.' : errorMessage(error)); }
+    // the code logs you in — keep this screen open until the new password is saved (App skips its after-login redirect)
+    try { sessionStorage.setItem('minaw-resetting', '1'); } catch { /* ignore */ }
+    if (!codeOk.current) {
+      const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code, type: 'recovery' });
+      if (error) {
+        try { sessionStorage.removeItem('minaw-resetting'); } catch { /* ignore */ }
+        setBusy(false); return setErr(/expired|invalid/i.test(error.message) ? 'That code is wrong or has expired. Tap “Send a new code”.' : errorMessage(error));
+      }
+      codeOk.current = true;
+    }
     const { error: e2 } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (e2) return setErr(/different from the old/i.test(e2.message) ? 'Please choose a password different from your old one.' : errorMessage(e2));
-    // logged in with the new password
+    try { sessionStorage.removeItem('minaw-resetting'); } catch { /* ignore */ }
+    go({ name: 'home' });   // logged in with the new password
   };
   const backToLogin = () => { setStep(null); setMode('login'); setErr(null); setNote(null); setCode(''); };
 

@@ -86,13 +86,22 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     await loadPlayers();
   }, [id, loadPlayers]);
 
+  // the games of this schedule — live updates from other clubs' games are ignored
+  const mineRef = useRef<Set<string>>(new Set([id]));
+  useEffect(() => { mineRef.current = new Set([id, ...session.map((g) => g.id)]); }, [id, session]);
+  const isMine = (p: any) => {
+    const r = p.new && Object.keys(p.new).length ? p.new : p.old;
+    return !r?.id || mineRef.current.has(r.id) || (!!r.session_id && mineRef.current.has(r.session_id));
+  };
+  const myPlayers = (p: any) => { const gid = p.new?.game_id ?? p.old?.game_id; return !gid || mineRef.current.has(gid); };
+
   useEffect(() => {
     load();
     const ch = supabase.channel(`hoop-game-${id}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_games' }, (p: any) => {
         if (p.eventType === 'DELETE' && p.old?.id === id) { setGame(null); return; }
         if (p.new?.id === id) setGame((g) => (g ? { ...g, ...p.new } : g));
-        loadPlayers();   // keeps the Game 1/2/3 list, counters and "next game" buttons current
+        if (isMine(p)) loadPlayers();   // keeps the Game 1/2/3 list, counters and "next game" buttons current
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hoop_events', filter: `game_id=eq.${id}` }, (p: any) => {
         setEvents((xs) => (xs.some((x) => x.id === p.new.id) ? xs : [...xs, normEvent(p.new)]));
@@ -101,10 +110,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_events' }, (p: any) => {
         setEvents((xs) => xs.filter((x) => x.id !== p.old?.id));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, () => loadPlayers())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, (p: any) => { if (myPlayers(p)) loadPlayers(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [id, load, loadPlayers]);
+  }, [id, load, loadPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useTick(!!game?.clock_running);
   const offset = useServerOffset();

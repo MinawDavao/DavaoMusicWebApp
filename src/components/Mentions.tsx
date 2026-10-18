@@ -127,15 +127,17 @@ export const MentionInput: React.FC<{
   useEffect(() => {
     if (query === null) { setList([]); return; }
     const q = query.replace(/[^a-z0-9_]/gi, '');
+    let live = true;
     const t = setTimeout(async () => {
       let req = supabase.from('profiles').select('id, username, display_name, avatar_url, role').limit(6);
       if (q) req = req.or(`username.ilike.${q}%,display_name.ilike.%${q}%`);
       else req = req.order('created_at', { ascending: false });
       const { data } = await req;
+      if (!live) return;   // an older, slower answer
       setList((data as Suggest[]) || []);
       setHi(0);
     }, 150);
-    return () => clearTimeout(t);
+    return () => { live = false; clearTimeout(t); };
   }, [query]);
 
   const pick = (s: Suggest) => {

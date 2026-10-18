@@ -41,12 +41,16 @@ export const HoopGames: React.FC = () => {
     }
   }, [club.id]);
 
+  const idsRef = useRef<Set<string>>(new Set());   // this club's games — ignore live updates from other clubs
+  useEffect(() => { idsRef.current = new Set((rows || []).map((g) => g.id)); }, [rows]);
+  const ours = (p: any) => { const gid = p.new?.game_id ?? p.old?.game_id; return !gid || idsRef.current.has(gid); };
+
   useEffect(() => {
     load();
     const ch = supabase.channel(`hoop-list-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_games', filter: `club_id=eq.${club.id}` }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_events' }, () => { clearTimeout(scoreT.current); scoreT.current = setTimeout(load, 800); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, (p: any) => { if (ours(p)) load(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_events' }, (p: any) => { if (!ours(p)) return; clearTimeout(scoreT.current); scoreT.current = setTimeout(load, 800); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [load]);

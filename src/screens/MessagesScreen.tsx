@@ -148,6 +148,7 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
   });
   const [about, setAbout] = useState<ChatListing | null>(null);
   const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
+  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.preview); }, [photo]);   // free the preview once it's sent/removed
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);   // message with its actions open
