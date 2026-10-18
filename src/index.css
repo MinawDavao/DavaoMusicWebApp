@@ -153,3 +153,9 @@ h1, h2, h3, h4, .font-heading {
   .pack-flipper { transition-duration: 0.01s; }
   .pack-shine, .pack-burst, .pack-spark { display: none; }
 }
+/* card pack: a revealed card zooms up to full screen; tap to send it back */
+@keyframes pack-zoom-in { 0% { opacity: 0; transform: scale(0.45) rotateY(-25deg); } 60% { opacity: 1; transform: scale(1.04) rotateY(4deg); } 100% { opacity: 1; transform: none; } }
+@keyframes pack-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.pack-zoom-in { animation: pack-zoom-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+.pack-fade-in { animation: pack-fade-in 0.25s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .pack-zoom-in, .pack-fade-in { animation: none; } }

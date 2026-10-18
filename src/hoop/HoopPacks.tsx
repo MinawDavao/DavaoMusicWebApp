@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Crown, Gift, Hourglass, PenLine, Sparkles, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -27,6 +27,7 @@ export const HoopPacks: React.FC = () => {
   const [packs, setPacks] = useState<Pack[] | null>(null);
   const [stats, setStats] = useState<HoopStats | null>(null);
   const [opening, setOpening] = useState<Pack | null>(null);
+  const [testing, setTesting] = useState(false);   // TEST pack (main admin only) — remove after testing
   const isMain = user?.id === HOOP_MAIN_ADMIN_ID;
 
   const load = useCallback(async () => {
@@ -49,6 +50,14 @@ export const HoopPacks: React.FC = () => {
       </div>
 
       {isMain && <WinnerPicker clubId={club.id} onDone={load} />}
+
+      {/* TEST — main admin only: try the pack opening with a made-up pack (nothing saved). Remove after testing. */}
+      {isMain && me && (
+        <button onClick={() => setTesting(true)} className={`${hbtn.ghost} w-full !border-dashed !border-[#F6C94C]/60`}>
+          <Sparkles className="w-4 h-4 text-[#F6C94C]" />Test pack opening <span className="text-[10px] font-normal text-[#A8A29E]">(only you · nothing saved)</span>
+        </button>
+      )}
+      {testing && me && <PackOpener demo pack={{ id: 'test', status: 'ready', schedule_id: 'test', member_id: me.id, created_at: '', game: { title: 'Test pack', starts_at: '' } }} me={me} stats={stats} onClose={() => setTesting(false)} />}
 
       {packs === null ? <Spinner label="Loading packs…" />
         : !me || me.status !== 'active' ? (
@@ -183,7 +192,8 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
 };
 
 // ===================================================================== opening a pack: 5 face-down cards, flip one by one
-const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null; onClose: () => void }> = ({ pack, me, stats, onClose }) => {
+/** demo = the main admin's TEST pack: made up on this phone, nothing is saved (remove with the test button). */
+const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null; onClose: () => void; demo?: boolean }> = ({ pack, me, stats, onClose, demo = false }) => {
   const go = useNav();
   const { club, reload } = useClub();
   const [res, setRes] = useState<{ cards: string[]; one_slot: number | null; one_id: string | null } | null>(null);
@@ -197,6 +207,13 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
   const person = personOf(me);
 
   useEffect(() => {
+    if (demo) {
+      const K = ['glow', 'royal', 'starlight'];
+      const cards = Array.from({ length: 5 }, () => K[Math.floor(Math.random() * K.length)]);
+      const slot = 1 + Math.floor(Math.random() * 5); cards[slot - 1] = 'oneofone';
+      setRes({ cards, one_slot: slot, one_id: null });
+      return;
+    }
     supabase.rpc('hoop_open_pack', { p_pack: pack.id }).then(({ data, error }) => {
       if (error) return setErr(errorMessage(error));
       setRes(data as any);
@@ -210,11 +227,15 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
 
   const won = !!res?.one_slot && flipped[res.one_slot - 1];
   const all = flipped.every(Boolean);
-  const flipOne = (i: number) => {
+  const zoomTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (zoomTimer.current) window.clearTimeout(zoomTimer.current); }, []);
+  const flipOne = (i: number, zoom = false) => {
     setFlipped((f) => f.map((v, j) => (j === i ? true : v)));
     setFresh((f) => f.map((v, j) => (j === i ? true : v)));
+    // after the flip lands, show the card full screen (tap to send it back)
+    if (zoom) zoomTimer.current = window.setTimeout(() => setBig(i), 820);
   };
-  const flip = (i: number) => { if (!flipped[i]) flipOne(i); else setBig(i); };
+  const flip = (i: number) => { if (big !== null) return; if (!flipped[i]) flipOne(i, true); else setBig(i); };
   const flipAll = () => { flipped.forEach((f, i) => { if (!f) setTimeout(() => flipOne(i), 260 * i); }); };
   const useIt = async () => {
     if (!res?.one_id) return;
@@ -234,7 +255,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
     return <Comp {...cardProps} />;
   };
   useEffect(() => {   // a pack opened before: show the signature the winner already put on it
-    if (!res?.one_id) return;
+    if (!res?.one_id || demo) return;
     supabase.from('hoop_one_of_ones').select('signature_url').eq('id', res.one_id).maybeSingle().then(({ data }) => setSig((data as any)?.signature_url ?? null));
   }, [res?.one_id]);
 
@@ -243,7 +264,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
       <div className="max-w-[480px] mx-auto px-4 py-5 space-y-4 min-h-full">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black tracking-[0.3em] text-[var(--hp)]">CARD PACK</p>
+            <p className="text-[10px] font-black tracking-[0.3em] text-[var(--hp)]">{demo ? 'TEST CARD PACK · ONLY YOU' : 'CARD PACK'}</p>
             <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none">{pack.game?.title || 'Schedule'}</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-5 h-5" /></button>
@@ -296,10 +317,11 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
                 <Crown className="w-9 h-9 mx-auto text-[#F6C94C]" />
                 <p className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">You got the 1-of-1!</p>
                 <p className="text-[12px] text-[#E7E5E4]">Only one player gets this card each schedule — it’s yours now and it’s in your card list on My Card.</p>
-                {res.one_id && (
+                {(demo || res.one_id) && (
                   <button onClick={() => setSigning(true)} className={`${hbtn.primary} w-full`}><PenLine className="w-4 h-4" />{sig ? 'Re-sign your 1-1 card' : 'Sign your 1-1 card now'}</button>
                 )}
-                {res.one_id && <button onClick={useIt} disabled={using} className={`${hbtn.ghost} w-full`}><Crown className="w-4 h-4" />{using ? 'Saving…' : 'Use it on My Card'}</button>}
+                {demo && <p className="text-[11px] text-[#F6C94C]">Test pack — nothing was saved.</p>}
+                {!demo && res.one_id && <button onClick={useIt} disabled={using} className={`${hbtn.ghost} w-full`}><Crown className="w-4 h-4" />{using ? 'Saving…' : 'Use it on My Card'}</button>}
               </div>
             )}
             {all && !res.one_slot && <p className="text-center text-[12px] text-[#A8A29E]">No 1-of-1 this time. Play the next schedule for another pack!</p>}
@@ -309,11 +331,26 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
         )}
       </div>
 
-      {signing && res && <SignCard {...cardProps} oneId={res.one_id} current={sig} onClose={() => setSigning(false)}
-        onSaved={(url) => { setSig(url); if (res.one_id) announceSigned(res.one_id, url); }} />}
+      {signing && res && <SignCard {...cardProps} oneId={res.one_id} current={sig} demo={demo} onClose={() => setSigning(false)}
+        onSaved={(url) => { setSig(url); if (res.one_id && !demo) announceSigned(res.one_id, url); }} />}
       {big !== null && res && (
-        <div className="fixed inset-0 z-[80] bg-black/85 flex items-center justify-center p-6" onClick={() => setBig(null)}>
-          <div className="w-full max-w-[340px]">{face(big)}</div>
+        <div role="dialog" aria-label="Your card — tap to go back" onClick={() => setBig(null)}
+          className="pack-fade-in fixed inset-0 z-[80] flex flex-col items-center justify-center p-5 cursor-pointer"
+          style={{ background: res.cards[big] === 'oneofone' ? 'radial-gradient(80% 60% at 50% 45%, rgba(120,84,10,0.85) 0%, rgba(5,4,8,0.96) 70%)' : 'radial-gradient(80% 60% at 50% 45%, rgba(40,36,70,0.9) 0%, rgba(5,4,8,0.96) 70%)' }}>
+          {res.cards[big] === 'oneofone' && (
+            <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>1 of 1!</p>
+          )}
+          <div className="relative w-full max-w-[min(360px,calc((100vh-140px)*0.714))]" style={{ perspective: '1100px' }}>
+            <div className="pack-zoom-in">
+              <TiltCard>{face(big)}</TiltCard>
+            </div>
+            {res.cards[big] === 'oneofone' && Array.from({ length: 22 }, (_, k) => {
+              const a = (Math.PI * 2 * k) / 22, d = 140 + (k % 4) * 40;
+              return <span key={k} className="pack-spark absolute left-1/2 top-1/2 w-2.5 h-2.5 -ml-1 -mt-1 rounded-full pointer-events-none"
+                style={{ background: k % 2 ? '#FFE38A' : '#FFFFFF', boxShadow: '0 0 10px #FFC94A', ['--dx' as any]: `${Math.cos(a) * d}px`, ['--dy' as any]: `${Math.sin(a) * d}px` }} />;
+            })}
+          </div>
+          <p className="mt-4 text-[12px] font-bold text-white/70">Tap anywhere to go back</p>
         </div>
       )}
     </div>
