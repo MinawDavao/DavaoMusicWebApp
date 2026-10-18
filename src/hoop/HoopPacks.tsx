@@ -7,7 +7,7 @@ import { useNav } from '../nav';
 import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { H, HOOP_MAIN_ADMIN_ID, PERSON, fetchStats, gameDate, hbtn, personOf, useClub, type HoopMember, type HoopStats } from './lib';
-import { DESIGNS, announceSigned } from './ClubCard';
+import { CARD_LEVELS, DESIGNS, announceSigned, useMemberSchedules } from './ClubCard';
 import { OneOfOneCard } from './CardDesigns';
 import { SignCard } from './SignCard';
 import { CardBack, TiltCard } from './CardDesigns';
@@ -205,10 +205,12 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
   const [sig, setSig] = useState<string | null>(null);   // the 1-of-1's signature
   const [signing, setSigning] = useState(false);
   const person = personOf(me);
+  const lvl = useMemberSchedules(me.id);
 
   useEffect(() => {
     if (demo) {
-      const K = ['glow', 'royal', 'starlight'];
+      if (!lvl.ready) return;
+      const K = CARD_LEVELS.slice(0, lvl.level.n).map((l) => l.key);   // only designs you've unlocked, like real packs
       const cards = Array.from({ length: 5 }, () => K[Math.floor(Math.random() * K.length)]);
       const slot = 1 + Math.floor(Math.random() * 5); cards[slot - 1] = 'oneofone';
       setRes({ cards, one_slot: slot, one_id: null });
@@ -219,7 +221,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
       setRes(data as any);
       if (pack.status === 'opened') setFlipped([true, true, true, true, true]);   // already opened before: show them all
     });
-  }, [pack.id]);
+  }, [pack.id, lvl.ready]);
   useEffect(() => {
     const prev = document.body.style.overflow; document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
