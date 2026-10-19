@@ -2,7 +2,7 @@ import React from 'react';
 import { toBlob } from 'html-to-image';
 import { Move } from 'lucide-react';
 import { Photo, cropOf, useDragCrop, type CardCrop } from '../components/CardBackground';
-import { fmt1, type HoopCard, type HoopPerson, type HoopStats } from './lib';
+import { fmt1, statLabel, statNum, type HoopCard, type HoopPerson, type HoopStats } from './lib';
 
 /**
  * "My Card": a glowing trading card (5:7, like a playing card) with the player's card photo
@@ -160,12 +160,12 @@ export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, p
             <p className="font-hoop italic font-black uppercase text-white leading-[0.95] whitespace-nowrap" style={{ fontSize: cq(lastSize), textShadow: `0 ${cq(0.5)} ${cq(1.5)} #000, 0 0 ${cq(4)} rgba(255,150,60,0.55)` }}>{last}</p>
 
             <div className="flex items-end" style={{ gap: cq(2.5), marginTop: cq(1.5) }}>
-              <p className="font-hoop italic font-black leading-[0.82]" style={{ ...GOLD_TEXT, fontSize: cq(25) }}>{fmt1(s?.ppg)}</p>
+              <p className="font-hoop italic font-black leading-[0.82]" style={{ ...GOLD_TEXT, fontSize: cq(25) }}>{statNum(s?.ppg, s)}</p>
               <div className="flex flex-col items-center justify-center font-hoop font-black leading-none" style={{
                 marginBottom: cq(1.6), padding: `${cq(1.2)} ${cq(1.6)}`, borderRadius: cq(1.5), fontSize: cq(4.2), letterSpacing: cq(0.3),
                 color: '#1A1205', background: 'linear-gradient(180deg, #FFE98A, #F5A623)', boxShadow: `0 0 ${cq(2.5)} rgba(255,190,60,0.7)`,
               }}>
-                <span>P</span><span>P</span><span>G</span>
+                {statLabel('PPG', s).split('').map((ch, i) => <span key={i}>{ch}</span>)}
               </div>
               <div className="ml-auto" style={{ marginBottom: cq(0.6), marginRight: cq(1) }}><LevelBadge n={1} scale={0.85} /></div>
             </div>
@@ -173,14 +173,14 @@ export const TradingCard: React.FC<TradingCardProps> = ({ person, card, stats, p
             <div className="grid grid-cols-4" style={{ marginTop: cq(2.4), paddingTop: cq(2), borderTop: `${cq(0.3)} solid rgba(255,212,90,0.55)` }}>
               {([['RPG', s?.rpg], ['APG', s?.apg], ['SPG', s?.spg], ['BPG', s?.bpg]] as [string, number | undefined][]).map(([k, v], i) => (
                 <div key={k} className="text-center" style={{ borderLeft: i ? `${cq(0.3)} solid rgba(255,212,90,0.30)` : undefined }}>
-                  <p className="font-hoop font-black leading-none" style={{ ...GOLD_TEXT, fontSize: cq(8) }}>{fmt1(v)}</p>
-                  <p className="font-hoop font-bold leading-none text-white/80" style={{ fontSize: cq(3), letterSpacing: cq(0.5), marginTop: cq(0.8) }}>{k}</p>
+                  <p className="font-hoop font-black leading-none" style={{ ...GOLD_TEXT, fontSize: cq(8) }}>{statNum(v, s)}</p>
+                  <p className="font-hoop font-bold leading-none text-white/80" style={{ fontSize: cq(3), letterSpacing: cq(0.5), marginTop: cq(0.8) }}>{statLabel(k, s)}</p>
                 </div>
               ))}
             </div>
 
             <div className="flex items-center justify-between font-hoop font-bold uppercase" style={{ marginTop: cq(2.6), fontSize: cq(3), letterSpacing: cq(0.4) }}>
-              <span className="text-white/85">{s?.games ?? 0} GP · {s ? `${s.wins}-${s.losses}` : '0-0'} · Best {s?.best_pts ?? 0}</span>
+              <span className="text-white/85">{s?.game_label ?? <>{s?.games ?? 0} GP · {s ? `${s.wins}-${s.losses}` : '0-0'} · Best {s?.best_pts ?? 0}</>}</span>
               <span style={{ color: '#FFD45A' }}>minawdavao.com</span>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDelete } from '../components/ConfirmDelete';
 import {
-  Ban, Camera, Check, Share2, Crown, Download, Hourglass, ImageIcon, Link2, MessageSquareQuote, Music, Pencil, RotateCcw, Search, Send, Trash2, UserMinus, UserPlus, X, ZoomIn,
+  Ban, Camera, Check, Share2, Crown, Download, Hourglass, IdCard, ImageIcon, Link2, MessageSquareQuote, Music, Pencil, RotateCcw, Search, Send, Trash2, UserMinus, UserPlus, X, ZoomIn,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, timeAgo, uploadImage } from '../lib/db';
@@ -16,6 +16,7 @@ import { ShareSheet, type ReadyPicture } from './ShareSheet';
 import { ClubCard, OwnerCardPreview, type CardLevel } from './ClubCard';
 import { MyCards } from './MyCards';
 import { HoopFace } from './HoopFace';
+import { GameCardModal, type GameCardInfo } from './GameCard';
 import {
   H, MEMBER_COLS, PERSON, boxScore, fetchStats, fmt1, gameDate, hbtn, hinput, normEvent, personOf, themeVars, useClub,
   type HoopClub, type HoopEvent, type HoopMember, type HoopPerson, type HoopStats,
@@ -31,7 +32,9 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
   const { club, isAdmin } = useClub();
   const [m, setM] = useState<HoopMember | null | undefined>(undefined);
   const [stats, setStats] = useState<HoopStats | null>(null);
-  const [recent, setRecent] = useState<{ id: string; title: string; starts_at: string; team: 'A' | 'B'; team_a: string; team_b: string; a: number; b: number; pts: number; reb: number; ast: number }[]>([]);
+  const [recent, setRecent] = useState<{ id: string; title: string; starts_at: string; started_at: string | null; team: 'A' | 'B'; team_a: string; team_b: string; a: number; b: number; pts: number; reb: number; ast: number; gameNo: number; line: any }[]>([]);
+  const [allGames, setAllGames] = useState(false);
+  const [gameCard, setGameCard] = useState<GameCardInfo | null>(null);   // the card for one game (not career averages)
   const [fans, setFans] = useState(0);
   const [followingN, setFollowingN] = useState(0);
   const [iFollow, setIFollow] = useState(false);
@@ -62,19 +65,27 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
     setStats(st[id] || null);
     setFans((fr as any).count || 0); setFollowingN((fg as any).count || 0); setIFollow(!!(mineF as any).data);
 
-    // last 5 finished games with this club card
-    const { data: gp } = await supabase.from('hoop_game_players').select('team, hoop_games!inner(id, title, starts_at, ended_at, status, team_a, team_b)')
+    // last finished games with this club card (each one can be shown as a one-game card)
+    const { data: gp } = await supabase.from('hoop_game_players').select('team, hoop_games!inner(id, session_id, created_at, title, starts_at, started_at, ended_at, status, team_a, team_b)')
       .eq('member_id', id).not('team', 'is', null).eq('hoop_games.status', 'final').order('booked_at', { ascending: false }).limit(200);
     const when = (g: any) => g.ended_at || g.starts_at;
     const games = ((gp as any[]) || []).map((x) => ({ ...x.hoop_games, team: x.team }))
-      .sort((x, y) => when(y).localeCompare(when(x))).slice(0, 5);
+      .sort((x, y) => when(y).localeCompare(when(x))).slice(0, 20);
     if (games.length) {
-      const { data: ev } = await supabase.from('hoop_events').select('*').in('game_id', games.map((g) => g.id));
+      const roots = [...new Set(games.map((g) => g.session_id || g.id))];
+      const [{ data: ev }, { data: sib }] = await Promise.all([
+        supabase.from('hoop_events').select('*').in('game_id', games.map((g) => g.id)),
+        supabase.from('hoop_games').select('id, session_id, created_at, title').or(`id.in.(${roots.join(',')}),session_id.in.(${roots.join(',')})`),
+      ]);
       const all = ((ev as any[]) || []).map(normEvent) as HoopEvent[];
+      const sibs = ((sib as any[]) || []).sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)));
       setRecent(games.map((g) => {
         const bs = boxScore(all.filter((e) => e.game_id === g.id));
         const l = bs.lines[id];
-        return { ...g, a: bs.score.A, b: bs.score.B, pts: l?.pts || 0, reb: l?.reb || 0, ast: l?.ast || 0 };
+        const root = g.session_id || g.id;
+        const gameNo = Math.max(1, sibs.filter((x) => (x.session_id || x.id) === root).findIndex((x) => x.id === g.id) + 1);
+        const title = sibs.find((x) => x.id === root)?.title || g.title;
+        return { ...g, title, gameNo, line: l, a: bs.score.A, b: bs.score.B, pts: l?.pts || 0, reb: l?.reb || 0, ast: l?.ast || 0 };
       }));
     } else setRecent([]);
   }, [id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -249,21 +260,31 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
       {/* RECENT GAMES */}
       {recent.length > 0 && (
         <section className="space-y-2">
-          <h2 className="font-hoop italic font-black text-[24px] uppercase text-white">Recent games</h2>
-          {recent.map((g) => {
+          <div className="flex items-end justify-between gap-2">
+            <h2 className="font-hoop italic font-black text-[24px] uppercase text-white">Games played</h2>
+            <p className="text-[11px] text-[#A8A29E] pb-1">Tap <IdCard className="inline w-3.5 h-3.5 -mt-0.5 text-[var(--hp)]" /> for that game’s card</p>
+          </div>
+          {(allGames ? recent : recent.slice(0, 5)).map((g) => {
             const mine = g.team === 'A' ? g.a : g.b, theirs = g.team === 'A' ? g.b : g.a;
             const res = mine > theirs ? 'W' : mine < theirs ? 'L' : 'T';
             return (
-              <button key={g.id} onClick={() => go({ name: 'hoopGame', id: g.id })} className="w-full flex items-center gap-3 p-3 rounded-2xl border border-white/10 text-left cursor-pointer hover:bg-white/[0.03]" style={{ background: H.surface }}>
-                <span className="w-9 h-9 rounded-xl flex items-center justify-center font-hoop italic font-black text-[18px]" style={{ background: res === 'W' ? H.orange : res === 'L' ? '#3A3A3A' : '#57534E', color: res === 'W' ? '#111' : '#F4F1EE' }}>{res}</span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[13px] font-bold text-white truncate">{g.title} · {mine}-{theirs}</span>
-                  <span className="block text-[11px] text-[#A8A29E]">{gameDate(g.starts_at)} · {g.team === 'A' ? g.team_a : g.team_b}</span>
-                </span>
-                <span className="text-right font-mono text-[11px] text-[#D6D3D1] leading-tight"><strong className="text-white text-[13px]">{g.pts}</strong> pts<br />{g.reb} reb · {g.ast} ast</span>
-              </button>
+              <div key={g.id} className="flex items-stretch rounded-2xl border border-white/10 overflow-hidden" style={{ background: H.surface }}>
+                <button onClick={() => go({ name: 'hoopGame', id: g.id })} className="flex-1 min-w-0 flex items-center gap-3 p-3 text-left cursor-pointer hover:bg-white/[0.03]">
+                  <span className="w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center font-hoop italic font-black text-[18px]" style={{ background: res === 'W' ? H.orange : res === 'L' ? '#3A3A3A' : '#57534E', color: res === 'W' ? '#111' : '#F4F1EE' }}>{res}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[13px] font-bold text-white truncate">{g.title} · Game {g.gameNo} · {mine}-{theirs}</span>
+                    <span className="block text-[11px] text-[#A8A29E]">{gameDate(g.starts_at)} · {g.team === 'A' ? g.team_a : g.team_b}</span>
+                  </span>
+                  <span className="text-right font-mono text-[11px] text-[#D6D3D1] leading-tight"><strong className="text-white text-[13px]">{g.pts}</strong> pts<br />{g.reb} reb · {g.ast} ast</span>
+                </button>
+                <button onClick={() => setGameCard({ title: g.title, gameNo: g.gameNo, startsAt: g.started_at || g.starts_at, result: res, mine, theirs, line: g.line })}
+                  aria-label={`Card for ${g.title} game ${g.gameNo}`} className="w-14 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 border-l border-white/10 text-[var(--hp)] cursor-pointer hover:bg-[var(--hp)]/10">
+                  <IdCard className="w-5 h-5" /><span className="text-[9px] font-black tracking-wider">CARD</span>
+                </button>
+              </div>
             );
           })}
+          {recent.length > 5 && <button onClick={() => setAllGames(!allGames)} className="w-full text-center text-[12px] font-bold text-[#A8A29E] hover:text-white cursor-pointer py-1">{allGames ? 'Show fewer' : `Show all ${recent.length} games`}</button>}
         </section>
       )}
 
@@ -271,6 +292,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {editing && <EditCard member={m} canName={offline && isAdmin} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {ready && <ShareSheet pic={ready} onClose={() => setReady(null)} />}
+      {gameCard && <GameCardModal memberId={m.id} info={gameCard} onClose={() => setGameCard(null)} />}
       {photoEdit && <CardPhotoEditor person={person} member={m} stats={s} club={club} level={tryLevel ?? undefined} choice={m.card_choice} onClose={() => setPhotoEdit(false)} onSaved={() => { setPhotoEdit(false); load(); }} />}
     </div>
   );

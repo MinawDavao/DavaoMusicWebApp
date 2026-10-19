@@ -49,6 +49,8 @@ export interface HoopStats {
   member_id: string; games: number; wins: number; losses: number;
   pts: number; threes: number; reb: number; ast: number; stl: number; blk: number; tov: number; fouls: number;
   ppg: number; rpg: number; apg: number; spg: number; bpg: number; tpg: number; topg: number; fpg: number; best_pts: number;
+  /** set = a ONE-GAME card ("Sunday Run 2 · G2 · W 29-25"): cards show PTS/REB/AST… totals instead of per-game averages */
+  game_label?: string;
 }
 
 /** Columns for a booking row with the player's account and club card. */
@@ -154,6 +156,22 @@ export async function fetchStats(memberIds: string[]): Promise<Record<string, Ho
 }
 
 export const fmt1 = (n: number | null | undefined) => (n == null ? '0.0' : Number(n).toFixed(1));
+// ---------- one-game cards: the same card designs, but with that game's numbers
+const ONE_GAME: Record<string, string> = { PPG: 'PTS', RPG: 'REB', APG: 'AST', SPG: 'STL', BPG: 'BLK' };
+/** 'PPG' → 'PTS' on a one-game card */
+export const statLabel = (k: string, s?: Pick<HoopStats, 'game_label'> | null) => (s?.game_label ? ONE_GAME[k] ?? k : k);
+/** 14.7 on the average card, 23 on a one-game card */
+export const statNum = (v: number | null | undefined, s?: Pick<HoopStats, 'game_label'> | null) => (s?.game_label ? String(Math.round(v ?? 0)) : fmt1(v));
+/** A player's line from one game, shaped like their stats so any card design can show it. */
+export function oneGameStats(memberId: string, l: { pts: number; reb: number; ast: number; stl: number; blk: number; threes: number; tov?: number; foul?: number } | null | undefined, label: string, result: 'W' | 'L' | 'T'): HoopStats {
+  const x = l || { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, threes: 0 };
+  return {
+    member_id: memberId, games: 1, wins: result === 'W' ? 1 : 0, losses: result === 'L' ? 1 : 0,
+    pts: x.pts, threes: x.threes, reb: x.reb, ast: x.ast, stl: x.stl, blk: x.blk, tov: x.tov ?? 0, fouls: x.foul ?? 0,
+    ppg: x.pts, rpg: x.reb, apg: x.ast, spg: x.stl, bpg: x.blk, tpg: x.threes, topg: x.tov ?? 0, fpg: x.foul ?? 0, best_pts: x.pts,
+    game_label: label,
+  };
+}
 
 // ---------------------------------------------------------------- clubs
 export interface HoopClub {

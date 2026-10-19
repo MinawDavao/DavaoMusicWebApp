@@ -1,6 +1,6 @@
 import React, { useId, useMemo, useRef } from 'react';
 import { Photo, cropOf, useDragCrop } from '../components/CardBackground';
-import { fmt1, type HoopStats } from './lib';
+import { fmt1, statLabel, statNum, type HoopStats } from './lib';
 import { LevelBadge, TradingCard, whiteStroke, type TradingCardProps } from './TradingCard';
 
 /**
@@ -43,7 +43,7 @@ function useFace(p: TradingCardProps) {
   };
 }
 const statRow = (s: HoopStats | null) => ([['RPG', s?.rpg], ['APG', s?.apg], ['SPG', s?.spg], ['BPG', s?.bpg]] as [string, number | undefined][]);
-const footer = (s: HoopStats | null) => `${s?.games ?? 0} GP · ${s ? `${s.wins}-${s.losses}` : '0-0'} · BEST ${s?.best_pts ?? 0}`;
+const footer = (s: HoopStats | null) => s?.game_label ?? `${s?.games ?? 0} GP · ${s ? `${s.wins}-${s.losses}` : '0-0'} · BEST ${s?.best_pts ?? 0}`;
 
 const Shell: React.FC<{ children: React.ReactNode; radius?: number; shadow?: string; glow?: string }> = ({ children, radius = 5, shadow = 'rgba(0,0,0,0.6)', glow }) => (
   <div className="relative w-full aspect-[5/7] select-none" style={{ containerType: 'inline-size' }}>
@@ -834,8 +834,8 @@ export const RoyalCard: React.FC<TradingCardProps> = (p) => {
         <div className="flex w-full justify-around">
           {stats.map(([k, v], i) => (
             <div key={k} className="leading-none" style={{ width: cq(12) }}>
-              <span className="font-hoop font-black block" style={{ fontSize: cq(i === 0 ? 5.2 : 4.4), ...(i === 0 ? textFill(ROYAL_GOLD) : { color: '#F2F7FF' }) }}>{fmt1(v)}</span>
-              <span className="font-hoop font-bold block" style={{ fontSize: cq(1.9), color: '#E2B954', letterSpacing: cq(0.5), marginTop: cq(0.5) }}>{k}</span>
+              <span className="font-hoop font-black block" style={{ fontSize: cq(i === 0 ? 5.2 : 4.4), ...(i === 0 ? textFill(ROYAL_GOLD) : { color: '#F2F7FF' }) }}>{statNum(v, f.s)}</span>
+              <span className="font-hoop font-bold block" style={{ fontSize: cq(1.9), color: '#E2B954', letterSpacing: cq(0.5), marginTop: cq(0.5) }}>{statLabel(k, f.s)}</span>
             </div>
           ))}
         </div>
@@ -906,8 +906,8 @@ export const StarlightCard: React.FC<TradingCardProps> = (p) => {
 
         {/* PPG (left) and LEVEL 3 CARD (right) over the bottom of the photo */}
         <At x={11} w={24} y={102.5} className="flex flex-col items-center">
-          <span className="font-black" style={{ fontSize: cq(10), ...silver(0.35) }}>{fmt1(f.s?.ppg)}</span>
-          <span className="font-black" style={{ fontSize: cq(3.4), letterSpacing: cq(0.5), marginTop: cq(0.6), ...goldText() }}>PPG</span>
+          <span className="font-black" style={{ fontSize: cq(10), ...silver(0.35) }}>{statNum(f.s?.ppg, f.s)}</span>
+          <span className="font-black" style={{ fontSize: cq(3.4), letterSpacing: cq(0.5), marginTop: cq(0.6), ...goldText() }}>{statLabel('PPG', f.s)}</span>
         </At>
         <At r={11} w={22} y={101} className="flex justify-center"><LevelBadge n={3} glow /></At>
 
@@ -925,8 +925,8 @@ export const StarlightCard: React.FC<TradingCardProps> = (p) => {
         <At x={18} r={18} y={127.9} h={6.3} className="grid grid-cols-4 items-center">
           {stats.map(([k, v]) => (
             <span key={k} className="flex items-baseline justify-center" style={{ gap: cq(0.6), paddingTop: cq(0.3) }}>
-              <span className="font-black" style={{ fontSize: cq(4.1), ...silver(0.22) }}>{fmt1(v)}</span>
-              <span className="font-black" style={{ fontSize: cq(1.9), letterSpacing: cq(0.2), ...goldText() }}>{k}</span>
+              <span className="font-black" style={{ fontSize: cq(4.1), ...silver(0.22) }}>{statNum(v, f.s)}</span>
+              <span className="font-black" style={{ fontSize: cq(1.9), letterSpacing: cq(0.2), ...goldText() }}>{statLabel(k, f.s)}</span>
             </span>
           ))}
         </At>

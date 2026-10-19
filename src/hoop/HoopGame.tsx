@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Ban, Check, CheckCircle2, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -14,6 +14,7 @@ import {
 import { MemberPicker } from './HoopPlayer';
 import { GameForm } from './HoopGames';
 import { HoopFace } from './HoopFace';
+import { GameCardModal, type GameCardInfo } from './GameCard';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { MessageButton } from '../screens/MessagesScreen';
 
@@ -51,6 +52,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [showTeams, setShowTeams] = useState(false);
   const [fixMode, setFixMode] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
+  const [cardFor, setCardFor] = useState<string | null>(null);   // member id → their card for this (finished) game
 
   const loadSeq = useRef(0);
   const loadPlayers = useCallback(async () => {
@@ -407,6 +409,14 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const live = game.status === 'live';
   const showScore = live || game.status === 'final';
   const winner = game.status === 'final' ? (score.A > score.B ? 'A' : score.B > score.A ? 'B' : null) : null;
+  // one-game cards (finished games): Game 1, 2, 3… of this schedule
+  const cardInfo = (pid: string): GameCardInfo | null => {
+    const t = teamOf(pid);
+    if (!t) return null;
+    const mineS = score[t], theirs = score[t === 'A' ? 'B' : 'A'];
+    return { title: root.title, gameNo, startsAt: game.started_at || game.starts_at, result: mineS > theirs ? 'W' : mineS < theirs ? 'L' : 'T', mine: mineS, theirs, line: lines[pid] };
+  };
+  const myCardInfo = game.status === 'final' && me ? cardInfo(me.id) : null;
 
   // ---------------------------------------------------------------- UI pieces
   const teamCol = (team: 'A' | 'B', list: GamePlayer[]) => (
@@ -536,6 +546,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                       <span className="text-[#A8A29E] font-mono w-5 text-right">{jersey[p.profile_id] ?? ''}</span>{short(p.profiles?.display_name)}
                       {p.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1]">GUEST</span>}
                     </button>
+                    {game.status === 'final' && !p.is_guest && (
+                      <button onClick={() => setCardFor(p.profile_id)} aria-label={`${p.profiles?.display_name || 'Player'}’s card for this game`} title="Card for this game"
+                        className="ml-1 inline-flex align-middle items-center justify-center w-6 h-6 rounded-md bg-[var(--hp)]/15 text-[var(--hp)] cursor-pointer hover:bg-[var(--hp)]/30"><IdCard className="w-3.5 h-3.5" /></button>
+                    )}
                   </td>
                   {[l?.pts, l?.reb, l?.ast, l?.stl, l?.blk, l?.threes, l?.tov, l?.foul].map((v, i) => (
                     <td key={i} className={`px-1.5 py-1.5 text-center font-mono ${i === 0 ? 'font-bold text-white' : 'text-[#D6D3D1]'}`}>{v ?? 0}</td>
@@ -961,6 +975,17 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       {showScore && (
         <section className="space-y-2.5">
           <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">Box score</h2>
+          {myCardInfo && (
+            <button onClick={() => setCardFor(me!.id)} className="w-full flex items-center gap-3 p-3 rounded-2xl border text-left cursor-pointer"
+              style={{ borderColor: 'color-mix(in srgb, var(--hp) 55%, transparent)', background: 'linear-gradient(110deg, color-mix(in srgb, var(--hp) 20%, #141414), #141414 75%)' }}>
+              <span className="w-11 h-11 rounded-xl flex items-center justify-center bg-[var(--hp)] text-[#111] flex-shrink-0"><IdCard className="w-6 h-6" /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-hoop italic font-black text-[19px] uppercase text-white leading-none">My card for this game</span>
+                <span className="block text-[11px] text-[#D6D3D1] mt-1">{myCardInfo.line?.pts ?? 0} pts · {myCardInfo.line?.reb ?? 0} reb · {myCardInfo.line?.ast ?? 0} ast — save it or share it</span>
+              </span>
+            </button>
+          )}
+          {game.status === 'final' && <p className="text-[11px] text-[#A8A29E]">Tap the card icon next to a player to see their card for this game.</p>}
           {boxTable('A', teamA)}
           {boxTable('B', teamB)}
         </section>
@@ -1004,6 +1029,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
 
       {editing && <GameForm game={game} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {cardFor && cardInfo(cardFor) && <GameCardModal memberId={cardFor} info={cardInfo(cardFor)!} onClose={() => setCardFor(null)} />}
     </div>
   );
 };
