@@ -15,7 +15,8 @@ import { NotificationBell } from './components/Notifications';
 import { ChatScreen, MessagesScreen } from './screens/MessagesScreen';
 import { useChatUnread } from './lib/chat';
 import { AccountDeletedNote } from './components/DeleteAccount';
-import { BallIcon, HoopShell, isHoopRoute } from './hoop/HoopShell';
+import { HoopShell, isHoopRoute } from './hoop/HoopShell';
+import { ModeSwitch } from './components/ModeSwitch';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { DealsScreen } from './screens/DealsScreen';
 import { AuthScreen } from './screens/AuthScreen';
@@ -127,10 +128,6 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </button>
           ) : (
             <div className="relative flex items-center gap-2" ref={ref}>
-              {profile?.role === 'fan' && <button onClick={() => go({ name: 'hoop' })} aria-label="Hoop Method basketball clubs" title="Hoop Method"
-                className="w-[38px] h-[38px] rounded-full bg-[#F28C14]/12 border border-[#F28C14]/45 text-[#F28C14] hover:bg-[#F28C14]/25 flex items-center justify-center cursor-pointer">
-                <BallIcon />
-              </button>}
               <ChatIcon onClick={() => go({ name: 'messages' })} active={route.name === 'messages' || route.name === 'chat'} />
               <NotificationBell />
               <span className={`hidden min-[390px]:inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/10 ${roleMeta(profile?.role).chip}`}>{roleMeta(profile?.role).label}</span>
@@ -161,6 +158,8 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
             </div>
           )}
         </div>
+
+        {(!user || profile?.role === 'fan' || isModerator) && <ModeSwitch active="music" />}
 
         <nav aria-label="Sections" className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-[#161B20] border border-white/10">
           {TABS.map(({ key, label, Icon, route: r }) => {

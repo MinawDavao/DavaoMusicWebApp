@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Spinner } from '../components/ui';
 import { ClubContext, H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, hbtn, themeVars, type ClubCtx, type HoopClub, type HoopMember } from './lib';
+import { ModeSwitch } from '../components/ModeSwitch';
 import { ClubBillingBanner } from './ClubBilling';
 import { HoopClubs } from './HoopClubs';
 import { HoopGames } from './HoopGames';
@@ -207,11 +208,9 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
                   </button>
                 )}
                 <NotificationBell hoop />
-                <button onClick={() => go({ name: 'home' })} className="flex items-center gap-1.5 px-3 h-9 rounded-full bg-white/[0.06] border border-white/15 text-[12px] font-bold text-[#E7E5E4] hover:text-white cursor-pointer" aria-label="Back to MINAW DAVAO music">
-                  <Music className="w-3.5 h-3.5 text-[#53E6D4]" />MINAW
-                </button>
               </div>
             </div>
+            <div className="px-3.5 pb-2.5"><ModeSwitch active="hoop" /></div>
           </header>
 
           <main className="flex-1 pb-28">
