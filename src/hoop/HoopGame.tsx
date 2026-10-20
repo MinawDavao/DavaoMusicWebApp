@@ -27,6 +27,20 @@ const short = (name?: string | null) => {
   return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
 };
 
+/** A phone held sideways (short and wide). Tablets and computers keep the normal page. */
+function usePhoneLandscape() {
+  const q = '(orientation: landscape) and (max-height: 560px)';
+  const [on, setOn] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia?.(q);
+    if (!m) return;
+    const f = () => setOn(m.matches);
+    f(); m.addEventListener?.('change', f);
+    return () => m.removeEventListener?.('change', f);
+  }, []);
+  return on;
+}
+
 export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const go = useNav();
   const { user } = useAuth();
@@ -118,6 +132,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   }, [id, load, loadPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useTick(!!game?.clock_running);
+  const landscape = usePhoneLandscape();   // phone turned sideways → full-screen courtside view during a live game
   const offset = useServerOffset();
   const now = () => Date.now() + offset;
   const left = game ? clockLeftMs(game, now()) : 0;
@@ -560,6 +575,94 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             {list.length === 0 && <tr><td colSpan={9} className="px-3 py-3 text-center text-[#A8A29E]">No players</td></tr>}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+
+  // ---------------------------------------------------------------- COURTSIDE (phone in landscape, live or final game)
+  const sideCol = (team: 'A' | 'B', list: GamePlayer[]) => (
+    <div className="min-h-0 flex flex-col">
+      <p className="px-1 pb-1 text-[10px] font-black uppercase tracking-wider truncate" style={{ color: team === 'A' ? H.orange : '#D6D3D1' }}>{team === 'A' ? game.team_a : game.team_b}</p>
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-0.5">
+        {[...list].sort((x, y) => (lines[y.profile_id]?.pts ?? 0) - (lines[x.profile_id]?.pts ?? 0)).map((p) => {
+          const on = sel === p.profile_id, l = lines[p.profile_id];
+          const Tag = isModerator && live ? 'button' : 'div';
+          return (
+            <Tag key={p.profile_id} {...(isModerator && live ? { onClick: () => setSel(on ? null : p.profile_id), 'aria-pressed': on } : {})}
+              className={`w-full flex items-center gap-1.5 px-1.5 py-1 rounded-lg border text-left ${isModerator && live ? 'cursor-pointer' : ''} ${on ? 'border-[var(--hp)] bg-[var(--hp)]/20' : 'border-white/10 bg-white/[0.03]'}`}>
+              <span className="w-6 h-6 rounded-md flex items-center justify-center font-hoop italic font-black text-[13px] flex-shrink-0" style={{ background: team === 'A' ? H.orange : '#3A3A3A', color: team === 'A' ? '#111' : '#F4F1EE' }}>{jersey[p.profile_id] ?? '–'}</span>
+              <span className="flex-1 min-w-0 text-[12px] font-bold text-white truncate">{short(p.profiles?.display_name)}</span>
+              <span className="font-mono text-[11px] text-[#D6D3D1] whitespace-nowrap"><strong className="text-white text-[13px]">{l?.pts ?? 0}</strong>p {l?.reb ?? 0}r {l?.ast ?? 0}a{(l?.foul ?? 0) ? <span className={(l?.foul ?? 0) >= 4 ? ' text-[#FF8A9C] font-bold' : ''}> {l?.foul}f</span> : null}</span>
+            </Tag>
+          );
+        })}
+      </div>
+    </div>
+  );
+  const courtside = (
+    <div className="fixed inset-0 z-[48] flex flex-col text-white" style={{ background: H.bg, paddingLeft: 'max(10px, env(safe-area-inset-left))', paddingRight: 'max(10px, env(safe-area-inset-right))' }}>
+      {/* scoreboard bar */}
+      <div className="flex-shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-1.5 border-b border-white/10">
+        <div className="flex items-center justify-end gap-3 min-w-0">
+          <span className="text-[13px] font-black uppercase tracking-wider text-[var(--hp)] truncate">{game.team_a}</span>
+          <span className={`font-hoop italic font-black text-[52px] leading-none tabular-nums ${winner === 'B' ? 'text-[#78716C]' : 'text-white'}`}>{score.A}</span>
+        </div>
+        <div className="text-center px-3 py-1 rounded-xl bg-white/[0.06] border border-white/10 min-w-[120px]">
+          <p className={`font-mono font-bold text-[30px] leading-none tabular-nums ${live && left <= 10000 && game.clock_running ? 'text-[var(--ha)]' : 'text-white'}`}>{fmtClock(left)}</p>
+          <p className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px] font-bold tracking-wider text-[#A8A29E]">
+            {live && <span className="flex items-center gap-1 px-1 rounded bg-[var(--ha)] text-white"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE</span>}
+            {game.status === 'final' ? 'FINAL' : game.period > periods ? periodName(game.period, periods) : `PERIOD ${game.period}/${periods}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`font-hoop italic font-black text-[52px] leading-none tabular-nums ${winner === 'A' ? 'text-[#78716C]' : 'text-white'}`}>{score.B}</span>
+          <span className="text-[13px] font-black uppercase tracking-wider text-[#D6D3D1] truncate">{game.team_b}</span>
+        </div>
+      </div>
+
+      {/* teams on the sides, controls (admin) or latest plays (everyone else) in the middle */}
+      <div className="flex-1 min-h-0 grid grid-cols-[1fr_minmax(250px,1.15fr)_1fr] gap-2.5 py-2">
+        {sideCol('A', teamA)}
+        <div className="min-h-0 flex flex-col gap-1.5">
+          {isModerator && live ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                {game.clock_running
+                  ? <button onClick={clockPause} disabled={busy} className={`${hbtn.primary} !py-1.5 !px-3 !text-xs flex-1`}><Pause className="w-4 h-4 fill-current" />Pause</button>
+                  : <button onClick={clockStart} disabled={busy} className={`${hbtn.primary} !py-1.5 !px-3 !text-xs flex-1`}><Play className="w-4 h-4 fill-current" />{game.clock_elapsed_ms ? 'Resume' : 'Start'}</button>}
+                <button onClick={nextPeriod} disabled={busy} className={`${hbtn.ghost} !py-1.5 !px-2.5 !text-xs`}><SkipForward className="w-4 h-4" />{lastPeriod ? 'OT' : `P${game.period + 1}`}</button>
+              </div>
+              <p className="text-[11px] font-bold truncate text-center" style={{ color: sel ? H.orange : '#A8A29E' }}>{sel ? `${nameOf(sel)}${jersey[sel] != null ? ` #${jersey[sel]}` : ''}` : 'Tap a player on either side'}</p>
+              <div className="flex-1 min-h-0 grid grid-cols-5 grid-rows-2 gap-1.5">
+                {KINDS.map((k) => (
+                  <button key={k.k} onClick={() => record(k.k)} disabled={!sel}
+                    className="rounded-xl font-hoop italic font-black text-[17px] cursor-pointer active:scale-95 transition-transform disabled:opacity-35 disabled:cursor-not-allowed"
+                    style={{ background: k.pts ? k.tone : `${k.tone}22`, color: k.pts ? '#111' : k.tone, border: k.pts ? 'none' : `1px solid ${k.tone}66` }}>{k.label}</button>
+                ))}
+                <button onClick={undo} disabled={!events.length} aria-label="Undo last" className="rounded-xl bg-white/[0.06] border border-white/15 text-white flex items-center justify-center cursor-pointer disabled:opacity-35"><Undo2 className="w-5 h-5" /></button>
+              </div>
+              {lastPeriod && <p className="text-[10px] text-center text-[var(--hp)]">Last period — turn your phone upright to finish the game.</p>}
+            </>
+          ) : (
+            <>
+              <p className="text-[10px] font-black tracking-wider text-[#A8A29E] text-center">{game.status === 'final' ? 'FINAL · BOX SCORE ON THE SIDES' : 'LATEST PLAYS'}</p>
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+                {[...events].reverse().slice(0, 30).map((e) => {
+                  const k = KINDS.find((x) => x.k === e.kind)!;
+                  return (
+                    <div key={e.id} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/[0.03] text-[12px]">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: e.team === 'A' ? H.orange : '#D6D3D1' }} />
+                      <span className="flex-1 min-w-0 truncate">{nameOf(e.profile_id)} <strong style={{ color: k.tone }}>{kindPts(e.kind) ? k.label : k.short}</strong></span>
+                      <span className="text-[10px] text-[#78716C]">{e.period > periods ? periodName(e.period, periods) : `P${e.period}`}</span>
+                    </div>
+                  );
+                })}
+                {!events.length && <p className="text-center text-[12px] text-[#78716C] pt-4">No plays yet.</p>}
+              </div>
+            </>
+          )}
+        </div>
+        {sideCol('B', teamB)}
       </div>
     </div>
   );
@@ -1029,6 +1132,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
 
       {editing && <GameForm game={game} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
+      {landscape && (live || game.status === 'final') && courtside}
       {cardFor && cardInfo(cardFor) && <GameCardModal memberId={cardFor} info={cardInfo(cardFor)!} onClose={() => setCardFor(null)} />}
     </div>
   );

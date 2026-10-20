@@ -177,7 +177,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
   return (
     <ClubContext.Provider value={showClub ? ctx : { club: null, isAdmin: false, isOwner: false, me: null, reload: () => {} }}>
       <div className="min-h-screen text-[#F4F1EE] font-sans" style={{ background: '#080808', ...themeVars(showClub ? club!.theme : null) }}>
-        <div className="w-full max-w-[480px] mx-auto min-h-screen flex flex-col sm:border-x sm:border-white/10" style={{ background: H.bg }}>
+        <div className="w-full max-w-[480px] md:max-w-[760px] lg:max-w-[1040px] mx-auto min-h-screen flex flex-col sm:border-x sm:border-white/10" style={{ background: H.bg }}>
           <header className="sticky top-0 z-40 border-b border-white/10 backdrop-blur-xl" style={{ background: 'rgba(17,17,17,0.94)' }}>
             <div className="h-[3px]" style={{ background: `linear-gradient(90deg, ${H.orange}, ${H.ball}, ${H.orange})` }} />
             <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">

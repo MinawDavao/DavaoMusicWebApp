@@ -174,7 +174,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
       <OwnerCardPreview memberId={m.id} value={tryLevel} onChange={setTryLevel} />
 
       {/* THE CARD (the padded box around it is what gets saved as a picture, glow included) */}
-      <div ref={shotRef} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
+      <div ref={shotRef} className="-mx-1 md:mx-auto md:w-[440px] px-[7%] py-[8%] md:px-8 md:py-9 rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
         <ClubCard memberId={m.id} person={person} card={m} stats={s} club={club} level={tryLevel ?? undefined} choice={m.card_choice} />
       </div>
 
@@ -782,7 +782,7 @@ export const HoopPlayers: React.FC = () => {
       </h1>
 
       {played.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
           {([['ppg', 'Points'], ['rpg', 'Rebounds'], ['apg', 'Assists'], ['spg', 'Steals'], ['bpg', 'Blocks'], ['tpg', '3-Pointers']] as const).map(([k, label]) => {
             const r = leader(k);
             const unit = { ppg: 'PPG', rpg: 'RPG', apg: 'APG', spg: 'SPG', bpg: 'BPG', tpg: '3PM/G' }[k];

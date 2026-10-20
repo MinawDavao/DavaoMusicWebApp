@@ -243,7 +243,7 @@ const Shell: React.FC = () => {
   return (
     <NavContext.Provider value={go}>
       <div className="min-h-screen bg-[#07090D] text-[#EBEBED] font-sans">
-        <div className="w-full max-w-[480px] mx-auto min-h-screen flex flex-col bg-[#0F1417] sm:border-x sm:border-white/10">
+        <div className="w-full max-w-[480px] md:max-w-[760px] lg:max-w-[1040px] mx-auto min-h-screen flex flex-col bg-[#0F1417] sm:border-x sm:border-white/10">
           <Header route={view} go={go} />
           {view.name !== 'auth' && view.name !== 'onboarding' && <InstallBanner />}
           <main className="flex-1">{view.name === 'home' && <AccountDeletedNote />}{screen}</main>
