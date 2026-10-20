@@ -64,7 +64,6 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [showTeams, setShowTeams] = useState(false);
-  const [fixMode, setFixMode] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   const [cardFor, setCardFor] = useState<string | null>(null);   // member id → their card for this (finished) game
 
@@ -631,15 +630,24 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                   ? <button onClick={clockPause} disabled={busy} className={`${hbtn.primary} !py-1.5 !px-3 !text-xs flex-1`}><Pause className="w-4 h-4 fill-current" />Pause</button>
                   : <button onClick={clockStart} disabled={busy} className={`${hbtn.primary} !py-1.5 !px-3 !text-xs flex-1`}><Play className="w-4 h-4 fill-current" />{game.clock_elapsed_ms ? 'Resume' : 'Start'}</button>}
                 <button onClick={nextPeriod} disabled={busy} className={`${hbtn.ghost} !py-1.5 !px-2.5 !text-xs`}><SkipForward className="w-4 h-4" />{lastPeriod ? 'OT' : `P${game.period + 1}`}</button>
+                <button onClick={undo} disabled={!events.length} aria-label="Undo the last stat" className={`${hbtn.ghost} !py-1.5 !px-2.5 !text-xs`}><Undo2 className="w-4 h-4" /></button>
               </div>
               <p className="text-[11px] font-bold truncate text-center" style={{ color: sel ? H.orange : '#A8A29E' }}>{sel ? `${nameOf(sel)}${jersey[sel] != null ? ` #${jersey[sel]}` : ''}` : 'Tap a player on either side'}</p>
               <div className="flex-1 min-h-0 grid grid-cols-5 grid-rows-2 gap-1.5">
-                {KINDS.map((k) => (
-                  <button key={k.k} onClick={() => record(k.k)} disabled={!sel}
-                    className="rounded-xl font-hoop italic font-black text-[17px] cursor-pointer active:scale-95 transition-transform disabled:opacity-35 disabled:cursor-not-allowed"
-                    style={{ background: k.pts ? k.tone : `${k.tone}22`, color: k.pts ? '#111' : k.tone, border: k.pts ? 'none' : `1px solid ${k.tone}66` }}>{k.label}</button>
-                ))}
-                <button onClick={undo} disabled={!events.length} aria-label="Undo last" className="rounded-xl bg-white/[0.06] border border-white/15 text-white flex items-center justify-center cursor-pointer disabled:opacity-35"><Undo2 className="w-5 h-5" /></button>
+                {KINDS.map((k) => {
+                  const n = sel ? events.filter((e) => e.profile_id === sel && e.kind === k.k).length : 0;
+                  return (
+                    <div key={k.k} className="flex flex-col rounded-xl overflow-hidden min-h-0" style={{ border: k.pts ? 'none' : `1px solid ${k.tone}66`, opacity: sel ? 1 : 0.4 }}>
+                      <button onClick={() => record(k.k)} disabled={!sel} aria-label={`Add ${k.short}`}
+                        className="flex-1 min-h-0 font-hoop italic font-black text-[17px] cursor-pointer active:brightness-125 disabled:cursor-not-allowed"
+                        style={{ background: k.pts ? k.tone : `${k.tone}22`, color: k.pts ? '#111' : k.tone }}>{k.label}</button>
+                      <button onClick={() => sel && takeBack(sel, k.k)} disabled={!sel || !n} aria-label={`Take back one ${k.short}`}
+                        className="h-6 flex-shrink-0 flex items-center justify-center gap-1 bg-black/55 text-[11px] font-black text-white cursor-pointer disabled:cursor-not-allowed">
+                        <Minus className={`w-3 h-3 ${n ? 'text-[#FF8A9C]' : 'text-white/25'}`} /><span className={n ? '' : 'text-white/35'}>{n}</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
               {lastPeriod && <p className="text-[10px] text-center text-[var(--hp)]">Last period — turn your phone upright to finish the game.</p>}
             </>
@@ -852,49 +860,43 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             </div>
           )}
 
-          {/* stat buttons */}
+          <button onClick={() => setShowTeams(!showTeams)} aria-expanded={showTeams}
+            className="w-full flex items-center gap-3 p-3 rounded-2xl border-2 text-left cursor-pointer transition-colors"
+            style={{ borderColor: 'var(--hp)', background: showTeams ? 'color-mix(in srgb, var(--hp) 22%, #141414)' : 'color-mix(in srgb, var(--hp) 10%, #141414)' }}>
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--hp)] text-[#111] flex-shrink-0"><Users className="w-5 h-5" /></span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-hoop italic font-black text-[19px] uppercase text-white leading-none">Change teams / add a player</span>
+              <span className="block text-[11px] text-[#D6D3D1] mt-1">Swap sides, sub players in or out, add a late player or guest</span>
+            </span>
+            <ChevronRight className={`w-5 h-5 text-[var(--hp)] transition-transform ${showTeams ? 'rotate-90' : ''}`} />
+          </button>
+          {showTeams && rosterManager}
+
+          {/* stat buttons: tap the big button to ADD, the − bar under it to TAKE ONE BACK (shows the player's count) */}
           <div className="sticky bottom-[84px] z-20 -mx-1 p-2 rounded-2xl border border-white/15 space-y-2" style={{ background: 'rgba(20,20,20,0.97)' }}>
             <div className="flex items-center gap-2">
-              <p className="flex-1 min-w-0 text-[11px] font-bold truncate" style={{ color: sel ? H.orange : '#A8A29E' }}>{sel ? `${nameOf(sel)}${jersey[sel] != null ? ` #${jersey[sel]}` : ''}` : 'No player selected'}</p>
-              <button onClick={() => setFixMode(!fixMode)} disabled={!sel} aria-pressed={fixMode}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black border cursor-pointer disabled:opacity-35 ${fixMode ? 'bg-[var(--hp)] text-[#111] border-[var(--hp)]' : 'bg-white/[0.06] text-white border-white/15'}`}>
-                <Pencil className="w-3 h-3" />{fixMode ? 'DONE FIXING' : 'FIX STATS'}
-              </button>
+              <p className="flex-1 min-w-0 text-[12px] font-bold truncate" style={{ color: sel ? H.orange : '#A8A29E' }}>
+                {sel ? <>{nameOf(sel)}{jersey[sel] != null ? ` #${jersey[sel]}` : ''} <span className="font-normal text-[#A8A29E]">· {lines[sel]?.pts ?? 0} pts</span></> : 'Tap a player above first'}
+              </p>
+              <button onClick={undo} disabled={!events.length} aria-label="Undo the last stat" className="flex items-center gap-1 px-2.5 h-8 rounded-lg bg-white/[0.06] border border-white/15 text-[11px] font-bold text-white cursor-pointer disabled:opacity-35"><Undo2 className="w-4 h-4" />Undo last</button>
             </div>
-            {fixMode && sel && (() => {
-              const mine = events.filter((e) => e.profile_id === sel);
-              const l = lines[sel];
-              return (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] text-[#A8A29E] text-center">Tap <strong className="text-white">−</strong> to take one back, <strong className="text-white">+</strong> to add one. {l?.pts ?? 0} pts total.</p>
-                  <div className="grid grid-cols-3 gap-1">
-                    {KINDS.map((k) => {
-                      const n = mine.filter((e) => e.kind === k.k).length;
-                      return (
-                        <div key={k.k} className="flex items-center gap-1 px-1 py-1 rounded-lg border" style={{ borderColor: `${k.tone}55`, background: `${k.tone}14` }}>
-                          <button onClick={() => takeBack(sel, k.k)} disabled={!n} aria-label={`Take back one ${k.short}`} className="w-7 h-7 rounded-md bg-black/40 text-white flex items-center justify-center cursor-pointer disabled:opacity-30"><Minus className="w-3.5 h-3.5" /></button>
-                          <span className="flex-1 text-center leading-none">
-                            <span className="block font-hoop italic font-black text-[14px]" style={{ color: k.tone }}>{k.pts ? k.label : k.label}</span>
-                            <span className="block text-[11px] font-bold text-white">{n}×</span>
-                          </span>
-                          <button onClick={() => addEvent(sel, k.k)} aria-label={`Add one ${k.short}`} className="w-7 h-7 rounded-md bg-black/40 text-white flex items-center justify-center cursor-pointer"><Plus className="w-3.5 h-3.5" /></button>
-                        </div>
-                      );
-                    })}
+            <div className="grid grid-cols-5 gap-1.5">
+              {KINDS.map((k) => {
+                const n = sel ? events.filter((e) => e.profile_id === sel && e.kind === k.k).length : 0;
+                return (
+                  <div key={k.k} className="flex flex-col rounded-xl overflow-hidden" style={{ border: k.pts ? 'none' : `1px solid ${k.tone}66`, opacity: sel ? 1 : 0.4 }}>
+                    <button onClick={() => record(k.k)} disabled={!sel} aria-label={`Add ${k.short}`}
+                      className="h-11 font-hoop italic font-black text-[18px] cursor-pointer active:brightness-125 disabled:cursor-not-allowed"
+                      style={{ background: k.pts ? k.tone : `${k.tone}22`, color: k.pts ? '#111' : k.tone }}>{k.label}</button>
+                    <button onClick={() => sel && takeBack(sel, k.k)} disabled={!sel || !n} aria-label={`Take back one ${k.short}${n ? ` (has ${n})` : ''}`}
+                      className="h-7 flex items-center justify-center gap-1 bg-black/55 text-white text-[12px] font-black cursor-pointer active:bg-black/80 disabled:cursor-not-allowed">
+                      <Minus className={`w-3.5 h-3.5 ${n ? 'text-[#FF8A9C]' : 'text-white/25'}`} /><span className={n ? '' : 'text-white/35'}>{n}</span>
+                    </button>
                   </div>
-                </div>
-              );
-            })()}
-            {!fixMode && <div className="grid grid-cols-5 gap-1.5">
-              {KINDS.map((k) => (
-                <button key={k.k} onClick={() => record(k.k)} disabled={!sel}
-                  className="h-12 rounded-xl font-hoop italic font-black text-[18px] cursor-pointer active:scale-95 transition-transform disabled:opacity-35 disabled:cursor-not-allowed"
-                  style={{ background: k.pts ? k.tone : `${k.tone}22`, color: k.pts ? '#111' : k.tone, border: k.pts ? 'none' : `1px solid ${k.tone}66` }}>
-                  {k.label}
-                </button>
-              ))}
-              <button onClick={undo} disabled={!events.length} aria-label="Undo last" className="h-12 rounded-xl bg-white/[0.06] border border-white/15 text-white flex items-center justify-center cursor-pointer disabled:opacity-35"><Undo2 className="w-5 h-5" /></button>
-            </div>}
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-center text-[#78716C]">Big button = add · <Minus className="inline w-3 h-3 -mt-0.5" /> = take one back from this player</p>
           </div>
 
           {/* play-by-play */}
@@ -927,11 +929,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             </div>
           )}
 
-          <button onClick={() => setShowTeams(!showTeams)} className="w-full flex items-center justify-between text-[12px] font-bold text-[#D6D3D1] cursor-pointer">
-            <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-[var(--hp)]" />Change teams / add a player</span>
-            <ChevronRight className={`w-4 h-4 transition-transform ${showTeams ? 'rotate-90' : ''}`} />
-          </button>
-          {showTeams && rosterManager}
+
 
           <button onClick={finish} disabled={busy} className={`${hbtn.danger} w-full !py-3`}><Flag className="w-5 h-5" />Finish game</button>
         </section>
