@@ -983,6 +983,102 @@ export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signatu
   );
 };
 
+// =====================================================================================================
+// SELECTED — a numbered limited series (only 10 exist: 1/10 … 10/10). Club artwork public/hoop-cards/selected-frame.webp
+// (the arched photo window is see-through). Number in the shield, club logo in the round badge, "Chosen" + "3 / 10"
+// over the top of the photo, stats over the bottom, name on the blue ribbon, club on the dark plate — Amarante, in gold.
+// Can be signed like the 1-of-1.
+// =====================================================================================================
+export const SEL_FRAME = '/hoop-cards/selected-frame.webp';
+/** Where the signature sits on a Selected card (middle-low part of the photo, above the stats). */
+export const SEL_ZONE = { x: 27, y: 66, w: 46, h: 24 };
+const SEL_GOLD = 'linear-gradient(180deg, #FFF8D6 0%, #FBE08A 30%, #E0AC3A 55%, #FFEDB0 78%, #B8862A 100%)';
+const AMARANTE = '"Amarante", "Cinzel", Georgia, serif';
+/** gold letters with a dark navy edge so they read over any photo */
+const selGold = (edge = 0.28, glow = 0.9): React.CSSProperties => ({
+  ...textFill(SEL_GOLD),
+  filter: `drop-shadow(0 ${cq(edge)} 0 rgba(8,16,48,0.95)) drop-shadow(0 0 ${cq(glow)} rgba(0,0,0,0.75))`,
+});
+export const SelectedCard: React.FC<TradingCardProps & { serial?: number | null; total?: number; signature?: string | null; glow?: boolean }> = (props) => {
+  const { serial, total = 10, signature, glow = true, ...p } = props;
+  const f = useFace(p as TradingCardProps);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const name = p.person.display_name.trim().toUpperCase();
+  const nameSize = Math.min(5.4, 48 / Math.max(1, name.length * 0.62));       // fits the ribbon (x 22 → 78)
+  const club = (/^hoop method/i.test(p.club?.name || '') ? 'Hoop Method' : (p.club?.name || 'Hoop Method')).toUpperCase();
+  const clubSize = Math.min(3.6, 38 / Math.max(1, club.length * 0.62));       // fits the plate (x 28 → 72)
+  const num = f.num;
+  const s = f.s;
+  const stats: [string, number | undefined][] = [['REB', s?.rpg], ['AST', s?.apg], ['STL', s?.spg], ['BLK', s?.bpg]];
+  return (
+    <div className="relative w-full aspect-[5/7] select-none" style={{
+      containerType: 'inline-size', fontFamily: AMARANTE,
+      filter: glow ? `drop-shadow(0 0 ${cq(1)} rgba(255,224,130,0.95)) drop-shadow(0 0 ${cq(3.5)} rgba(255,190,60,0.75)) drop-shadow(0 0 ${cq(8)} rgba(240,165,40,0.45))` : undefined,   // golden glow
+    }}>
+      {/* photo behind the arched window, darker at the top and bottom so the gold text reads */}
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(25.6), right: cq(25.6), top: cq(19.4), height: cq(92.4), background: 'radial-gradient(90% 60% at 50% 30%, #1E3A6E 0%, #0A1430 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(150,190,255,0.25)" />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(6,14,40,0.82) 0%, rgba(6,14,40,0.35) 16%, transparent 28%, transparent 68%, rgba(6,14,40,0.55) 82%, rgba(6,14,40,0.92) 100%)' }} />
+      </div>
+      <img src={p.club?.selected_url || SEL_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {editing && (
+        <At x={0} r={0} y={56} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)', fontFamily: 'Inter, sans-serif' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {signature && (
+        <At x={SEL_ZONE.x} y={SEL_ZONE.y} w={SEL_ZONE.w} h={SEL_ZONE.h} className="pointer-events-none">
+          <img src={signature} alt="Signed" draggable={false} className="w-full h-full object-contain" style={{ filter: `drop-shadow(0 ${cq(0.25)} ${cq(0.3)} rgba(0,0,0,0.55))` }} />
+        </At>
+      )}
+
+      {/* jersey number + position in the shield (top-left) */}
+      <At x={7.5} w={15.7} y={6.6} h={15} className="flex flex-col items-center justify-center pointer-events-none">
+        <span className="leading-none" style={{ fontSize: cq(num != null && String(num).length > 1 ? 9.5 : 11.5), ...selGold(0.35, 0.7) }}>{num ?? '–'}</span>
+        {f.pos && <span className="leading-none" style={{ fontSize: cq(2.6), marginTop: cq(0.5), letterSpacing: cq(0.3), ...selGold(0.18, 0.4) }}>{f.pos}</span>}
+      </At>
+      {/* club logo filling the round badge (top-right) */}
+      <At x={76.15} w={16.3} y={6.55} h={16.3} className="rounded-full overflow-hidden pointer-events-none" style={{ boxShadow: `0 0 0 ${cq(0.45)} #F2CF6E, 0 0 ${cq(1.2)} rgba(0,0,0,0.5)` }}>
+        <img src={f.logo} alt="" className="w-full h-full object-contain bg-[#F3E9E8]" style={{ transform: 'scale(1.12)' }} />
+      </At>
+
+      {/* "Chosen" and the card number, over the top of the photo */}
+      <At x={26} r={26} y={22.4} className="flex flex-col items-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontSize: cq(5.4), letterSpacing: cq(0.6), ...selGold(0.3, 0.9) }}>Chosen</span>
+        <span className="whitespace-nowrap leading-none" style={{ fontSize: cq(3.2), letterSpacing: cq(0.4), marginTop: cq(0.9), ...selGold(0.2, 0.7) }}>{serial ?? '?'} / {total}</span>
+      </At>
+
+      {/* stats over the bottom of the photo */}
+      <At x={26} r={26} y={93} className="flex flex-col items-center pointer-events-none">
+        <span className="flex items-baseline leading-none" style={{ gap: cq(1) }}>
+          <span style={{ fontSize: cq(7.4), ...selGold(0.3, 0.8) }}>{statNum(s?.ppg, s)}</span>
+          <span style={{ fontSize: cq(2.6), letterSpacing: cq(0.3), ...selGold(0.18, 0.5) }}>{statLabel('PPG', s)}</span>
+        </span>
+        <span className="grid grid-cols-4 w-full" style={{ marginTop: cq(1.2), paddingTop: cq(1), borderTop: `${cq(0.25)} solid rgba(242,207,110,0.6)` }}>
+          {stats.map(([k, v]) => (
+            <span key={k} className="flex flex-col items-center leading-none">
+              <span style={{ fontSize: cq(3.6), ...selGold(0.2, 0.5) }}>{statNum(v, s)}</span>
+              <span style={{ fontSize: cq(1.9), marginTop: cq(0.5), letterSpacing: cq(0.2), ...selGold(0.12, 0.4) }}>{statLabel(k, s)}</span>
+            </span>
+          ))}
+        </span>
+      </At>
+
+      {/* name centred on the blue ribbon, club centred on the dark plate */}
+      <At x={22} r={22} y={113.2} h={6.5} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontSize: cq(nameSize), letterSpacing: cq(0.2), ...selGold(0.3, 0.6) }}>{name}</span>
+      </At>
+      <At x={27.7} r={27.7} y={121.6} h={6.3} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontSize: cq(clubSize), letterSpacing: cq(0.35), ...selGold(0.2, 0.5) }}>{club}</span>
+      </At>
+    </div>
+  );
+};
+
 export const CardBack: React.FC<{ club?: { name: string; logo_url: string | null } | null; glow?: boolean }> = ({ glow = true }) => (
   <div className="relative w-full aspect-[5/7] select-none" style={{
     containerType: 'inline-size',
@@ -1023,4 +1119,5 @@ export const CARD_SERIES: CardSeries[] = [
   { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard, unlock: 'After 2 schedules' },
   { n: 3, key: 'starlight', name: 'Starlight', tagline: 'HOOP METHOD glitter & gold frame — logo and number circles, PPG and LEVEL 3 over the photo. Players get it after their 3rd finished schedule.', Comp: StarlightCard, unlock: 'After 3 schedules' },
   { n: 4, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — only the player you pick wins it from a card pack each schedule. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
+  { n: 5, key: 'selected', name: 'Chosen', tagline: 'Numbered limited series — only 10 ever (1/10 … 10/10). Hidden in 10 random players’ packs after a schedule. Can be signed.', Comp: SelectedCard, unlock: 'Random 10 packs' },
 ];

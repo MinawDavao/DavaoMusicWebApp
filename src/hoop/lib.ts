@@ -182,6 +182,8 @@ export interface HoopClub {
   paid_until?: string | null; billing_free?: boolean;
   /** this club's own 1-of-1 card artwork (null = no 1-of-1 / card packs yet) */
   oneofone_url?: string | null;
+  /** this club's numbered "Selected" card artwork (only 10 ever) — null = none */
+  selected_url?: string | null;
 }
 
 // ---------- club subscriptions (₱400/month after a 30-day free trial; paid by GCash, confirmed by the main admin)

@@ -31,7 +31,7 @@ export interface TradingCardProps {
   crop?: CardCrop;
   onCropChange?: (c: CardCrop) => void;
   /** the club this card belongs to (badge top-left) */
-  club?: { name: string; logo_url: string | null; oneofone_url?: string | null } | null;
+  club?: { name: string; logo_url: string | null; oneofone_url?: string | null; selected_url?: string | null } | null;
 }
 
 /** White letters with a black stroke and a soft drop shadow (8-way text-shadow = a solid outline that also shows in saved pictures). */
@@ -203,7 +203,7 @@ let fontCss: Promise<string> | null = null;
 function cardFonts(): Promise<string> {
   if (fontCss) return fontCss;
   fontCss = (async () => {
-    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;0,800;0,900;1,800;1,900&family=Yellowtail&display=swap')).text();
+    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,700;0,800;0,900;1,800;1,900&family=Yellowtail&family=Amarante&display=swap')).text();
     const blocks = css.split('/*').filter((b) => b.trim().startsWith('latin */'));
     const out: string[] = [];
     for (const b of blocks) {

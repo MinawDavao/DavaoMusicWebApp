@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, uploadImage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { ErrorNote } from '../components/ui';
-import { OneOfOneCard, SIG_ZONE } from './CardDesigns';
+import { OneOfOneCard, SEL_ZONE, SIG_ZONE, SelectedCard } from './CardDesigns';
 import { hbtn } from './lib';
 import type { TradingCardProps } from './TradingCard';
 
@@ -14,15 +14,18 @@ const INKS = [
   { key: 'black', label: 'Black', color: '#111111' },
   { key: 'blue', label: 'Blue', color: '#2F6BFF' },
 ];
-// the canvas is drawn at 4× the zone's size so the signature stays sharp in saved pictures
-const W = SIG_ZONE.w * 12, H = SIG_ZONE.h * 12;
+// the canvas is drawn big (12 px per card unit) so the signature stays sharp in saved pictures
 
 /**
  * "Sign your 1-1 card": the winner signs right on their card with a finger or mouse.
  * Saves a transparent PNG (their own upload) to hoop_one_of_ones.signature_url.
  */
-export const SignCard: React.FC<{ oneId: string | null; current?: string | null; demo?: boolean; onSaved: (url: string | null) => void; onClose: () => void }
-  & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ oneId, current, demo = false, onSaved, onClose, ...card }) => {
+export const SignCard: React.FC<{ oneId: string | null; current?: string | null; demo?: boolean; onSaved: (url: string | null) => void; onClose: () => void;
+  /** 'sel' = a numbered Selected card (oneId is then its id in hoop_numbered_cards) */
+  kind?: 'one' | 'sel'; serial?: number | null }
+  & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ oneId, current, demo = false, onSaved, onClose, kind = 'one', serial, ...card }) => {
+  const ZONE = kind === 'sel' ? SEL_ZONE : SIG_ZONE;
+  const W = ZONE.w * 12, H = ZONE.h * 12;
   const { user } = useAuth();
   const canvas = useRef<HTMLCanvasElement>(null);
   const pts = useRef<{ x: number; y: number; t: number }[]>([]);
@@ -79,7 +82,7 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
       if (demo) { onSaved(canvas.current!.toDataURL('image/png')); onClose(); return; }   // TEST pack: show it, save nothing
       if (!oneId || !user) throw new Error('This 1-of-1 card can’t be signed right now.');
       const url = await uploadImage('avatars', user.id, new File([blob], 'signature.png', { type: 'image/png' }));
-      const { error } = await supabase.from('hoop_one_of_ones').update({ signature_url: url }).eq('id', oneId);
+      const { error } = await supabase.from(kind === 'sel' ? 'hoop_numbered_cards' : 'hoop_one_of_ones').update({ signature_url: url }).eq('id', oneId);
       if (error) { removeImageByUrl(url); throw error; }
       if (current) removeImageByUrl(current);
       onSaved(url); onClose();
@@ -92,18 +95,18 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
       <div className="max-w-[440px] mx-auto px-4 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">{demo ? 'TEST · NOTHING SAVED' : 'YOUR 1-OF-1'}</p>
+            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">{demo ? 'TEST · NOTHING SAVED' : kind === 'sel' ? `YOUR CHOSEN ${serial ?? ''}/10` : 'YOUR 1-OF-1'}</p>
             <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none flex items-center gap-2"><PenLine className="w-6 h-6 text-[#F6C94C]" />Sign your card</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
-        <p className="text-[12px] text-[#D6D3D1]">Sign inside the dotted box with your finger (or mouse on a computer). Your autograph shows on your 1-of-1 card.</p>
+        <p className="text-[12px] text-[#D6D3D1]">Sign inside the dotted box with your finger (or mouse on a computer). Your autograph shows on your {kind === 'sel' ? 'Chosen' : '1-of-1'} card.</p>
 
         {/* the card with the signing box exactly where the signature will sit */}
         <div className="relative mx-auto w-full max-w-[340px]">
-          <OneOfOneCard {...card} signature={null} glow={false} />
+          {kind === 'sel' ? <SelectedCard {...card} serial={serial} signature={null} glow={false} /> : <OneOfOneCard {...card} signature={null} glow={false} />}
           <div className="absolute rounded-lg" style={{
-            left: `${SIG_ZONE.x}%`, top: `${(SIG_ZONE.y / 140) * 100}%`, width: `${SIG_ZONE.w}%`, height: `${(SIG_ZONE.h / 140) * 100}%`,
+            left: `${ZONE.x}%`, top: `${(ZONE.y / 140) * 100}%`, width: `${ZONE.w}%`, height: `${(ZONE.h / 140) * 100}%`,
             outline: '2px dashed rgba(246,201,76,0.85)', background: 'rgba(0,0,0,0.18)',
           }}>
             <canvas ref={canvas} width={W} height={H} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up}
