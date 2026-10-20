@@ -113,8 +113,18 @@ const Header: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go 
     </button>
   );
 
+  // its height goes into --app-header-h so other sticky bars (the chat header) sit just under it
+  const headRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = headRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--app-header-h', `${el.offsetHeight}px`));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <header className="sticky top-0 z-40 bg-[#0F1417]/95 backdrop-blur-xl border-b border-white/10">
+    <header ref={headRef} className="sticky top-0 z-40 bg-[#0F1417]/95 backdrop-blur-xl border-b border-white/10">
       <div className="px-3.5 pt-3 pb-2.5 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <button onClick={() => go({ name: 'home' })} className="flex items-center gap-2.5 cursor-pointer" aria-label="MINAW DAVAO home">

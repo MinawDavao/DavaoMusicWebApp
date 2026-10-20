@@ -29,7 +29,7 @@ const short = (name?: string | null) => {
 
 /** A phone held sideways (short and wide). Tablets and computers keep the normal page. */
 function usePhoneLandscape() {
-  const q = '(orientation: landscape) and (max-height: 560px)';
+  const q = '(orientation: landscape) and (max-height: 560px) and (pointer: coarse)';
   const [on, setOn] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(q).matches);
   useEffect(() => {
     const m = window.matchMedia?.(q);
@@ -65,7 +65,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [adding, setAdding] = useState(false);
   const [showTeams, setShowTeams] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
-  const [cardFor, setCardFor] = useState<string | null>(null);   // member id → their card for this (finished) game
+  const [cardFor, setCardFor] = useState<string | null>(null);
+  const removing = useRef<Set<string>>(new Set());   // stats being deleted right now (fast − / Undo taps never pick the same one twice)
 
   const loadSeq = useRef(0);
   const loadPlayers = useCallback(async () => {
@@ -132,6 +133,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
   useTick(!!game?.clock_running);
   const landscape = usePhoneLandscape();   // phone turned sideways → full-screen courtside view during a live game
+  const [courtsideOff, setCourtsideOff] = useState(false);   // closed with ✕ → back to the normal page until the phone turns again
+  useEffect(() => { if (!landscape) setCourtsideOff(false); }, [landscape]);
   const offset = useServerOffset();
   const now = () => Date.now() + offset;
   const left = game ? clockLeftMs(game, now()) : 0;
@@ -238,7 +241,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const writeTeam = async (pid: string, team: 'A' | 'B' | null) => {
     const row = players.find((p) => p.profile_id === pid);
     if (row?.team && team !== row.team && events.some((e) => e.profile_id === pid)) {
-      return { error: { message: `${nameOf(pid)} already has stats in this game, so they stay on ${row.team === 'A' ? game.team_a : game.team_b} (their stats and games played need it). To fix a wrong stat, use FIX STATS.` } };
+      return { error: { message: `${nameOf(pid)} already has stats in this game, so they stay on ${row.team === 'A' ? game.team_a : game.team_b} (their stats and games played need it). To fix a wrong stat, tap the − under that stat.` } };
     }
     if (isFirst || row) {
       if (!isFirst && !team && !events.some((e) => e.profile_id === pid)) return supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid);
@@ -374,7 +377,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
 
   // ---------- admin: clock
-  const clockStart = () => patchGame({ clock_running: true, clock_started_at: new Date().toISOString(), ...(left <= 0 ? { clock_elapsed_ms: 0 } : {}) });
+  const clockStart = () => patchGame({ clock_running: true, clock_started_at: new Date(now()).toISOString(), ...(left <= 0 ? { clock_elapsed_ms: 0 } : {}) });
   const clockPause = () => patchGame({ clock_running: false, clock_started_at: null, clock_elapsed_ms: game.period_seconds * 1000 - clockLeftMs(game, now()) });
   const clockReset = () => patchGame({ clock_running: false, clock_started_at: null, clock_elapsed_ms: 0 });
   const lastPeriod = game.period >= periods;
@@ -404,7 +407,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
   /** Fix mode: take back the player's most recent stat of this kind. */
   const takeBack = (pid: string, kind: Kind) => {
-    const last = [...events].reverse().find((e) => e.profile_id === pid && e.kind === kind);
+    const last = [...events].reverse().find((e) => e.profile_id === pid && e.kind === kind && !removing.current.has(e.id));
     if (last) removeEvent(last);
   };
   /** Latest plays: change a wrong stat into the right one (e.g. +3 → +2). */
@@ -414,11 +417,14 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     if (await addEvent(e.profile_id, kind)) await removeEvent(e);
   };
   const removeEvent = async (e: HoopEvent) => {
+    if (removing.current.has(e.id)) return;
+    removing.current.add(e.id);
     const { error } = await supabase.from('hoop_events').delete().eq('id', e.id);
+    removing.current.delete(e.id);
     if (error) return setErr(errorMessage(error));
     setEvents((xs) => xs.filter((x) => x.id !== e.id));
   };
-  const undo = () => { const last = events[events.length - 1]; if (last) removeEvent(last); };
+  const undo = () => { const last = [...events].reverse().find((e) => !removing.current.has(e.id)); if (last) removeEvent(last); };
 
   const live = game.status === 'live';
   const showScore = live || game.status === 'final';
@@ -616,8 +622,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <div className="flex items-center gap-3 min-w-0">
           <span className={`font-hoop italic font-black text-[52px] leading-none tabular-nums ${winner === 'A' ? 'text-[#78716C]' : 'text-white'}`}>{score.B}</span>
           <span className="text-[13px] font-black uppercase tracking-wider text-[#D6D3D1] truncate">{game.team_b}</span>
+          <button onClick={() => setCourtsideOff(true)} aria-label="Close the sideways view" className="ml-auto w-9 h-9 flex-shrink-0 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-4 h-4" /></button>
         </div>
       </div>
+      {err && <p role="alert" className="flex-shrink-0 mt-1 px-3 py-1.5 rounded-lg bg-[#FF6B7A]/15 border border-[#FF6B7A]/40 text-[12px] text-[#FFB3BD]">{err}</p>}
 
       {/* teams on the sides, controls (admin) or latest plays (everyone else) in the middle */}
       <div className="flex-1 min-h-0 grid grid-cols-[1fr_minmax(250px,1.15fr)_1fr] gap-2.5 py-2">
@@ -714,7 +722,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <div className="p-4 space-y-3">
           <div className="text-center space-y-1">
             <div className="flex items-center justify-center gap-2">
-              <h1 className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">{game.title}{session.length > 1 && <span className="text-[var(--hp)]"> · G{gameNo}</span>}</h1>
+              <h1 className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">{root.title}{session.length > 1 && <span className="text-[var(--hp)]"> · G{gameNo}</span>}</h1>
               {live && <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[var(--ha)] text-[10px] font-black text-white"><span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />LIVE</span>}
               {game.status === 'final' && <span className="px-1.5 py-0.5 rounded bg-white/15 text-[10px] font-black text-white">FINAL</span>}
               {game.status === 'cancelled' && <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-black text-[#A8A29E]">CANCELLED</span>}
@@ -1130,7 +1138,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
 
       {editing && <GameForm game={game} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
-      {landscape && (live || game.status === 'final') && courtside}
+      {landscape && !courtsideOff && (live || game.status === 'final') && courtside}
       {cardFor && cardInfo(cardFor) && <GameCardModal memberId={cardFor} info={cardInfo(cardFor)!} onClose={() => setCardFor(null)} />}
     </div>
   );

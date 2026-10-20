@@ -28,11 +28,14 @@ export const MessagesScreen: React.FC = () => {
   const [q, setQ] = useState('');
   const uid = user?.id;
 
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
     if (!uid) return;
+    const my = ++loadSeq.current;   // a slower, older answer never replaces a newer one
     const { data } = await supabase.from('conversations').select(CONV_COLS)
       .or(`user_a.eq.${uid},user_b.eq.${uid}`).not('last_sender', 'is', null)
       .order('last_message_at', { ascending: false }).limit(100);
+    if (my !== loadSeq.current) return;
     const rows = ((data as any[]) || []) as Conversation[];
     setList(rows.filter((c) => { const s = side(c, uid); return !s.cleared || c.last_message_at > s.cleared; }));
   }, [uid]);
@@ -304,7 +307,7 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
   return (
     <div className="flex flex-col min-h-[calc(100vh-140px)]">
       {/* header */}
-      <div className="sticky top-0 z-30 flex items-center gap-2 px-3 py-2.5 bg-[#0F1417]/95 backdrop-blur border-b border-white/10">
+      <div className="sticky z-30 flex items-center gap-2 px-3 py-2.5 bg-[#0F1417]/95 backdrop-blur border-b border-white/10" style={{ top: 'var(--app-header-h, 0px)' }}>
         <button onClick={() => go({ name: 'messages' })} aria-label="Back to messages" className={btn.icon}><ArrowLeft className="w-4 h-4" /></button>
         <button onClick={() => other && go({ name: 'profile', id: other.id })} disabled={!other} className="flex-1 min-w-0 flex items-center gap-2.5 text-left cursor-pointer disabled:cursor-default">
           <Avatar src={other?.avatar_url} name={other?.display_name || 'Member'} size={38} square={roleMeta(other?.role).square} />

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Ban, Check, Crown, EyeOff, ImageIcon, Images, Palette, RotateCcw, ScrollText, ShieldCheck, Trash2, UserPlus, Users, WifiOff, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, uploadImage } from '../lib/db';
@@ -34,6 +34,8 @@ export const HoopManage: React.FC = () => {
   const { club: c, isOwner, reload } = useClub();
   const club = c!;
   const [members, setMembers] = useState<HoopMember[] | null>(null);
+  const memberIds = useRef<Set<string>>(new Set());
+  memberIds.current = new Set((members || []).map((x) => x.id));
   const [admins, setAdmins] = useState<{ profile_id: string; role: string; profiles: HoopPerson | null }[]>([]);
   const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
   const [filter, setFilter] = useState<'active' | 'suspended'>('active');
@@ -66,6 +68,7 @@ export const HoopManage: React.FC = () => {
     load();
     const ch = supabase.channel(`hoop-manage-${club.id}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_members', filter: `club_id=eq.${club.id}` }, () => load())
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_members' }, (p: any) => { if (memberIds.current.has(p.old?.id)) load(); })   // deletes skip filters
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [load, club.id]);

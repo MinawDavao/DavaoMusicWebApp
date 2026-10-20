@@ -187,7 +187,7 @@ const ListingCard: React.FC<{ it: Listing; onReport: () => void; onChange: () =>
       )}
       {photo && (
         <div className="relative">
-          <ZoomImg src={publicUrl('gear-photos', photo.image_path)!} alt={it.title} className="w-full h-56 object-cover rounded-xl bg-[#252D37]" gallery={photos.map((x) => publicUrl('gear-photos', x.image_path)!)} index={pi} />
+          <ZoomImg src={publicUrl('gear-photos', photo.image_path)!} alt={it.title} className="w-full h-56 md:h-[440px] object-cover md:object-contain rounded-xl bg-[#252D37]" gallery={photos.map((x) => publicUrl('gear-photos', x.image_path)!)} index={pi} />
           {photos.length > 1 && (
             <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
               {photos.map((_, i) => <button key={i} onClick={() => setPi(i)} aria-label={`Photo ${i + 1}`} className={`h-2 rounded-full cursor-pointer ${i === pi ? 'w-5 bg-[#53E6D4]' : 'w-2 bg-white/60'}`} />)}

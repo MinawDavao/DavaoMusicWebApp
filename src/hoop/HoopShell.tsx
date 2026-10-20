@@ -73,6 +73,8 @@ function useClubData(clubId: string | null): ClubCtx & { loading: boolean } {
   const { user, isModerator } = useAuth();
   const [state, setState] = useState<{ id: string | null; club: HoopClub | null; role: string | null; me: HoopMember | null }>({ id: null, club: null, role: null, me: null });
   const seq = useRef(0);
+  const meIdRef = useRef<string | null>(null);
+  meIdRef.current = state.me?.id ?? null;
   const load = useCallback(async () => {
     const my = ++seq.current;   // a slow answer for a previous club is ignored
     if (!clubId) { setState({ id: null, club: null, role: null, me: null }); return; }
@@ -93,6 +95,9 @@ function useClubData(clubId: string | null): ClubCtx & { loading: boolean } {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_members', filter: `club_id=eq.${clubId}` }, (p: any) => {
         if (p.new?.profile_id === user?.id || p.old?.profile_id === user?.id) load();
       })
+      // filtered subscriptions never get deletes: watch them unfiltered and match the id (my card removed / declined, club deleted)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_members' }, (p: any) => { if (p.old?.id && p.old.id === meIdRef.current) load(); })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_clubs' }, (p: any) => { if (p.old?.id === clubId) load(); })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [load, clubId, user?.id]);

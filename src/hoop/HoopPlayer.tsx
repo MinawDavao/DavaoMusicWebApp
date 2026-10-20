@@ -74,7 +74,8 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
     if (games.length) {
       const roots = [...new Set(games.map((g) => g.session_id || g.id))];
       const [{ data: ev }, { data: sib }] = await Promise.all([
-        supabase.from('hoop_events').select('*').in('game_id', games.map((g) => g.id)),
+        // one request per game: a single query for 20 games can pass the 1,000-row limit and drop plays
+        Promise.all(games.map((g) => supabase.from('hoop_events').select('*').eq('game_id', g.id))).then((rs) => ({ data: rs.flatMap((r) => (r.data as any[]) || []) })),
         supabase.from('hoop_games').select('id, session_id, created_at, title').or(`id.in.(${roots.join(',')}),session_id.in.(${roots.join(',')})`),
       ]);
       const all = ((ev as any[]) || []).map(normEvent) as HoopEvent[];
@@ -94,6 +95,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
     const ch = supabase.channel(`hoop-card-${id}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'hoop_games' }, (p: any) => { if (p.new?.status === 'final' || p.old?.status === 'final') load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_members', filter: `id=eq.${id}` }, () => load())
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_members' }, (p: any) => { if (p.old?.id === id) load(); })   // deletes skip filters
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [load, id]);

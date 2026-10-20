@@ -283,6 +283,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
   const cardProps = { person, card: me, stats, club: club ? { name: club.name, logo_url: club.logo_url, oneofone_url: club.oneofone_url } : null };
   // each card is another player ('<design>:<member id>'); load those players' cards + stats
   const [others, setOthers] = useState<Record<string, { m: HoopMember; s: HoopStats | null }>>({});
+  const [othersDone, setOthersDone] = useState(false);
   useEffect(() => {
     const ids = [...new Set(((res?.cards || []) as string[]).filter((k) => k.includes(':')).map((k) => k.split(':')[1]))];
     if (!ids.length) return;
@@ -291,8 +292,8 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
       if (!live) return;
       const o: Record<string, { m: HoopMember; s: HoopStats | null }> = {};
       ((data as any[]) || []).forEach((m) => { o[m.id] = { m, s: st[m.id] || null }; });
-      setOthers(o);
-    });
+      setOthers(o); setOthersDone(true);
+    }, () => { if (live) setOthersDone(true); });
     return () => { live = false; };
   }, [res]);
   const face = (i: number) => {
@@ -302,7 +303,10 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
     const Comp = DESIGNS[design] || DESIGNS.glow;
     if (!id) return <Comp {...cardProps} />;   // an old pack: the opener's own card
     const o = others[id];
-    if (!o) return <div className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.06] animate-pulse" />;
+    if (!o) return othersDone
+      // that player left the club since: show their card design without a name
+      ? <Comp person={{ id, display_name: 'Former player', username: '', avatar_url: null } as any} card={{ jersey_number: null, position: null } as any} stats={null} club={cardProps.club} />
+      : <div className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.06] animate-pulse" />;
     return <Comp person={personOf(o.m)} card={o.m} stats={o.s} club={cardProps.club} />;
   };
   useEffect(() => {   // a pack opened before: show the signature the winner already put on it

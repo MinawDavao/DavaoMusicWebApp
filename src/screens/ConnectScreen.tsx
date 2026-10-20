@@ -178,7 +178,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
                 <Building2 className="w-3 h-3" />{p.venue.display_name}
               </button>
             ) : p.venue_tag && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/15 text-[10px] font-bold"><MapPin className="w-3 h-3" />{p.venue_tag}</span>}
-            {p.image_url && <ZoomImg src={p.image_url} alt="Post photo" className="w-full max-h-[420px] object-cover rounded-xl bg-[#252D37]" />}
+            {p.image_url && <ZoomImg src={p.image_url} alt="Post photo" className="w-full max-h-[420px] md:max-h-[560px] object-cover md:object-contain rounded-xl bg-[#252D37]" />}
             <div className="flex items-center justify-between text-[11px] text-[#8E9AA7]">
               <span>{total} reaction{total === 1 ? '' : 's'}</span>
               <span>{commentCounts[p.id] || 0} comment{commentCounts[p.id] === 1 ? '' : 's'}</span>

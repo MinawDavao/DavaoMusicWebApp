@@ -78,13 +78,19 @@ type Suggest = { id: string; username: string; display_name: string; avatar_url:
 
 const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** The name shown in the box for a tag. Two different people with the same name get "Name (username)" so each tag stays theirs. */
+function labelFor(names: Map<string, string>, display: string, username: string): string {
+  const taken = names.get(display);
+  const label = taken && taken !== username ? `${display} (${username})` : display;
+  names.set(label, username);
+  return label;
+}
 /** Saved text uses @username (unique); the box shows @Display Name. These convert between the two. */
 function toDisplay(stored: string, names: Map<string, string>): string {
   return stored.replace(MENTION_RE, (all, pre: string, uname: string) => {
     const who = cache.get(uname.toLowerCase());
     if (!who) return all;
-    names.set(who.display_name, who.username);
-    return `${pre}@${who.display_name}`;
+    return `${pre}@${labelFor(names, who.display_name, who.username)}`;
   });
 }
 function toStored(shown: string, names: Map<string, string>): string {
@@ -143,9 +149,9 @@ export const MentionInput: React.FC<{
   const pick = (s: Suggest) => {
     const el = ref.current;
     const caret = el?.selectionStart ?? shown.length;
-    names.current.set(s.display_name, s.username);
+    const label = labelFor(names.current, s.display_name, s.username);
     cache.set(s.username, { id: s.id, username: s.username, display_name: s.display_name, role: s.role as any });
-    const before = shown.slice(0, caret).replace(/@([a-z0-9_]{0,30})$/i, `@${s.display_name} `);
+    const before = shown.slice(0, caret).replace(/@([a-z0-9_]{0,30})$/i, `@${label} `);
     update(before + shown.slice(caret));
     setQuery(null);
     requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(before.length, before.length); });

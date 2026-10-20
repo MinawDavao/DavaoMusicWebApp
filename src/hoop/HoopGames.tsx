@@ -49,6 +49,7 @@ export const HoopGames: React.FC = () => {
     load();
     const ch = supabase.channel(`hoop-list-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_games', filter: `club_id=eq.${club.id}` }, () => load())
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_games' }, (p: any) => { if (idsRef.current.has(p.old?.id)) load(); })   // deletes skip filters
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, (p: any) => { if (ours(p)) load(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_events' }, (p: any) => { if (!ours(p)) return; clearTimeout(scoreT.current); scoreT.current = setTimeout(load, 800); })
       .subscribe();
@@ -235,6 +236,8 @@ export const GameForm: React.FC<{ game?: HoopGame; onClose: () => void; onSaved:
     const res = game
       ? await supabase.from('hoop_games').update(row).eq('id', game.id).select('id').single()
       : await supabase.from('hoop_games').insert({ ...row, club_id: club?.id, created_by: user?.id }).select('id').single();
+    // renamed / moved schedule: its Game 2, 3… follow
+    if (!res.error && game && !game.session_id) await supabase.from('hoop_games').update({ title: row.title, venue: row.venue }).eq('session_id', game.id);
     setBusy(false);
     if (res.error) return setErr(errorMessage(res.error));
     onSaved((res.data as any).id);

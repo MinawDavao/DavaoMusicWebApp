@@ -28,10 +28,10 @@ export const Photo: React.FC<{ url: string; crop: CardCrop }> = ({ url, crop }) 
 
 /**
  * Soft background photo on the right side of a profile card, fading out toward the avatar and the bottom.
- * The box is always 75% of the card width with a 4:3 shape, so the editor preview matches the real card.
+ * The box is 75% of the card width with a 4:3 shape (like the editor preview), but never taller than the card itself (wide screens).
  */
 export const CardBackdrop: React.FC<{ url: string; crop?: any }> = ({ url, crop }) => (
-  <div aria-hidden="true" className="absolute top-0 right-0 w-[75%] aspect-[4/3] pointer-events-none" style={{ maskImage: FADE_DOWN, WebkitMaskImage: FADE_DOWN }}>
+  <div aria-hidden="true" className="absolute top-0 right-0 w-[75%] aspect-[4/3] max-h-full pointer-events-none" style={{ maskImage: FADE_DOWN, WebkitMaskImage: FADE_DOWN }}>
     <div className="relative w-full h-full overflow-hidden" style={{ opacity: 0.32, maskImage: FADE_LEFT, WebkitMaskImage: FADE_LEFT }}>
       <Photo url={url} crop={cropOf(crop)} />
     </div>

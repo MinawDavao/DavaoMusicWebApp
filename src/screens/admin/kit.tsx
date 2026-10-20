@@ -20,13 +20,16 @@ export function usePaged<T>(fetchPage: (from: number, to: number) => Promise<{ d
   const load = useCallback(async (append = false, current = 0) => {
     const my = ++seq.current;
     setLoading(true);
-    const from = append ? current : 0;
-    const { data, error } = await fetchPage(from, from + PAGE - 1);
+    // "Load more" starts a few rows back: rows hidden/removed since (under a filter) shift the pages, so overlap and skip repeats
+    const back = append ? Math.min(current, 10) : 0;
+    const from = append ? current - back : 0;
+    const { data, error } = await fetchPage(from, from + PAGE + back - 1);
     if (my !== seq.current) return;
     setErr(error ? errorMessage(error) : null);
     const list = data || [];
-    setRows((r) => (append ? [...r, ...list] : list));
-    setMore(list.length === PAGE);
+    const key = (x: any) => x?.id ?? JSON.stringify(x);
+    setRows((r) => { if (!append) return list; const seen = new Set(r.map(key)); return [...r, ...list.filter((x) => !seen.has(key(x)))]; });
+    setMore(list.length === PAGE + back);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
