@@ -66,6 +66,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [showTeams, setShowTeams] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   const [cardFor, setCardFor] = useState<string | null>(null);
+  const [subFor, setSubFor] = useState<string | null>(null);   // live game: the player being subbed out (choose who comes in)
   const removing = useRef<Set<string>>(new Set());   // stats being deleted right now (fast − / Undo taps never pick the same one twice)
 
   const loadSeq = useRef(0);
@@ -439,26 +440,96 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const myCardInfo = game.status === 'final' && me ? cardInfo(me.id) : null;
 
   // ---------------------------------------------------------------- UI pieces
-  const teamCol = (team: 'A' | 'B', list: GamePlayer[]) => (
-    <div className="space-y-1.5">
-      <p className="text-[10px] font-black uppercase tracking-wider truncate" style={{ color: team === 'A' ? H.orange : '#D6D3D1' }}>{team === 'A' ? game.team_a : game.team_b}</p>
-      {list.map((p) => {
-        const on = sel === p.profile_id;
-        const l = lines[p.profile_id];
-        return (
-          <button key={p.profile_id} onClick={() => setSel(on ? null : p.profile_id)} aria-pressed={on}
-            className={`w-full flex items-center gap-2 p-1.5 rounded-xl border text-left cursor-pointer transition-colors ${on ? 'border-[var(--hp)] bg-[var(--hp)]/15' : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'}`}>
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center font-hoop italic font-black text-[15px] flex-shrink-0" style={{ background: team === 'A' ? H.orange : '#3A3A3A', color: team === 'A' ? '#111' : '#F4F1EE' }}>{jersey[p.profile_id] ?? '–'}</span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-[12px] font-bold text-white truncate">{short(p.profiles?.display_name)}</span>
-              <span className="block text-[10px] leading-tight text-[#A8A29E]"><strong className="text-white">{l?.pts ?? 0}</strong> pts · {l?.reb ?? 0} reb · {l?.ast ?? 0} ast</span>
-              <span className="block text-[10px] leading-tight text-[#A8A29E]">{l?.stl ?? 0} stl · {l?.blk ?? 0} blk · {l?.tov ?? 0} to · <span className={(l?.foul ?? 0) >= 4 ? 'text-[#FF8A9C] font-bold' : ''}>{l?.foul ?? 0} foul</span></span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
+  // ---------- subs (live game): a player goes to the bench but keeps their team + stats; someone else comes in
+  const onCourt = (p: GamePlayer) => p.on_court !== false;
+  const setOnCourt = (pid: string, on: boolean) => supabase.from('hoop_game_players').update({ on_court: on }).eq('game_id', game.id).eq(col(pid), pid);
+  const swapSub = async (outPid: string, inPid: string, team: 'A' | 'B') => {
+    setBusy(true); setErr(null);
+    try {
+      const r1 = await setOnCourt(outPid, false);
+      if (r1.error) throw r1.error;
+      const row = players.find((p) => p.profile_id === inPid);
+      if (!(row && row.team === team)) {
+        const r2: any = await writeTeam(inPid, team);
+        if (r2?.error) { await setOnCourt(outPid, true); throw r2.error; }
+      }
+      const r3 = await setOnCourt(inPid, true);
+      if (r3.error) throw r3.error;
+      if (sel === outPid) setSel(inPid);
+      setSubFor(null);
+    } catch (e) { setErr(errorMessage(e)); }
+    setBusy(false);
+    loadPlayers();
+  };
+  const backIn = (pid: string) => run(() => setOnCourt(pid, true) as any).then(loadPlayers);
+
+  const teamCol = (team: 'A' | 'B', list: GamePlayer[]) => {
+    const court = list.filter(onCourt), bench = list.filter((p) => !onCourt(p));
+    const canSub = isModerator && live;
+    return (
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-black uppercase tracking-wider truncate" style={{ color: team === 'A' ? H.orange : '#D6D3D1' }}>{team === 'A' ? game.team_a : game.team_b}</p>
+        {court.map((p) => {
+          const on = sel === p.profile_id;
+          const l = lines[p.profile_id];
+          return (
+            <div key={p.profile_id} className="space-y-1">
+              <div className={`flex items-stretch rounded-xl border transition-colors ${on ? 'border-[var(--hp)] bg-[var(--hp)]/15' : 'border-white/10 bg-white/[0.03]'}`}>
+                <button onClick={() => setSel(on ? null : p.profile_id)} aria-pressed={on}
+                  className="flex-1 min-w-0 flex items-center gap-2 p-1.5 text-left cursor-pointer hover:bg-white/[0.04] rounded-l-xl">
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center font-hoop italic font-black text-[15px] flex-shrink-0" style={{ background: team === 'A' ? H.orange : '#3A3A3A', color: team === 'A' ? '#111' : '#F4F1EE' }}>{jersey[p.profile_id] ?? '–'}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[12px] font-bold text-white truncate">{short(p.profiles?.display_name)}</span>
+                    <span className="block text-[10px] leading-tight text-[#A8A29E]"><strong className="text-white">{l?.pts ?? 0}</strong> pts · {l?.reb ?? 0} reb · {l?.ast ?? 0} ast</span>
+                    <span className="block text-[10px] leading-tight text-[#A8A29E]">{l?.stl ?? 0} stl · {l?.blk ?? 0} blk · {l?.tov ?? 0} to · <span className={(l?.foul ?? 0) >= 4 ? 'text-[#FF8A9C] font-bold' : ''}>{l?.foul ?? 0} foul</span></span>
+                  </span>
+                </button>
+                {canSub && (
+                  <button onClick={() => setSubFor(subFor === p.profile_id ? null : p.profile_id)} aria-expanded={subFor === p.profile_id} aria-label={`Sub out ${p.profiles?.display_name || 'player'}`}
+                    className={`w-10 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 border-l border-white/10 rounded-r-xl cursor-pointer text-[9px] font-black ${subFor === p.profile_id ? 'bg-[var(--hp)] text-[#111]' : 'text-[#D6D3D1] hover:bg-white/[0.06]'}`}>
+                    <Shuffle className="w-3.5 h-3.5" />SUB
+                  </button>
+                )}
+              </div>
+              {canSub && subFor === p.profile_id && (() => {
+                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id), ...sittingOut.filter((b) => canPlay(b))];
+                return (
+                  <div className="p-2 rounded-xl border border-[var(--hp)]/50 space-y-1.5" style={{ background: 'color-mix(in srgb, var(--hp) 8%, #141414)' }}>
+                    <p className="text-[10px] font-bold text-white">{short(p.profiles?.display_name)} goes to the bench — who comes in?</p>
+                    {cands.length === 0 && <p className="text-[10px] text-[#A8A29E]">No one is available. Add a player with “Change teams / add a player”.</p>}
+                    {cands.map((c) => (
+                      <button key={c.profile_id} onClick={() => swapSub(p.profile_id, c.profile_id, team)} disabled={busy}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-black/30 border border-white/10 text-left cursor-pointer hover:border-[var(--hp)]">
+                        <HoopFace avatar={c.profiles?.avatar_url} name={c.profiles?.display_name} cardPhoto={faces[c.profile_id]?.url} cardCrop={faces[c.profile_id]?.crop} size={22} />
+                        <span className="flex-1 min-w-0 text-[11px] font-bold text-white truncate">{short(c.profiles?.display_name)}</span>
+                        <span className="text-[9px] font-black text-[var(--hp)]">{c.team === team ? 'BENCH' : 'IN'}</span>
+                      </button>
+                    ))}
+                    <button onClick={() => setSubFor(null)} className="w-full text-[10px] font-bold text-[#A8A29E] cursor-pointer py-0.5">Cancel</button>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })}
+        {bench.length > 0 && (
+          <div className="pt-1 space-y-1">
+            <p className="text-[9px] font-black tracking-wider text-[#78716C]">BENCH · stats still count</p>
+            {bench.map((p) => {
+              const l = lines[p.profile_id];
+              return (
+                <div key={p.profile_id} className="flex items-center gap-1.5 px-1.5 py-1 rounded-lg border border-dashed border-white/15 opacity-70">
+                  <span className="w-6 h-6 rounded-md flex items-center justify-center font-hoop italic font-black text-[12px] flex-shrink-0 bg-white/10 text-[#D6D3D1]">{jersey[p.profile_id] ?? '–'}</span>
+                  <span className="flex-1 min-w-0 text-[11px] font-bold text-[#D6D3D1] truncate">{short(p.profiles?.display_name)} <span className="font-normal text-[#A8A29E]">{l?.pts ?? 0}p</span></span>
+                  {canSub && <button onClick={() => backIn(p.profile_id)} disabled={busy} className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-white/10 text-white cursor-pointer">BACK IN</button>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const playedChip = (pid: string) => {
     const n = played[pid] || 0;
@@ -589,12 +660,14 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     <div className="min-h-0 flex flex-col">
       <p className="px-1 pb-1 text-[10px] font-black uppercase tracking-wider truncate" style={{ color: team === 'A' ? H.orange : '#D6D3D1' }}>{team === 'A' ? game.team_a : game.team_b}</p>
       <div className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-0.5">
-        {[...list].sort((x, y) => (lines[y.profile_id]?.pts ?? 0) - (lines[x.profile_id]?.pts ?? 0)).map((p) => {
+        {[...list.filter(onCourt), ...list.filter((x) => !onCourt(x))].map((p) => {   // fixed order (no jumping around); bench last
           const on = sel === p.profile_id, l = lines[p.profile_id];
-          const Tag = isModerator && live ? 'button' : 'div';
+          const benched = !onCourt(p);
+          const pick = isModerator && live && !benched;
+          const Tag = pick ? 'button' : 'div';
           return (
-            <Tag key={p.profile_id} {...(isModerator && live ? { onClick: () => setSel(on ? null : p.profile_id), 'aria-pressed': on } : {})}
-              className={`w-full flex items-center gap-1.5 px-1.5 py-1 rounded-lg border text-left ${isModerator && live ? 'cursor-pointer' : ''} ${on ? 'border-[var(--hp)] bg-[var(--hp)]/20' : 'border-white/10 bg-white/[0.03]'}`}>
+            <Tag key={p.profile_id} {...(pick ? { onClick: () => setSel(on ? null : p.profile_id), 'aria-pressed': on } : {})}
+              className={`w-full flex items-center gap-1.5 px-1.5 py-1 rounded-lg border text-left ${pick ? 'cursor-pointer' : ''} ${benched ? 'opacity-45 border-dashed border-white/15' : on ? 'border-[var(--hp)] bg-[var(--hp)]/20' : 'border-white/10 bg-white/[0.03]'}`}>
               <span className="w-6 h-6 rounded-md flex items-center justify-center font-hoop italic font-black text-[13px] flex-shrink-0" style={{ background: team === 'A' ? H.orange : '#3A3A3A', color: team === 'A' ? '#111' : '#F4F1EE' }}>{jersey[p.profile_id] ?? '–'}</span>
               <span className="flex-1 min-w-0 text-[12px] font-bold text-white truncate">{short(p.profiles?.display_name)}</span>
               <span className="font-mono text-[11px] text-[#D6D3D1] whitespace-nowrap"><strong className="text-white text-[13px]">{l?.pts ?? 0}</strong>p {l?.reb ?? 0}r {l?.ast ?? 0}a{(l?.foul ?? 0) ? <span className={(l?.foul ?? 0) >= 4 ? ' text-[#FF8A9C] font-bold' : ''}> {l?.foul}f</span> : null}</span>
@@ -852,7 +925,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
           {/* players */}
           <p className="text-[11px] text-[#A8A29E]">Tap a player, then tap what they did.</p>
-          <p className="text-[11px] font-bold text-white">On the court: {teamA.length + teamB.length} players ({teamA.length} vs {teamB.length})</p>
+          <p className="text-[11px] font-bold text-white">On the court: {teamA.filter(onCourt).length + teamB.filter(onCourt).length} players ({teamA.filter(onCourt).length} vs {teamB.filter(onCourt).length}) <span className="font-normal text-[#A8A29E]">· tap SUB to swap a player</span></p>
           <div className="grid grid-cols-2 gap-2">{teamCol('A', teamA)}{teamCol('B', teamB)}</div>
           {sittingOut.length > 0 && (
             <div className="space-y-1.5">

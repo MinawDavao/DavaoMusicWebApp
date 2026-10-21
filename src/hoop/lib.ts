@@ -41,6 +41,7 @@ export interface GamePlayer {
   arrived_at?: string | null; guest_id?: string | null; guest_name?: string | null; is_guest?: boolean; profiles?: HoopPerson | null;
   member_id?: string | null; account_id?: string | null; jersey?: number | null; face?: { url: string; crop: any } | null;
   /** the player was removed from the club (row kept only for past box scores) */ removed?: boolean;
+  /** false = subbed out to the bench during the game (keeps their team and stats) */ on_court?: boolean;
   member_status?: 'pending' | 'active' | 'suspended' | null;
 }
 export type Kind = 'p1' | 'p2' | 'p3' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'foul';
