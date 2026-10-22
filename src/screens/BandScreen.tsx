@@ -251,14 +251,6 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
         {canManage && <TrackUploadForm userId={user!.id} bandId={band.id} used={tracks.length} onUploaded={load} />}
       </Panel>
 
-      {/* POSTS */}
-      <Panel tone="posts" icon={MessageCircle} title={isOwner ? 'Our Posts' : 'Posts'} sub={isOwner ? 'Posts you share here also appear on the Connect feed for everyone.' : undefined}>
-        <ConnectFeed authorId={band.owner_id} showComposer={isOwner} />
-      </Panel>
-
-      {/* TESTIMONIALS (need the owner's approval) */}
-      <Testimonials kind="band" targetId={band.id} isOwner={canManage} onReport={(rid) => setReport({ type: 'review', id: rid, label: 'this testimonial' })} />
-
       {/* GALLERY */}
       <Panel tone="gallery" icon={Camera} title="Gallery & Stage Photos" right={canManage ? (
           <FilePick accept="image/jpeg,image/png,image/webp" onPick={addPhoto} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Plus className="w-3.5 h-3.5" />Add Photo</FilePick>
@@ -277,6 +269,14 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
             </div>
           )}
       </Panel>
+
+      {/* POSTS */}
+      <Panel tone="posts" icon={MessageCircle} title={isOwner ? 'Our Posts' : 'Posts'} sub={isOwner ? 'Posts you share here also appear on the Connect feed for everyone.' : undefined}>
+        <ConnectFeed authorId={band.owner_id} showComposer={isOwner} />
+      </Panel>
+
+      {/* TESTIMONIALS (need the owner's approval) */}
+      <Testimonials kind="band" targetId={band.id} isOwner={canManage} onReport={(rid) => setReport({ type: 'review', id: rid, label: 'this testimonial' })} />
 
       {/* GIGS */}
       <Panel tone="gigs" icon={Calendar} title="Upcoming Gigs" right={canManage ? <button onClick={() => setAddGig(true)} className={`${btn.mint} !py-1.5 !px-3 !text-xs`}><Plus className="w-3.5 h-3.5" />Add Gig</button> : undefined}>
