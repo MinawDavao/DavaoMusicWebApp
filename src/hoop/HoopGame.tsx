@@ -53,6 +53,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [faces, setFaces] = useState<Record<string, { url: string; crop: any }>>({});
   const [sel, setSelRaw] = useState<string | null>(() => { try { return sessionStorage.getItem(`hoop-sel-${id}`); } catch { return null; } });
   const setSel = (v: string | null) => { setSelRaw(v); try { if (v) sessionStorage.setItem(`hoop-sel-${id}`, v); else sessionStorage.removeItem(`hoop-sel-${id}`); } catch { /* ignore */ } };
+  // someone else subbed the selected player out (live update): drop the selection so stats don't go to the bench
+  useEffect(() => { if (sel && players.some((p) => p.profile_id === sel && p.on_court === false)) setSel(null); }, [players, sel]);   // eslint-disable-line react-hooks/exhaustive-deps
   // a schedule can have several games ("Game 1, Game 2…"); bookings + payments live on the first one
   const [session, setSession] = useState<(HoopGame & { hoop_game_players: { profile_id: string; team: string | null }[] })[]>([]);
   const [bookings, setBookings] = useState<GamePlayer[]>([]);
@@ -211,7 +213,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   // Games each player will have played once THIS game is done (this game counts for whoever is on a team),
   // fewest first; ties go to whoever arrived first (then booking order). Once arrivals are marked, only players at the court.
   const afterThis = (pid: string) => (played[pid] || 0) + (players.some((p) => p.profile_id === pid && p.team) ? 1 : 0);
-  const perTeam = Math.max(teamA.length, teamB.length) || MIN_PER_TEAM;
+  // sized by who is on the court (subs on the bench don't make the next game bigger)
+  const perTeam = Math.max(teamA.filter((p) => p.on_court !== false).length, teamB.filter((p) => p.on_court !== false).length) || MIN_PER_TEAM;
   const lineupPool = bookings.filter((b) => canPlay(b) && (!arrivedN || b.arrived_at));
   const lineupOrder = [...lineupPool].sort((a, b) => afterThis(a.profile_id) - afterThis(b.profile_id) || byArrival(a, b));
   const nextUp = lineupOrder.slice(0, perTeam * 2).map((b, i) => ({ b, team: (i % 2 === 0 ? 'A' : 'B') as 'A' | 'B' }));
@@ -246,11 +249,12 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     }
     if (isFirst || row) {
       if (!isFirst && !team && !events.some((e) => e.profile_id === pid)) return supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid);
-      return supabase.from('hoop_game_players').update({ team }).eq('game_id', game.id).eq(col(pid), pid);
+      // a team change (or going to sitting out) always puts the player back on the court, never straight onto a bench
+      return supabase.from('hoop_game_players').update(team === row?.team ? { team } : { team, on_court: true }).eq('game_id', game.id).eq(col(pid), pid);
     }
     if (!team) return { error: null };
     // upsert: a double tap (or a slow reload) never fails with “already on this game”
-    return supabase.from('hoop_game_players').upsert({ game_id: game.id, ...who(pid), team }, { onConflict: isGuest(pid) ? 'game_id,guest_id' : 'game_id,member_id' });
+    return supabase.from('hoop_game_players').upsert({ game_id: game.id, ...who(pid), team, on_court: true }, { onConflict: isGuest(pid) ? 'game_id,guest_id' : 'game_id,member_id' });
   };
   const setTeam = (pid: string, team: 'A' | 'B' | null) => run(() => writeTeam(pid, team) as any).then(loadPlayers);
   const togglePaid = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ paid: !b.paid, paid_at: b.paid ? null : new Date().toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
@@ -404,6 +408,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
   const record = async (kind: Kind) => {
     if (!sel) return setErr('Tap a player first.');
+    if (players.some((p) => p.profile_id === sel && p.on_court === false)) { setSel(null); return setErr('That player is on the bench. Tap a player on the court.'); }
     await addEvent(sel, kind);
   };
   /** Fix mode: take back the player's most recent stat of this kind. */
@@ -454,7 +459,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         if (r2?.error) { await setOnCourt(outPid, true); throw r2.error; }
       }
       const r3 = await setOnCourt(inPid, true);
-      if (r3.error) throw r3.error;
+      if (r3.error) { await setOnCourt(outPid, true); throw r3.error; }
       if (sel === outPid) setSel(inPid);
       setSubFor(null);
     } catch (e) { setErr(errorMessage(e)); }
@@ -492,7 +497,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 )}
               </div>
               {canSub && subFor === p.profile_id && (() => {
-                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id), ...sittingOut.filter((b) => canPlay(b))];
+                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id), ...sittingOut.filter((b) => canPlay(b) && (!arrivedN || bookingOf(b.profile_id)?.arrived_at))];
                 return (
                   <div className="p-2 rounded-xl border border-[var(--hp)]/50 space-y-1.5" style={{ background: 'color-mix(in srgb, var(--hp) 8%, #141414)' }}>
                     <p className="text-[10px] font-bold text-white">{short(p.profiles?.display_name)} goes to the bench — who comes in?</p>

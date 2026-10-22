@@ -4,7 +4,7 @@ import type { Route } from '../nav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { Spinner } from '../components/ui';
-import { ClubContext, H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, hbtn, themeVars, type ClubCtx, type HoopClub, type HoopMember } from './lib';
+import { ClubContext, H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, hbtn, themeVars, useClubUnlocks, type ClubCtx, type HoopClub, type HoopMember } from './lib';
 import { ModeSwitch } from '../components/ModeSwitch';
 import { ClubBillingBanner } from './ClubBilling';
 import { HoopClubs } from './HoopClubs';
@@ -166,13 +166,14 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
     default: screen = <HoopClubs />;
   }
 
+  const unlocks = useClubUnlocks(club);
   const tab = route.name === 'hoopClub' ? (route.tab || 'games')
     : route.name === 'hoopPlayer' ? (res?.member && res.member === ctx.me?.id ? 'me' : 'players')
     : 'games';
   const tabs: { key: string; label: string; Icon: React.ElementType }[] = [
     { key: 'games', label: 'Games', Icon: CalendarDays },
     { key: 'players', label: 'Players', Icon: Trophy },
-    ...(club?.oneofone_url ? [{ key: 'packs', label: 'Packs', Icon: Gift }] : []),   // card packs once the club has its 1-of-1 design
+    ...(club?.oneofone_url || unlocks?.packs_from != null ? [{ key: 'packs', label: 'Packs', Icon: Gift }] : []),   // card packs once Hoop Method has released them
     { key: 'me', label: 'My Card', Icon: IdCard },
     ...(ctx.isAdmin ? [{ key: 'manage', label: 'Manage', Icon: Settings }] : []),
   ];

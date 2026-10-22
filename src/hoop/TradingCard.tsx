@@ -225,8 +225,9 @@ export async function cardBlob(node: HTMLElement): Promise<Blob> {
   // moving shine effects are left out of the picture (they'd be frozen mid-sweep)
   // The box's own margins (mx-auto on wide screens, -mx-1 on phones) would be copied into the picture and
   // push the card sideways, cutting part of it off — so the copy is drawn with no margin at its exact on-screen size.
+  // layout size (ignores any tilt/scale effect), rounded up so a title line never re-wraps
   const r = node.getBoundingClientRect();
-  const width = Math.round(r.width), height = Math.round(r.height);
+  const width = Math.ceil(node.offsetWidth || r.width), height = Math.ceil(node.offsetHeight || r.height);
   const opts = {
     pixelRatio: 3, cacheBust: true, fontEmbedCSS, backgroundColor: '#050508', width, height,
     style: { margin: '0', transform: 'none', width: `${width}px`, height: `${height}px` },

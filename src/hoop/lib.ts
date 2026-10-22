@@ -258,3 +258,27 @@ export const useHoopAdmin = (): boolean => useClub().isAdmin;
 
 /** The app's main admin (robertvtemployee@gmail.com). Card series + the card 2 preview are only for this account. */
 export const HOOP_MAIN_ADMIN_ID = '6a06f84b-ef85-4c61-9734-1948af7e2c83';
+
+/**
+ * Cards follow Hoop Method: a card Hoop Method has given out unlocks for every club at the same schedule number
+ * (e.g. packs + 1-of-1 from a club's 2nd schedule, Chosen from its 3rd). `*_from` is null until Hoop Method releases it;
+ * `played` = closed, played schedules so far. Hoop Method itself (lead) has everything it has a design for.
+ */
+export interface ClubUnlocks { lead: boolean; played: number; packs_from: number | null; chosen_from: number | null }
+export function useClubUnlocks(club: Pick<HoopClub, 'id' | 'oneofone_url' | 'selected_url'> | null | undefined): ClubUnlocks | undefined {
+  const [u, setU] = useState<{ id: string; v: ClubUnlocks | null } | null>(null);
+  const id = club?.id;
+  useEffect(() => {
+    if (!id) return;
+    let live = true;
+    supabase.rpc('hoop_club_unlocks', { p_club: id }).then(({ data, error }) => { if (live) setU({ id, v: error ? null : ((data as ClubUnlocks) || null) }); });
+    return () => { live = false; };
+  }, [id]);
+  if (!club || !u || u.id !== club.id) return undefined;   // loading
+  // couldn't check (offline…): go by the club's own designs
+  return u.v || { lead: !!club.oneofone_url, played: 0, packs_from: club.oneofone_url ? 1 : null, chosen_from: club.selected_url ? 1 : null };
+}
+/** 1st, 2nd, 3rd, 4th… */
+export const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+/** Is this card being given at the club's next draw? (the schedule being drawn is already counted in `played`) */
+export const unlockedNow = (from: number | null | undefined, u: ClubUnlocks | null | undefined) => !!u && from != null && Math.max(u.played, 1) >= from;

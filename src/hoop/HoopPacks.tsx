@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { confirmDelete } from '../components/ConfirmDelete';
-import { H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, PERSON, fetchStats, gameDate, hbtn, personOf, useClub, type HoopMember, type HoopStats } from './lib';
+import { H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, PERSON, fetchStats, gameDate, hbtn, ordinal, personOf, unlockedNow, useClub, useClubUnlocks, type HoopMember, type HoopStats } from './lib';
 import { DESIGNS, announceSigned, levelFor, useMemberSchedules } from './ClubCard';
 import { OneOfOneCard, SelectedCard } from './CardDesigns';
 import { SignCard } from './SignCard';
@@ -24,6 +24,7 @@ const GAME = 'game:hoop_games!hoop_packs_schedule_id_fkey(title, starts_at, clos
 export const HoopPacks: React.FC = () => {
   const { user } = useAuth();
   const { club, me, isOwner } = useClub();
+  const unlocks = useClubUnlocks(club);
   const [packs, setPacks] = useState<Pack[] | null>(null);
   const [stats, setStats] = useState<HoopStats | null>(null);
   const [opening, setOpening] = useState<Pack | null>(null);
@@ -42,21 +43,33 @@ export const HoopPacks: React.FC = () => {
   useEffect(() => { load(); }, [load]);
 
   if (!club) return null;
-  if (!club.oneofone_url) return (   // card packs start once the club has its own 1-of-1 design
+  if (!unlocks) return <Spinner label="Loading packs…" />;
+  if (unlocks.packs_from == null) return (   // card packs start once Hoop Method has given them out
     <div className="px-3 py-6">
       <div className="p-5 rounded-2xl border border-white/10 text-center space-y-2" style={{ background: H.surface }}>
         <Gift className="w-8 h-8 mx-auto text-[var(--hp)]" />
         <p className="font-hoop italic font-black text-[20px] uppercase text-white">Card packs coming soon</p>
-        <p className="text-[12px] text-[#A8A29E]">Card packs and the rare 1-of-1 card start once {club.name} has its own 1-of-1 card design.</p>
+        <p className="text-[12px] text-[#A8A29E]">Card packs and the rare 1-of-1 card are on their way to {club.name}.</p>
       </div>
     </div>
   );
+  const packsLeft = unlocks.lead ? 0 : Math.max(0, unlocks.packs_from - unlocks.played);
+  const chosenLeft = unlocks.lead || unlocks.chosen_from == null ? null : Math.max(0, unlocks.chosen_from - unlocks.played);
   return (
     <div className="px-3 py-4 space-y-5">
       <div className="space-y-1">
         <h1 className="font-hoop italic font-black text-[30px] uppercase text-white leading-none flex items-center gap-2"><Gift className="w-7 h-7 text-[var(--hp)]" />Card packs</h1>
         <p className="text-[12px] text-[#A8A29E]">Play a schedule, get a pack of 5 cards. Flip them one by one — one lucky player each schedule finds the rare <strong className="text-[#F6C94C]">1-of-1</strong> card.</p>
       </div>
+
+      {/* clubs follow Hoop Method: what's coming, by schedule number */}
+      {!unlocks.lead && (packsLeft > 0 || (chosenLeft != null && chosenLeft > 0)) && (
+        <div className="p-3 rounded-2xl border border-[#F6C94C]/35 space-y-1" style={{ background: H.surface }}>
+          <p className="text-[11px] font-black tracking-wider text-[#F6C94C]">COMING TO {club.name.toUpperCase()}</p>
+          {packsLeft > 0 && <p className="text-[12px] text-[#D6D3D1]">Card packs + the rare 1-of-1 start at your <strong className="text-white">{ordinal(unlocks.packs_from)} schedule</strong> — {packsLeft} more to go.</p>}
+          {chosenLeft != null && chosenLeft > 0 && <p className="text-[12px] text-[#D6D3D1]"><strong className="text-[#F6C94C]">Chosen</strong> cards (only 10 ever) go out from your <strong className="text-white">{ordinal(unlocks.chosen_from!)} schedule</strong> — {chosenLeft} more to go.</p>}
+        </div>
+      )}
 
       {(isMain || isOwner) && <WinnerPicker clubId={club.id} onDone={load} />}
 
@@ -113,7 +126,9 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const [packs, setPacks] = useState<AdminPack[] | null>(null);
   const [draws, setDraws] = useState<Draw[]>([]);
   const [pick, setPick] = useState<Record<string, string>>({});
-  const { club } = useClub();
+  const { club: wc } = useClub();
+  const unlocks = useClubUnlocks(wc);
+  const chosenNow = unlockedNow(unlocks?.chosen_from, unlocks);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -143,7 +158,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const draw = async (scheduleId: string, title: string, noOne = false) => {
     const winner = noOne ? null : pick[scheduleId]; if (!noOne && !winner) return;
     if (noOne) {
-      if (!(await confirmDelete({ title: 'Open the packs without a 1-of-1?', message: `Every pack for “${title}” opens now. Nobody gets the 1-of-1 this time — Chosen cards still go to up to 10 random players. This can’t be changed.`, confirmLabel: 'Open packs' }))) return;
+      if (!(await confirmDelete({ title: 'Open the packs without a 1-of-1?', message: `Every pack for “${title}” opens now. Nobody gets the 1-of-1 this time${chosenNow ? ' — Chosen cards still go to up to 10 random players' : ''}. This can’t be changed.`, confirmLabel: 'Open packs' }))) return;
     } else {
       const who = nameOf(packs.find((p) => p.member_id === winner));
       if (!(await confirmDelete({ title: `Give the 1-of-1 to ${who}?`, message: `Every pack for “${title}” opens now, and ${who} finds the 1-of-1 hidden in theirs. This can’t be changed.`, confirmLabel: 'Yes, pick them' }))) return;
@@ -185,7 +200,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
             <Crown className="w-4 h-4" />{busy ? 'Opening packs…' : pick[s.id] ? `Give the 1-of-1 to ${nameOf(s.list.find((p) => p.member_id === pick[s.id]))}` : 'Pick the lucky winner'}
           </button>
           <button onClick={() => draw(s.id, s.game?.title || 'this schedule', true)} disabled={busy} className={`${hbtn.ghost} w-full !py-2 !text-xs`}>
-            No 1-of-1 this time — just open the packs{club?.selected_url ? ' (Chosen cards still go out)' : ''}
+            No 1-of-1 this time — just open the packs{chosenNow ? ' (Chosen cards still go out)' : ''}
           </button>
         </div>
       ))}

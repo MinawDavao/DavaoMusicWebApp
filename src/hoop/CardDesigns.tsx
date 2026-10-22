@@ -943,8 +943,24 @@ export const StarlightCard: React.FC<TradingCardProps> = (p) => {
 /** Where the winner's signature sits on the 1-of-1 (card grid units: 100 wide × 140 tall) — over the lower photo, above the shield. */
 export const SIG_ZONE = { x: 12, y: 70, w: 76, h: 26 };
 
-/** Hoop Method's own 1-of-1 artwork; other clubs use theirs (hoop_clubs.oneofone_url, same layout). */
+/** Hoop Method's own 1-of-1 artwork. A club with its own design uses that (hoop_clubs.oneofone_url, same layout);
+ *  any other club gets ONE_FRAME_CLUB — the same frame with a blank title plate, filled with the club's logo + name. */
 export const ONE_FRAME = '/hoop-cards/oneofone-frame.webp';
+export const ONE_FRAME_CLUB = '/hoop-cards/oneofone-frame-club.webp';
+const ONE_GOLD = 'linear-gradient(180deg, #FFF6CF 0%, #F7D57A 38%, #C98F2A 62%, #FBE3A0 85%, #A8741F 100%)';
+/** the club's name split into one or two balanced lines for the 1-of-1 title plate */
+function plateLines(name: string): string[] {
+  const n = name.trim().toUpperCase().replace(/\s+/g, ' ');
+  if (n.length <= 14 || !n.includes(' ')) return [n];
+  const words = n.split(' ');
+  let best = [n], diff = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+    const d = Math.max(a.length, b.length);
+    if (d < diff) { diff = d; best = [a, b]; }
+  }
+  return best;
+}
 export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signature?: string | null }> = (props) => {
   const { glow = true, signature, ...p } = props;
   const f = useFace(p as TradingCardProps);
@@ -963,7 +979,8 @@ export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signatu
         style={{ left: cq(11.5), right: cq(11.5), top: cq(26), height: cq(93), background: 'radial-gradient(90% 60% at 50% 30%, #3A3220 0%, #15120C 70%)' }}>
         <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(242,210,122,0.25)" />
       </div>
-      <img src={p.club?.oneofone_url || ONE_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      <img src={p.club?.oneofone_url || ONE_FRAME_CLUB} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {!p.club?.oneofone_url && <ClubPlate club={p.club} />}
       {editing && (
         <At x={0} r={0} y={62} className="flex justify-center pointer-events-none">
           <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
@@ -980,6 +997,30 @@ export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signatu
         <span className="font-hoop font-black whitespace-nowrap leading-none" style={{ fontSize: cq(size), letterSpacing: cq(0.35), color: '#141A3A', textShadow: `0 ${cq(0.2)} 0 rgba(255,240,190,0.65)` }}>{name}</span>
       </At>
     </div>
+  );
+};
+
+/** The club's logo + name on the blank 1-of-1 title plate, "ONE OF ONE" on the ribbon (clubs without their own design). */
+const ClubPlate: React.FC<{ club?: TradingCardProps['club'] }> = ({ club }) => {
+  const lines = plateLines(club?.name || 'Hoop Club');
+  const longest = Math.max(...lines.map((l) => l.length), 1);
+  const logo = club?.logo_url;
+  const room = logo ? 47 : 58;   // card units across for the name
+  const size = Math.min(lines.length > 1 ? 5.2 : 7.4, room / (longest * 0.5));
+  return (
+    <>
+      <At x={19.5} r={19.5} y={6.4} h={10.2} className="flex items-center justify-center pointer-events-none" style={{ gap: cq(2) }}>
+        {logo && <img src={logo} alt="" draggable={false} className="rounded-full object-cover flex-shrink-0" style={{ width: cq(8.6), height: cq(8.6), boxShadow: `0 0 0 ${cq(0.45)} #E9C46A, 0 0 ${cq(1.4)} rgba(0,0,0,0.7)` }} />}
+        <span className="flex flex-col items-center min-w-0">
+          {lines.map((l) => (
+            <span key={l} className="font-hoop italic font-black whitespace-nowrap leading-[0.95]" style={{ fontSize: cq(size), letterSpacing: cq(0.15), ...textFill(ONE_GOLD), filter: `drop-shadow(0 ${cq(0.3)} 0 rgba(60,32,4,0.95)) drop-shadow(0 0 ${cq(0.8)} rgba(0,0,0,0.6))` }}>{l}</span>
+          ))}
+        </span>
+      </At>
+      <At x={31} r={31} y={18.3} h={4.4} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop font-black whitespace-nowrap leading-none" style={{ fontSize: cq(3.3), letterSpacing: cq(0.5), color: '#141A3A', textShadow: `0 ${cq(0.18)} 0 rgba(255,240,190,0.6)` }}>ONE OF ONE</span>
+      </At>
+    </>
   );
 };
 

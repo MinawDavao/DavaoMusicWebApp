@@ -80,7 +80,7 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
       const blob = await new Promise<Blob | null>((res) => canvas.current!.toBlob(res, 'image/png'));
       if (!blob) throw new Error('Could not save the signature. Please try again.');
       if (demo) { onSaved(canvas.current!.toDataURL('image/png')); onClose(); return; }   // TEST pack: show it, save nothing
-      if (!oneId || !user) throw new Error('This 1-of-1 card can’t be signed right now.');
+      if (!oneId || !user) throw new Error(kind === 'sel' ? 'This Chosen card can’t be signed right now.' : 'This 1-of-1 card can’t be signed right now.');
       const url = await uploadImage('avatars', user.id, new File([blob], 'signature.png', { type: 'image/png' }));
       const { error } = await supabase.from(kind === 'sel' ? 'hoop_numbered_cards' : 'hoop_one_of_ones').update({ signature_url: url }).eq('id', oneId);
       if (error) { removeImageByUrl(url); throw error; }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Ban, Check, Crown, EyeOff, ImageIcon, Images, Palette, RotateCcw, ScrollText, ShieldCheck, Trash2, UserPlus, Users, WifiOff, X } from 'lucide-react';
+import { ArrowRight, Ban, CalendarPlus, Check, Crown, EyeOff, ImageIcon, Images, Palette, RotateCcw, ScrollText, ShieldCheck, Trash2, UserPlus, Users, WifiOff, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, uploadImage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
@@ -53,6 +53,18 @@ export const HoopManage: React.FC = () => {
   const [cover, setCover] = useState<string | null>(club.cover_url);
   const [uploading, setUploading] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  // a brand-new club has no schedules yet: show the "create your first schedule" step
+  const [schedules, setSchedules] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    supabase.from('hoop_games').select('id', { count: 'exact', head: true }).eq('club_id', club.id).is('session_id', null)
+      .then(({ count }) => { if (live) setSchedules(count ?? 0); });
+    return () => { live = false; };
+  }, [club.id]);
+  const toGames = (create = false) => {
+    if (create) { try { sessionStorage.setItem(`hoop-create-${club.id}`, '1'); } catch { /* ignore */ } }   // Games opens "Schedule a game"
+    go({ name: 'hoopClub', club: club.id, tab: 'games' });
+  };
 
   const load = useCallback(async () => {
     const [{ data: m }, { data: a }, { data: p }] = await Promise.all([
@@ -181,6 +193,15 @@ export const HoopManage: React.FC = () => {
       </div>
       <ErrorNote text={err} />
 
+      {/* NEW CLUB: the next step after setting up the club page */}
+      {schedules === 0 && (
+        <div className="p-4 rounded-2xl border-2 border-[var(--hp)] space-y-2.5" style={{ background: 'color-mix(in srgb, var(--hp) 12%, #141414)' }}>
+          <p className="font-hoop italic font-black text-[22px] uppercase text-white leading-none">Your club is ready!</p>
+          <p className="text-[12px] text-[#D6D3D1]">Add your logo, cover photo and info below (tap <strong className="text-white">Save club page</strong>), then create your first schedule so players can book a slot.</p>
+          <button onClick={() => toGames(true)} className={`${hbtn.primary} w-full !py-3 !text-base`}><CalendarPlus className="w-5 h-5" />Create your first schedule<ArrowRight className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {/* SUBSCRIPTION (₱400/month after the free month) + the club's own 1-of-1 card */}
       <ClubSubscription club={club} onChanged={reload} />
       <OneOfOneDesign club={club} onChanged={reload} />
@@ -280,6 +301,11 @@ export const HoopManage: React.FC = () => {
         </div>
         <OkNote text={saved} />
         <button onClick={saveClub} disabled={busy || !!uploading} className={`${hbtn.primary} w-full`}><Check className="w-4 h-4" />Save club page</button>
+        {saved && (
+          <button onClick={() => toGames(schedules === 0)} className={`${hbtn.ghost} w-full !border-[var(--hp)]`}>
+            <CalendarPlus className="w-4 h-4" />{schedules === 0 ? 'Next: create your first schedule' : 'Go to Games'}<ArrowRight className="w-4 h-4" />
+          </button>
+        )}
       </Section>
 
       {/* PHOTOS */}

@@ -20,7 +20,11 @@ export const HoopGames: React.FC = () => {
   const [scores, setScores] = useState<Record<string, { score_a: number; score_b: number }>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  // "Create your first schedule" from Manage opens the form straight away
+  const [creating, setCreating] = useState(() => {
+    try { const k = `hoop-create-${c?.id}`; if (sessionStorage.getItem(k)) { sessionStorage.removeItem(k); return true; } } catch { /* ignore */ }
+    return false;
+  });
 
   const scoreT = useRef<ReturnType<typeof setTimeout>>();   // live scores: one refresh per burst of taps
   const load = useCallback(async () => {
@@ -188,7 +192,7 @@ export const HoopGames: React.FC = () => {
       <section className="space-y-2.5">
         <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">Schedule</h2>
         {upcoming.length === 0
-          ? <p className="px-4 py-8 rounded-2xl border border-dashed border-white/15 text-center text-[13px] text-[#A8A29E]">No games scheduled yet. Check back soon!</p>
+          ? <p className="px-4 py-8 rounded-2xl border border-dashed border-white/15 text-center text-[13px] text-[#A8A29E]">{isModerator ? 'No games scheduled yet. Tap “Schedule a game” above to add your first one.' : 'No games scheduled yet. Check back soon!'}</p>
           : upcoming.map(card)}
       </section>
 

@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { ErrorNote, FilePick, OkNote } from '../components/ui';
 import { MessageButton } from '../screens/MessagesScreen';
-import { CLUB_PRICE, GCASH_NUMBER, GCASH_QR, H, HOOP_MAIN_ADMIN_ID, clubBilling, hbtn, hinput, longDate, type HoopClub } from './lib';
+import { CLUB_PRICE, GCASH_NUMBER, GCASH_QR, H, HOOP_MAIN_ADMIN_ID, clubBilling, hbtn, hinput, longDate, ordinal, useClubUnlocks, type HoopClub } from './lib';
 import { ONE_FRAME, OneOfOneCard } from './CardDesigns';
 
 /**
@@ -194,6 +194,7 @@ export const OneOfOneDesign: React.FC<{ club: HoopClub; onChanged: () => void }>
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const has = !!club.oneofone_url;
+  const unlocks = useClubUnlocks(club);
 
   const save = async (url: string | null) => {
     setBusy(true); setErr(null);
@@ -210,29 +211,28 @@ export const OneOfOneDesign: React.FC<{ club: HoopClub; onChanged: () => void }>
   };
   const person = { id: user?.id || 'x', display_name: profile?.display_name || 'Player Name', avatar_url: profile?.avatar_url ?? null } as any;
 
+  const u = unlocks;
+  const sub = !u ? 'Checking…'
+    : u.lead ? (has ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner picks each schedule’s winner in the Packs tab.' : 'Off for this club.')
+    : u.packs_from == null ? 'Coming soon — card packs and the rare 1-of-1 unlock for every club once Hoop Method gives them out.'
+    : u.played >= u.packs_from ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner picks each schedule’s winner in the Packs tab.'
+    : `Starts at your ${ordinal(u.packs_from)} schedule (${u.packs_from - u.played} more to go) — same as Hoop Method. The club owner picks the winner in the Packs tab.`;
   return (
-    <Box icon={Crown} title="1-of-1 card" tone="gold"
-      sub={has ? 'Available ✓ — card packs and the 1-of-1 are on for this club. The club owner picks each schedule’s winner in the Packs tab.'
-        : 'Not available yet. Card packs and the rare 1-of-1 start once your club’s own 1-of-1 design is added by the Hoop Method admin.'}>
-      {has && (
-        <div className="w-[46%] mx-auto pointer-events-none">
-          <OneOfOneCard person={person} card={{ jersey_number: null, position: null } as any} stats={null} club={{ name: club.name, logo_url: club.logo_url, oneofone_url: club.oneofone_url }} />
-        </div>
-      )}
+    <Box icon={Crown} title="1-of-1 card" tone="gold" sub={sub}>
+      <div className="w-[46%] mx-auto pointer-events-none">
+        <OneOfOneCard person={person} card={{ jersey_number: null, position: null } as any} stats={null} club={{ name: club.name, logo_url: club.logo_url, oneofone_url: club.oneofone_url }} />
+      </div>
+      {!has && !u?.lead && <p className="text-[11px] text-[#A8A29E] text-center">Your club’s name and logo go on top of the card.</p>}
       {isMain && (
         <div className="space-y-2 p-3 rounded-xl border border-dashed border-[#F6C94C]/50">
-          <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#F6C94C]"><Crown className="w-4 h-4" />ONLY YOU · SET THIS CLUB’S DESIGN</p>
-          <p className="text-[11px] text-[#A8A29E]">PNG/WebP, 1000×1400, same layout as the Hoop Method 1-of-1 (see-through photo area, name plate at the bottom).</p>
+          <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#F6C94C]"><Crown className="w-4 h-4" />ONLY YOU · OWN DESIGN FOR THIS CLUB (OPTIONAL)</p>
+          <p className="text-[11px] text-[#A8A29E]">PNG/WebP, 1000×1400, same layout as the Hoop Method 1-of-1 (see-through photo area, name plate at the bottom). Without one, the club uses the 1-of-1 frame with its own name and logo.</p>
           <div className="flex gap-2">
             <FilePick accept="image/png,image/webp" disabled={busy} onPick={upload} className={`${hbtn.primary} flex-1 cursor-pointer`}><Upload className="w-4 h-4" />{busy ? 'Uploading…' : has ? 'Replace design' : 'Upload design'}</FilePick>
-            {has && club.oneofone_url !== ONE_FRAME && <button onClick={() => save(ONE_FRAME)} disabled={busy} className={`${hbtn.ghost} !text-xs`}>Use Hoop Method’s</button>}
-            {has && <button onClick={() => { if (window.confirm('Turn off card packs and the 1-of-1 for this club? Cards already won stay.')) save(null); }} disabled={busy} aria-label="Remove design" className={hbtn.ghost}><Trash2 className="w-4 h-4" /></button>}
+            {!u?.lead && club.oneofone_url !== ONE_FRAME && <button onClick={() => save(ONE_FRAME)} disabled={busy} className={`${hbtn.ghost} !text-xs`}>Use Hoop Method’s</button>}
+            {has && !u?.lead && <button onClick={() => { if (window.confirm('Remove this club’s own design? It goes back to the 1-of-1 frame with the club’s name and logo. Cards already won stay.')) save(null); }} disabled={busy} aria-label="Remove design" className={hbtn.ghost}><Trash2 className="w-4 h-4" /></button>}
           </div>
         </div>
-      )}
-      {!has && !isMain && (
-        <MessageButton to={HOOP_MAIN_ADMIN_ID} label="Ask about our 1-of-1 card" className={`${hbtn.ghost} w-full !text-xs`}
-          draft={`Hi! Is the 1-of-1 card design for “${club.name}” ready yet? `} />
       )}
       <ErrorNote text={err} />
     </Box>
