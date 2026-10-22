@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDelete } from '../components/ConfirmDelete';
 import {
   ArrowLeft, BadgeCheck, Calendar, Camera, Check, ChevronRight, Disc3, Flag, Globe, Headphones, Mail, MapPin, Music, Pencil, Phone, Play,
@@ -53,6 +53,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
   const [addGig, setAddGig] = useState(false);
   const [report, setReport] = useState<{ type: 'band' | 'track' | 'review'; id: string; label: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const followBusy = useRef(false);
   const [playlistFor, setPlaylistFor] = useState<Track | null>(null);
   const [showFollowers, setShowFollowers] = useState(false);
   const [membersKey, setMembersKey] = useState(0);   // re-reads the members list after the edit modal closes
@@ -124,9 +125,12 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
 
   const toggleFollow = async () => {
     if (!user) return go({ name: 'auth' });
-    const { error } = following
-      ? await supabase.from('follows').delete().eq('band_id', id).eq('follower_id', user.id)
-      : await supabase.from('follows').insert({ band_id: id, follower_id: user.id });
+    if (followBusy.current) return;   // double tap
+    followBusy.current = true;
+    const { error } = await (following
+      ? supabase.from('follows').delete().eq('band_id', id).eq('follower_id', user.id)
+      : supabase.from('follows').insert({ band_id: id, follower_id: user.id }));
+    followBusy.current = false;
     if (error) return setErr(errorMessage(error));
     load();
   };
@@ -138,7 +142,7 @@ export const BandScreen: React.FC<{ id: string; song?: string }> = ({ id, song }
       const url = await uploadImage('band-photos', user!.id, f);
       const title = prompt('Photo caption (optional)') || null;
       const { error } = await supabase.from('band_photos').insert({ band_id: id, image_url: url, title });
-      if (error) throw error;
+      if (error) { removeImageByUrl(url); throw error; }   // don't leave the uploaded file behind
       load();
     } catch (e) { setErr(errorMessage(e)); }
   };

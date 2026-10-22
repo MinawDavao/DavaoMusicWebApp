@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { confirmDelete } from '../components/ConfirmDelete';
-import { H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, PERSON, fetchStats, gameDate, hbtn, ordinal, personOf, unlockedNow, useClub, useClubUnlocks, type HoopMember, type HoopStats } from './lib';
+import { H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, PERSON, fetchStats, gameDate, hbtn, forgetUnlocks, ordinal, personOf, useClub, useClubUnlocks, type HoopMember, type HoopStats } from './lib';
 import { DESIGNS, announceSigned, levelFor, useMemberSchedules } from './ClubCard';
 import { OneOfOneCard, SelectedCard } from './CardDesigns';
 import { SignCard } from './SignCard';
@@ -126,9 +126,9 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const [packs, setPacks] = useState<AdminPack[] | null>(null);
   const [draws, setDraws] = useState<Draw[]>([]);
   const [pick, setPick] = useState<Record<string, string>>({});
-  const { club: wc } = useClub();
-  const unlocks = useClubUnlocks(wc);
-  const chosenNow = unlockedNow(unlocks?.chosen_from, unlocks);
+  // what each sealed schedule gives out (its own number decides, not the club's total)
+  const [gives, setGives] = useState<Record<string, { no: number; packs: boolean; chosen: boolean }>>({});
+  const chosenFor = (id: string) => !!gives[id]?.chosen;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -151,14 +151,22 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const lastWinner = draws.find((d) => d.winner_member_id)?.winner_member_id || null;   // skips schedules opened without a 1-of-1
   const nameOf = (p?: AdminPack) => (p?.member ? personOf(p.member as any).display_name : 'Player');
 
-  if (packs === null) return null;
   const open = schedules.filter((s) => !s.draw && !!s.game?.closed_at);   // reopened schedules wait until they're closed again
+  const openKey = open.map((s) => s.id).join(',');
+  useEffect(() => {
+    if (!openKey) return;
+    let live = true;
+    Promise.all(openKey.split(',').map((id) => supabase.rpc('hoop_schedule_unlocks', { p_schedule: id }).then(({ data }) => [id, data] as const)))
+      .then((rows) => { if (live) setGives(Object.fromEntries(rows.filter(([, d]) => d).map(([id, d]) => [id, d as any]))); });
+    return () => { live = false; };
+  }, [openKey]);
+  if (packs === null) return null;
   const done = schedules.filter((s) => s.draw).slice(0, 5);
 
   const draw = async (scheduleId: string, title: string, noOne = false) => {
     const winner = noOne ? null : pick[scheduleId]; if (!noOne && !winner) return;
     if (noOne) {
-      if (!(await confirmDelete({ title: 'Open the packs without a 1-of-1?', message: `Every pack for “${title}” opens now. Nobody gets the 1-of-1 this time${chosenNow ? ' — Chosen cards still go to up to 10 random players' : ''}. This can’t be changed.`, confirmLabel: 'Open packs' }))) return;
+      if (!(await confirmDelete({ title: 'Open the packs without a 1-of-1?', message: `Every pack for “${title}” opens now. Nobody gets the 1-of-1 this time${chosenFor(scheduleId) ? ' — Chosen cards still go to up to 10 random players' : ''}. This can’t be changed.`, confirmLabel: 'Open packs' }))) return;
     } else {
       const who = nameOf(packs.find((p) => p.member_id === winner));
       if (!(await confirmDelete({ title: `Give the 1-of-1 to ${who}?`, message: `Every pack for “${title}” opens now, and ${who} finds the 1-of-1 hidden in theirs. This can’t be changed.`, confirmLabel: 'Yes, pick them' }))) return;
@@ -167,6 +175,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
     const { error } = await supabase.rpc('hoop_draw_pack_winner', { p_schedule: scheduleId, p_member: winner });
     setBusy(false);
     if (error) return setErr(errorMessage(error));
+    forgetUnlocks(clubId);
     await load(); onDone();
   };
 
@@ -200,7 +209,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
             <Crown className="w-4 h-4" />{busy ? 'Opening packs…' : pick[s.id] ? `Give the 1-of-1 to ${nameOf(s.list.find((p) => p.member_id === pick[s.id]))}` : 'Pick the lucky winner'}
           </button>
           <button onClick={() => draw(s.id, s.game?.title || 'this schedule', true)} disabled={busy} className={`${hbtn.ghost} w-full !py-2 !text-xs`}>
-            No 1-of-1 this time — just open the packs{chosenNow ? ' (Chosen cards still go out)' : ''}
+            No 1-of-1 this time — just open the packs{chosenFor(s.id) ? ' (Chosen cards still go out)' : ''}
           </button>
         </div>
       ))}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDelete } from './ConfirmDelete';
 import { Check, Flag, Heart, MessageCircle, Send, Share2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -19,31 +19,38 @@ interface TComment {
 export const TrackSocial: React.FC<{ track: Track; bandId: string }> = ({ track, bandId }) => {
   const go = useNav();
   const { user } = useAuth();
-  const [likes, setLikes] = useState<string[]>([]);
+  const [likeN, setLikeN] = useState(0);
+  const [liked, setLiked] = useState(false);
+  const liking = useRef(false);
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const loadCounts = useCallback(async () => {
-    const [{ data: l }, { count: c }] = await Promise.all([
-      supabase.from('track_likes').select('user_id').eq('track_id', track.id),
+    // counts (not every like row — that stops at 1000) + whether I liked it
+    const [{ count: n }, { count: c }, mine] = await Promise.all([
+      supabase.from('track_likes').select('user_id', { count: 'exact', head: true }).eq('track_id', track.id),
       supabase.from('track_comments').select('id', { count: 'exact', head: true }).eq('track_id', track.id),
+      user ? supabase.from('track_likes').select('user_id').eq('track_id', track.id).eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
     ]);
-    setLikes(((l as any[]) || []).map((x) => x.user_id));
+    setLikeN(n || 0);
+    setLiked(!!(mine as any).data);
     setCount(c || 0);
-  }, [track.id]);
+  }, [track.id, user?.id]);
   useEffect(() => { loadCounts(); }, [loadCounts]);
 
-  const liked = !!user && likes.includes(user.id);
   const toggleLike = async () => {
     if (!user) return go({ name: 'auth' });
+    if (liking.current) return;   // a double tap would like and unlike at the same time
+    liking.current = true;
     setErr(null);
-    const before = likes;
-    setLikes(liked ? likes.filter((x) => x !== user.id) : [...likes, user.id]);  // instant feedback
-    const { error } = liked
+    const was = liked;
+    setLiked(!was); setLikeN((n) => Math.max(0, n + (was ? -1 : 1)));  // instant feedback
+    const { error } = was
       ? await supabase.from('track_likes').delete().eq('track_id', track.id).eq('user_id', user.id)
       : await supabase.from('track_likes').insert({ track_id: track.id, user_id: user.id });
-    if (error) { setLikes(before); setErr(errorMessage(error)); }
+    liking.current = false;
+    if (error) { setLiked(was); setLikeN((n) => Math.max(0, n + (was ? 1 : -1))); setErr(errorMessage(error)); }
   };
 
   const { share: openShare, sheet } = useShare();
@@ -58,7 +65,7 @@ export const TrackSocial: React.FC<{ track: Track; bandId: string }> = ({ track,
     <div className="space-y-2">
       <div className="flex gap-1 border-t border-white/[0.06] pt-1.5">
         <button onClick={toggleLike} aria-pressed={liked} aria-label={liked ? 'Unlike song' : 'Like song'} className={item} style={{ color: liked ? '#FF6B9A' : '#8E9AA7' }}>
-          <Heart className={`w-4 h-4 ${liked ? 'fill-[#FF6B9A]' : ''}`} />{likes.length > 0 ? likes.length : 'Like'}
+          <Heart className={`w-4 h-4 ${liked ? 'fill-[#FF6B9A]' : ''}`} />{likeN > 0 ? likeN : 'Like'}
         </button>
         <button onClick={() => setOpen(!open)} aria-expanded={open} className={`${item} ${open ? 'text-white' : 'text-[#8E9AA7]'}`}>
           <MessageCircle className="w-4 h-4" />{count > 0 ? count : 'Comment'}

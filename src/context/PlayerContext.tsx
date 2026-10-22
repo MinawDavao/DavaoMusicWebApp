@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, SkipBack, SkipForward, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { trackUrl, type Track } from '../lib/db';
@@ -25,12 +25,11 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [current, setCurrent] = useState<Track | null>(null);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
   const [queue, setQueue] = useState<Track[]>([]);
   // refs so the "song ended" handler always sees the latest queue
   const queueRef = useRef<Track[]>([]);
   const indexRef = useRef(-1);
-  const startRef = useRef<(t: Track) => Promise<void>>(async () => {});
+  const startRef = useRef<(t: Track, auto?: boolean) => Promise<void>>(async () => {});
 
   const setQ = (q: Track[], idx: number) => { queueRef.current = q; indexRef.current = idx; setQueue(q); };
 
@@ -43,9 +42,8 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setPlaying(false);
       const i = indexRef.current + 1;
       const q = queueRef.current;
-      if (i > 0 && i < q.length) { indexRef.current = i; startRef.current(q[i]); }  // auto-play the next song
+      if (i > 0 && i < q.length) { indexRef.current = i; startRef.current(q[i], true); }  // auto-play the next song
     };
-    a.ontimeupdate = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
     audio.current = a;
     return () => { a.pause(); };
   }, []);
@@ -67,7 +65,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /** Load and play a track from the beginning. */
   const startSeq = useRef(0);
-  const start = useCallback(async (t: Track) => {
+  const start = useCallback(async (t: Track, auto = false) => {
     const a = audio.current;
     if (!a) return;
     const my = ++startSeq.current;   // if another song is tapped while this one loads, skip this one
@@ -75,7 +73,6 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       a.pause();
       setCurrent(t);
-      setProgress(0);
       loadingRef.current = true;
       const src = await trackUrl(t.audio_path).finally(() => { if (my === startSeq.current) loadingRef.current = false; });
       if (my !== startSeq.current) return;
@@ -85,6 +82,9 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (e: any) {
       // switching songs quickly cancels the older play() — that's not an error
       if (my !== startSeq.current || e?.name === 'AbortError') return;
+      // playing through a list: a song that can't load (removed, hidden…) is skipped instead of stopping the music
+      const q = queueRef.current; const i = indexRef.current + 1;
+      if (auto && i > 0 && i < q.length) { indexRef.current = i; startRef.current(q[i], true); return; }
       setError('Could not play this track.');
     }
   }, []);
@@ -138,11 +138,27 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setQ([], -1);
   }, []);
 
+  // lock screen / headphone buttons (where the phone supports it)
+  useEffect(() => {
+    const ms = (navigator as any).mediaSession;
+    if (!ms) return;
+    try {
+      ms.metadata = current && typeof (window as any).MediaMetadata === 'function'
+        ? new (window as any).MediaMetadata({ title: current.title, artist: current.bands?.name || 'MINAW DAVAO', artwork: current.bands?.logo_url ? [{ src: current.bands.logo_url, sizes: '512x512' }] : [] })
+        : null;
+      ms.setActionHandler('play', current ? toggle : null);
+      ms.setActionHandler('pause', current ? toggle : null);
+      ms.setActionHandler('nexttrack', current && queue.length > 1 ? next : null);
+      ms.setActionHandler('previoustrack', current && queue.length > 1 ? prev : null);
+    } catch { /* not supported */ }
+  }, [current, queue.length, toggle, next, prev]);
+
+  const value = useMemo(() => ({ current, playing, error, queue, play, playAll, next, prev, toggle, stop }), [current, playing, error, queue, play, playAll, next, prev, toggle, stop]);
   const pos = current ? queue.findIndex((x) => x.id === current.id) : -1;
   const many = queue.length > 1;
 
   return (
-    <PlayerContext.Provider value={{ current, playing, error, queue, play, playAll, next, prev, toggle, stop }}>
+    <PlayerContext.Provider value={value}>
       {children}
       {!current && error && (
         <div role="alert" className="fixed bottom-[84px] left-0 right-0 z-40 mx-auto max-w-[420px] px-3">
@@ -154,7 +170,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       {current && (
         <div className="fixed bottom-[84px] left-0 right-0 z-40 mx-auto max-w-[420px] px-3">
           <div className="rounded-2xl bg-[#1D232A]/95 backdrop-blur border border-[#6045F4]/40 shadow-xl overflow-hidden">
-            <div className="h-1 bg-[#252D37]"><div className="h-1 bg-[#53E6D4]" style={{ width: `${progress * 100}%` }} /></div>
+            <Progress audio={audio} />
             <div className="flex items-center gap-2 px-3 py-2">
               {many && <button onClick={prev} aria-label="Previous song" className="w-8 h-8 rounded-lg text-[#C9D1D9] hover:text-white flex items-center justify-center cursor-pointer flex-shrink-0"><SkipBack className="w-4 h-4 fill-current" /></button>}
               <button onClick={toggle} aria-label={playing ? 'Pause' : 'Play'} className="w-9 h-9 rounded-full bg-[#6045F4] text-white flex items-center justify-center cursor-pointer flex-shrink-0">
@@ -180,3 +196,17 @@ export function usePlayer(): PlayerState {
   if (!ctx) throw new Error('usePlayer must be used inside <PlayerProvider>');
   return ctx;
 }
+
+/** The song's progress line. Updates on its own, so the rest of the app doesn't re-render while music plays. */
+const Progress: React.FC<{ audio: React.RefObject<HTMLAudioElement | null> }> = ({ audio }) => {
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    const a = audio.current;
+    if (!a) return;
+    const on = () => setP(a.duration ? a.currentTime / a.duration : 0);
+    on();
+    a.addEventListener('timeupdate', on); a.addEventListener('emptied', on);
+    return () => { a.removeEventListener('timeupdate', on); a.removeEventListener('emptied', on); };
+  }, [audio]);
+  return <div className="h-1 bg-[#252D37]"><div className="h-1 bg-[#53E6D4]" style={{ width: `${p * 100}%` }} /></div>;
+};

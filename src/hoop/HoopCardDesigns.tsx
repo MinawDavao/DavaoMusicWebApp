@@ -69,7 +69,7 @@ export const HoopCardDesigns: React.FC = () => {
     ? { jersey_number: data.member!.jersey_number, position: data.member!.position, card_photo_url: data.member!.card_photo_url, card_photo_crop: data.member!.card_photo_crop }
     : { jersey_number: 23, position: 'Shooting Guard', card_photo_url: SAMPLE_PHOTO, card_photo_crop: null };
   const stats = mine ? data.stats : SAMPLE_STATS;
-  const clubLite = data.club ? { name: data.club.name, logo_url: data.club.logo_url } : null;
+  const clubLite = data.club ? { name: data.club.name, logo_url: data.club.logo_url, oneofone_url: data.club.oneofone_url, selected_url: data.club.selected_url } : null;
 
   const save = async (n: number) => {
     const node = refs.current[n]; if (!node) return;

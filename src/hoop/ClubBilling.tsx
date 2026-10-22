@@ -229,8 +229,8 @@ export const OneOfOneDesign: React.FC<{ club: HoopClub; onChanged: () => void }>
           <p className="text-[11px] text-[#A8A29E]">PNG/WebP, 1000×1400, same layout as the Hoop Method 1-of-1 (see-through photo area, name plate at the bottom). Without one, the club uses the 1-of-1 frame with its own name and logo.</p>
           <div className="flex gap-2">
             <FilePick accept="image/png,image/webp" disabled={busy} onPick={upload} className={`${hbtn.primary} flex-1 cursor-pointer`}><Upload className="w-4 h-4" />{busy ? 'Uploading…' : has ? 'Replace design' : 'Upload design'}</FilePick>
-            {!u?.lead && club.oneofone_url !== ONE_FRAME && <button onClick={() => save(ONE_FRAME)} disabled={busy} className={`${hbtn.ghost} !text-xs`}>Use Hoop Method’s</button>}
-            {has && !u?.lead && <button onClick={() => { if (window.confirm('Remove this club’s own design? It goes back to the 1-of-1 frame with the club’s name and logo. Cards already won stay.')) save(null); }} disabled={busy} aria-label="Remove design" className={hbtn.ghost}><Trash2 className="w-4 h-4" /></button>}
+            {u && !u.lead && club.oneofone_url !== ONE_FRAME && <button onClick={() => save(ONE_FRAME)} disabled={busy} className={`${hbtn.ghost} !text-xs`}>Use Hoop Method’s</button>}
+            {has && u && !u.lead && <button onClick={() => { if (window.confirm('Remove this club’s own design? It goes back to the 1-of-1 frame with the club’s name and logo. Cards already won stay.')) save(null); }} disabled={busy} aria-label="Remove design" className={hbtn.ghost}><Trash2 className="w-4 h-4" /></button>}
           </div>
         </div>
       )}

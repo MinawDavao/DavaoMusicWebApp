@@ -265,13 +265,24 @@ export const HOOP_MAIN_ADMIN_ID = '6a06f84b-ef85-4c61-9734-1948af7e2c83';
  * `played` = closed, played schedules so far. Hoop Method itself (lead) has everything it has a design for.
  */
 export interface ClubUnlocks { lead: boolean; played: number; packs_from: number | null; chosen_from: number | null }
+const unlockCache = new Map<string, { at: number; p: Promise<ClubUnlocks | null> }>();
+function loadUnlocks(id: string): Promise<ClubUnlocks | null> {
+  const hit = unlockCache.get(id);
+  if (hit && Date.now() - hit.at < 60_000) return hit.p;
+  const p = Promise.resolve(supabase.rpc('hoop_club_unlocks', { p_club: id })).then(({ data, error }) => (error ? null : ((data as ClubUnlocks) || null)), () => null);
+  unlockCache.set(id, { at: Date.now(), p });
+  p.then((v) => { if (!v) unlockCache.delete(id); });   // don't keep a failed check
+  return p;
+}
+/** after a draw: the next look asks the server again */
+export const forgetUnlocks = (id: string) => unlockCache.delete(id);
 export function useClubUnlocks(club: Pick<HoopClub, 'id' | 'oneofone_url' | 'selected_url'> | null | undefined): ClubUnlocks | undefined {
   const [u, setU] = useState<{ id: string; v: ClubUnlocks | null } | null>(null);
   const id = club?.id;
   useEffect(() => {
     if (!id) return;
     let live = true;
-    supabase.rpc('hoop_club_unlocks', { p_club: id }).then(({ data, error }) => { if (live) setU({ id, v: error ? null : ((data as ClubUnlocks) || null) }); });
+    loadUnlocks(id).then((v) => { if (live) setU({ id, v }); });
     return () => { live = false; };
   }, [id]);
   if (!club || !u || u.id !== club.id) return undefined;   // loading

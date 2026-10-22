@@ -55,6 +55,8 @@ export const AudioScreen: React.FC = () => {
 
   const searching = q.trim() !== '' || genre !== null;
   const queuedPlaying = queued && current?.id === queued.id && playing;
+  // radio keeps going: the queued song first, then every other upload in random order
+  const radio = useMemo(() => (queued ? [queued, ...tracks.filter((t) => t.id !== queued.id).sort(() => Math.random() - 0.5)] : []), [queued, tracks]);
 
   return (
     <div className="px-3 py-4 space-y-6">
@@ -112,7 +114,7 @@ export const AudioScreen: React.FC = () => {
                   <p className="text-[13px] font-bold text-[#53E6D4]">{queued.bands?.name}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => play(queued)} className={`${btn.primary} flex-1`}>{queuedPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}{queuedPlaying ? 'Pause' : 'Play Davao Radio'}</button>
+                  <button onClick={() => play(queued, radio)} className={`${btn.primary} flex-1`}>{queuedPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}{queuedPlaying ? 'Pause' : 'Play Davao Radio'}</button>
                   <button onClick={shuffle} aria-label="Next random song" className={btn.ghost}><Shuffle className="w-4 h-4" /></button>
                 </div>
               </>

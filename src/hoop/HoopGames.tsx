@@ -22,7 +22,10 @@ export const HoopGames: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   // "Create your first schedule" from Manage opens the form straight away
   const [creating, setCreating] = useState(() => {
-    try { const k = `hoop-create-${c?.id}`; if (sessionStorage.getItem(k)) { sessionStorage.removeItem(k); return true; } } catch { /* ignore */ }
+    try {
+      const k = `hoop-create-${c?.id}`; const at = Number(sessionStorage.getItem(k) || 0);
+      if (at) { sessionStorage.removeItem(k); return Date.now() - at < 120_000; }
+    } catch { /* ignore */ }
     return false;
   });
 
@@ -203,7 +206,7 @@ export const HoopGames: React.FC = () => {
         </section>
       )}
 
-      {creating && <GameForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); go({ name: 'hoopGame', id }); }} />}
+      {creating && isModerator && <GameForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); go({ name: 'hoopGame', id }); }} />}
     </div>
   );
 };

@@ -224,6 +224,8 @@ export function publicUrl(bucket: ImageBucket, path: string | null | undefined):
 
 /** Uploads an image and returns its public URL (for *_url columns). */
 export async function uploadImage(bucket: ImageBucket, userId: string, file: File): Promise<string> {
+  // only posts and chat photos take GIFs (the other storage buckets refuse them with a confusing error)
+  if (file.type === 'image/gif' && bucket !== 'post-images') throw new Error('GIFs work in posts and chats only. Please choose a JPG, PNG or WebP image here.');
   const path = await uploadFile(bucket, userId, file);
   return publicUrl(bucket, path)!;
 }

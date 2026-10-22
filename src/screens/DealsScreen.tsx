@@ -294,7 +294,7 @@ const PostDeal: React.FC<{ onCancel: () => void; onPosted: () => void; editing?:
       for (const f of [...files]) {
         const path = await uploadFile('gear-photos', user.id, f);
         const { data: ph, error: pe } = await supabase.from('listing_photos').insert({ listing_id: listingId, image_path: path, position: pos++ }).select('*').single();
-        if (pe) throw pe;
+        if (pe) { await supabase.storage.from('gear-photos').remove([path]); throw pe; }   // don't leave the uploaded file behind
         setFiles((x) => x.filter((y) => y !== f));
         setExisting((x) => [...x, ph as any]);
       }

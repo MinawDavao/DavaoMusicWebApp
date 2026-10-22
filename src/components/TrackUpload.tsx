@@ -36,14 +36,16 @@ function audioDuration(file: File): Promise<number | null> {
     a.preload = 'metadata';
     a.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve(isFinite(a.duration) ? Math.round(a.duration) : null); };
     a.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    // some phones never load the details of an audio file that isn't on the page — don't wait forever
+    setTimeout(() => { URL.revokeObjectURL(url); resolve(null); }, 6000);
     a.src = url;
   });
 }
 
 /** Upload one song into the private "tracks" bucket and create its row. */
 export async function uploadTrack(opts: { userId: string; bandId: string; file: File; title: string; allowDownload: boolean }) {
+  const duration = await audioDuration(opts.file);   // measured first, so a slow phone never leaves an uploaded file behind
   const path = await uploadFile('tracks', opts.userId, opts.file);
-  const duration = await audioDuration(opts.file);
   const format = /wav/.test(opts.file.type) ? 'wav' : 'mp3';
   const { error } = await supabase.from('tracks').insert({
     band_id: opts.bandId,

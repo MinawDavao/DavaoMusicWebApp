@@ -979,8 +979,8 @@ export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signatu
         style={{ left: cq(11.5), right: cq(11.5), top: cq(26), height: cq(93), background: 'radial-gradient(90% 60% at 50% 30%, #3A3220 0%, #15120C 70%)' }}>
         <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(242,210,122,0.25)" />
       </div>
-      <img src={p.club?.oneofone_url || ONE_FRAME_CLUB} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
-      {!p.club?.oneofone_url && <ClubPlate club={p.club} />}
+      <img src={p.club?.oneofone_url || (p.club ? ONE_FRAME_CLUB : ONE_FRAME)} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {p.club && !p.club.oneofone_url && <ClubPlate club={p.club} />}
       {editing && (
         <At x={0} r={0} y={62} className="flex justify-center pointer-events-none">
           <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
@@ -1010,10 +1010,10 @@ const ClubPlate: React.FC<{ club?: TradingCardProps['club'] }> = ({ club }) => {
   return (
     <>
       <At x={19.5} r={19.5} y={6.4} h={10.2} className="flex items-center justify-center pointer-events-none" style={{ gap: cq(2) }}>
-        {logo && <img src={logo} alt="" draggable={false} className="rounded-full object-cover flex-shrink-0" style={{ width: cq(8.6), height: cq(8.6), boxShadow: `0 0 0 ${cq(0.45)} #E9C46A, 0 0 ${cq(1.4)} rgba(0,0,0,0.7)` }} />}
+        {logo && <img src={logo} alt="" draggable={false} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="rounded-full object-cover flex-shrink-0" style={{ width: cq(8.6), height: cq(8.6), boxShadow: `0 0 0 ${cq(0.45)} #E9C46A, 0 0 ${cq(1.4)} rgba(0,0,0,0.7)` }} />}
         <span className="flex flex-col items-center min-w-0">
-          {lines.map((l) => (
-            <span key={l} className="font-hoop italic font-black whitespace-nowrap leading-[0.95]" style={{ fontSize: cq(size), letterSpacing: cq(0.15), ...textFill(ONE_GOLD), filter: `drop-shadow(0 ${cq(0.3)} 0 rgba(60,32,4,0.95)) drop-shadow(0 0 ${cq(0.8)} rgba(0,0,0,0.6))` }}>{l}</span>
+          {lines.map((l, i) => (
+            <span key={i} className="font-hoop italic font-black whitespace-nowrap leading-[0.95]" style={{ fontSize: cq(size), letterSpacing: cq(0.15), ...textFill(ONE_GOLD), filter: `drop-shadow(0 ${cq(0.3)} 0 rgba(60,32,4,0.95)) drop-shadow(0 0 ${cq(0.8)} rgba(0,0,0,0.6))` }}>{l}</span>
           ))}
         </span>
       </At>

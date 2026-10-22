@@ -62,7 +62,7 @@ export const HoopManage: React.FC = () => {
     return () => { live = false; };
   }, [club.id]);
   const toGames = (create = false) => {
-    if (create) { try { sessionStorage.setItem(`hoop-create-${club.id}`, '1'); } catch { /* ignore */ } }   // Games opens "Schedule a game"
+    if (create) { try { sessionStorage.setItem(`hoop-create-${club.id}`, String(Date.now())); } catch { /* ignore */ } }   // Games opens "Schedule a game"
     go({ name: 'hoopClub', club: club.id, tab: 'games' });
   };
 

@@ -111,7 +111,10 @@ export const TrackRow: React.FC<{
     setErr(null);
     try {
       const url = await trackUrl(track.audio_path, true, `${track.title}.${track.format || 'mp3'}`);
-      window.location.href = url;
+      // a download link (not a page change) — on phones with the app on the home screen, leaving the page has no way back
+      const link = document.createElement('a');
+      link.href = url; link.download = `${track.title}.${track.format || 'mp3'}`; link.rel = 'noopener';
+      document.body.appendChild(link); link.click(); link.remove();
     } catch (e) { setErr(errorMessage(e)); }
   };
   const save = async () => {
