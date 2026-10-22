@@ -223,7 +223,15 @@ function cardFonts(): Promise<string> {
 export async function cardBlob(node: HTMLElement): Promise<Blob> {
   const fontEmbedCSS = await cardFonts();
   // moving shine effects are left out of the picture (they'd be frozen mid-sweep)
-  const opts = { pixelRatio: 3, cacheBust: true, fontEmbedCSS, backgroundColor: '#050508', filter: (n: HTMLElement) => !(n.dataset && n.dataset.fx === 'anim') };
+  // The box's own margins (mx-auto on wide screens, -mx-1 on phones) would be copied into the picture and
+  // push the card sideways, cutting part of it off — so the copy is drawn with no margin at its exact on-screen size.
+  const r = node.getBoundingClientRect();
+  const width = Math.round(r.width), height = Math.round(r.height);
+  const opts = {
+    pixelRatio: 3, cacheBust: true, fontEmbedCSS, backgroundColor: '#050508', width, height,
+    style: { margin: '0', transform: 'none', width: `${width}px`, height: `${height}px` },
+    filter: (n: HTMLElement) => !(n.dataset && n.dataset.fx === 'anim'),
+  };
   await toBlob(node, opts);   // first pass warms up images and fonts (Safari draws them only on the second pass)
   const blob = await toBlob(node, opts);
   if (!blob) throw new Error('Could not make the picture. Please try again.');
