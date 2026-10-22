@@ -72,7 +72,7 @@ export const HomeScreen: React.FC = () => {
           />
         ) : (
           <div className="rounded-3xl bg-[#1D232A] border border-white/[0.08] overflow-hidden">
-            <div className="relative h-48 bg-[#252D37]">
+            <div className="relative h-48 sm:h-auto sm:aspect-[3/1] bg-[#252D37]">
               {band.banner_url
                 ? <div className="absolute inset-0 overflow-hidden"><Photo url={band.banner_url} crop={cropOf(band.banner_crop)} /></div>
                 : band.logo_url
