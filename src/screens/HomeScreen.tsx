@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BadgeCheck, Calendar, ChevronLeft, ChevronRight, Headphones, MapPin, Music, Sparkles, UserPlus } from 'lucide-react';
+import { BadgeCheck, Calendar, ChevronLeft, ChevronRight, Headphones, MapPin, Music, Sparkles, UserPlus, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Band, Gig } from '../lib/db';
 import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts, fetchTopBands, fetchUpcomingGigs, genreNames } from '../lib/queries';
@@ -15,6 +15,7 @@ export const HomeScreen: React.FC = () => {
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [featured, setFeatured] = useState<Band[]>([]);
+  const [fresh, setFresh] = useState<Band[]>([]);
   const [fi, setFi] = useState(0);
   const [top, setTop] = useState<{ band: Band; plays: number }[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
@@ -30,8 +31,13 @@ export const HomeScreen: React.FC = () => {
     (async () => {
       setLoading(true);
       // Featured: verified bands first, then newest.
-      const { data } = await supabase.from('bands').select(BAND_COLS).order('is_verified', { ascending: false }).order('created_at', { ascending: false }).limit(6);
+      const [{ data }, { data: nb }] = await Promise.all([
+        supabase.from('bands').select(BAND_COLS).order('is_verified', { ascending: false }).order('created_at', { ascending: false }).limit(6),
+        // New bands: the 4 latest band pages, newest first
+        supabase.from('bands').select(BAND_COLS).order('created_at', { ascending: false }).limit(4),
+      ]);
       setFeatured((data as unknown as Band[]) || []);
+      setFresh((nb as unknown as Band[]) || []);
       setTop(await fetchTopBands(10));
       await loadGigs();
       setLoading(false);
@@ -94,6 +100,16 @@ export const HomeScreen: React.FC = () => {
         )}
       </section>
 
+      {/* NEW BANDS — the latest band pages, filled in automatically */}
+      {!loading && fresh.length > 0 && (
+        <section className="space-y-3">
+          <SectionHead icon={Users} title="New Bands" sub="Just joined the scene — say hi!" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {fresh.map((b) => <NewBandTile key={b.id} band={b} onOpen={() => go({ name: 'band', id: b.id })} />)}
+          </div>
+        </section>
+      )}
+
       {/* TOP 10 */}
       <section className="space-y-3">
         <SectionHead icon={Headphones} title="Top 10 Davao Artists" sub="Ranked by plays across MINAW DAVAO" />
@@ -118,6 +134,34 @@ export const HomeScreen: React.FC = () => {
           </div>
         )}
       </section>
+    </div>
+  );
+};
+
+/** A square tile for a new band: logo (or cover photo), name, genres / area, and a Visit button. */
+const NewBandTile: React.FC<{ band: Band; onOpen: () => void }> = ({ band, onOpen }) => {
+  const genres = genreNames(band);
+  const sub = [genres.slice(0, 2).join(', '), band.home_base].filter(Boolean).join(' · ') || 'Davao band';
+  const days = (Date.now() - new Date(band.created_at).getTime()) / 864e5;
+  return (
+    <div className="group rounded-2xl bg-[#1D232A] border border-white/[0.08] overflow-hidden flex flex-col hover:border-[#6045F4]/60 transition-colors">
+      <button onClick={onOpen} aria-label={`Open ${band.name}`} className="relative block w-full aspect-square bg-[#252D37] overflow-hidden cursor-pointer">
+        {band.logo_url
+          ? <img src={band.logo_url} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+          : band.banner_url
+          ? <div className="absolute inset-0"><Photo url={band.banner_url} crop={cropOf(band.banner_crop)} /></div>
+          : <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#2A2550] to-[#16303A] text-[#8E9AA7]"><Music className="w-10 h-10" /></span>}
+        {days < 30 && <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#53E6D4] text-[#0D1014] text-[9px] font-black tracking-wider">NEW</span>}
+      </button>
+      <div className="p-3 flex-1 flex flex-col gap-2 text-center">
+        <div className="min-w-0">
+          <button onClick={onOpen} className="inline-flex items-center justify-center gap-1 max-w-full font-heading font-bold text-[15px] text-[#53E6D4] hover:underline cursor-pointer">
+            <span className="truncate">{band.name}</span>{band.is_verified && <BadgeCheck className="w-4 h-4 flex-shrink-0" />}
+          </button>
+          <p className="text-[11px] text-[#C9D1D9] truncate">{sub}</p>
+        </div>
+        <button onClick={onOpen} className={`${btn.ghost} w-full !py-2 !text-xs mt-auto`}>Visit <ChevronRight className="w-3.5 h-3.5" /></button>
+      </div>
     </div>
   );
 };
