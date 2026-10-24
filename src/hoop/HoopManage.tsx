@@ -41,7 +41,6 @@ export const HoopManage: React.FC = () => {
   const [filter, setFilter] = useState<'active' | 'suspended'>('active');
   const [q, setQ] = useState('');
   const [addOffline, setAddOffline] = useState(false);
-  const [addAccount, setAddAccount] = useState(false);
   const [addAdmin, setAddAdmin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -108,7 +107,6 @@ export const HoopManage: React.FC = () => {
     }))) return;
     run(() => supabase.from('hoop_members').delete().eq('id', m.id));
   };
-  const addWithAccount = (id: string) => { setAddAccount(false); run(() => supabase.from('hoop_members').insert({ club_id: club.id, profile_id: id, status: 'active' })); };
 
   // ---------- club page
   const upload = async (file: File, which: 'logo' | 'cover' | 'photo') => {
@@ -240,11 +238,8 @@ export const HoopManage: React.FC = () => {
 
       {/* PLAYERS */}
       <Section icon={Users} title="Players" sub="Tap a player to see their card. Suspended players can’t book games.">
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => setAddOffline(true)} className={`${hbtn.primary} !py-2 !text-xs`}><WifiOff className="w-3.5 h-3.5" />Player without the app</button>
-          <button onClick={() => setAddAccount(!addAccount)} className={`${hbtn.ghost} !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Player with an account</button>
-        </div>
-        {addAccount && <AccountPicker autoFocus roles={['fan']} exclude={members.map((m) => m.profile_id || '').filter(Boolean)} onPick={(p) => addWithAccount(p.id)} onCancel={() => setAddAccount(false)} />}
+        <button onClick={() => setAddOffline(true)} className={`${hbtn.primary} w-full !py-2 !text-xs`}><WifiOff className="w-3.5 h-3.5" />Add a player without the app</button>
+        <p className="text-[11px] text-[#A8A29E] leading-snug">Players with the app join on their own: they open your club, go to <strong className="text-white">My Card</strong>, set up their card and send it. Approve them above in <strong className="text-white">Join requests</strong>.</p>
         <div className="flex gap-1.5">
           {(['active', 'suspended'] as const).map((k) => (
             <button key={k} onClick={() => setFilter(k)} className={`h-8 px-3 rounded-full text-xs font-bold border cursor-pointer ${filter === k ? 'bg-[var(--hp)] border-[var(--hp)] text-[#111]' : 'bg-[#151515] border-white/15 text-[#E7E5E4]'}`}>

@@ -522,22 +522,20 @@ export const AddOfflinePlayer: React.FC<{ clubId: string; onClose: () => void; o
 };
 
 // ===================================================================== PICK A PLAYER FOR A GAME (club admin)
-/** Club members first (including players without the app); any Fan account can be added too — that also approves their card. */
+/** Only this club's approved players (with or without the app). New players join from My Card and are approved in Manage. */
 export const MemberPicker: React.FC<{
   clubId: string; exclude: string[]; excludeAccounts: string[];
   onPick: (p: { member_id?: string; profile_id?: string }) => void; onCancel: () => void;
-}> = ({ clubId, exclude, excludeAccounts, onPick, onCancel }) => {
+}> = ({ clubId, exclude, onPick, onCancel }) => {
   const [list, setList] = useState<HoopMember[] | null>(null);
   const [q, setQ] = useState('');
-  const [other, setOther] = useState(false);
   useEffect(() => {
-    supabase.from('hoop_members').select(MEMBER_COLS).eq('club_id', clubId).in('status', ['active', 'pending']).limit(500)
+    supabase.from('hoop_members').select(MEMBER_COLS).eq('club_id', clubId).eq('status', 'active').limit(500)
       .then(({ data }) => setList(((data as any as HoopMember[]) || []).filter((m) => !m.profiles?.is_suspended)));
   }, [clubId]);
   const term = q.trim().toLowerCase();
   const shown = (list || []).filter((m) => !exclude.includes(m.id) && (!term || personOf(m).display_name.toLowerCase().includes(term) || personOf(m).username.toLowerCase().includes(term)))
     .sort((a, b) => personOf(a).display_name.localeCompare(personOf(b).display_name)).slice(0, 30);
-  if (other) return <AccountPicker autoFocus roles={['fan']} exclude={[...excludeAccounts, ...(list || []).map((m) => m.profile_id || '')].filter(Boolean)} onPick={(p) => onPick({ profile_id: p.id })} onCancel={() => setOther(false)} />;
   return (
     <div className="p-2.5 rounded-xl border border-white/15 bg-[#151515] space-y-2">
       <label className="relative block">
@@ -553,16 +551,13 @@ export const MemberPicker: React.FC<{
                 <HoopFace avatar={p.avatar_url} name={p.display_name} cardPhoto={m.card_photo_url} cardCrop={m.card_photo_crop} size={30} />
                 <span className="flex-1 min-w-0 text-[13px] font-bold text-white truncate">{p.display_name}{m.jersey_number != null && <span className="ml-1 text-[#A8A29E] font-normal">#{m.jersey_number}</span>}</span>
                 {!m.profile_id && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1]">NO APP</span>}
-                {m.status === 'pending' && <span className="px-1 rounded text-[8px] font-black bg-[var(--hp)]/20 text-[var(--hp)]">PENDING</span>}
               </button>
             );
           })}
         </div>
       )}
-      <div className="flex gap-2">
-        <button onClick={() => setOther(true)} className={`${hbtn.ghost} flex-1 !py-1.5 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Someone not in the club</button>
-        <button onClick={onCancel} className={`${hbtn.ghost} !py-1.5 !text-xs`}>Close</button>
-      </div>
+      <p className="text-[10px] text-[#A8A29E] leading-snug">Only your club’s approved players are listed. New player? They send their card from <strong className="text-white">My Card</strong> and you approve them in <strong className="text-white">Manage</strong> — or add them as a guest.</p>
+      <button onClick={onCancel} className={`${hbtn.ghost} w-full !py-1.5 !text-xs`}>Close</button>
     </div>
   );
 };
