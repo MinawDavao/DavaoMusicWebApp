@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, Gift, IdCard, LayoutGrid, LogIn, Music, Settings, Trophy } from 'lucide-react';
+import { CalendarDays, Gift, IdCard, LayoutGrid, LogIn, LogOut, Music, Settings, Trophy } from 'lucide-react';
 import type { Route } from '../nav';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Spinner } from '../components/ui';
+import { Avatar, Spinner } from '../components/ui';
 import { ClubContext, H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, hbtn, themeVars, useClubUnlocks, type ClubCtx, type HoopClub, type HoopMember } from './lib';
 import { ModeSwitch } from '../components/ModeSwitch';
 import { ClubBillingBanner } from './ClubBilling';
@@ -112,6 +112,42 @@ function useClubData(clubId: string | null): ClubCtx & { loading: boolean } {
   };
 }
 
+/** The user's photo in the Hoop Method header: tap it → Log out. */
+const HoopUserMenu: React.FC<{ go: (r: Route) => void }> = ({ go }) => {
+  const { profile, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent | TouchEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', away); document.addEventListener('touchstart', away); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('touchstart', away); document.removeEventListener('keydown', esc); };
+  }, [open]);
+  return (
+    <div className="relative" ref={box}>
+      <button onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} aria-label="Open account menu" className="block rounded-full cursor-pointer">
+        <Avatar src={profile?.avatar_url} name={profile?.display_name} size={36} ring />
+      </button>
+      {open && (
+        <div role="menu" className="absolute top-11 right-0 w-56 z-50 p-2 rounded-2xl border border-white/15 shadow-2xl" style={{ background: '#181818' }}>
+          <div className="flex items-center gap-2.5 px-2 pt-1 pb-2.5 mb-1 border-b border-white/[0.08]">
+            <Avatar src={profile?.avatar_url} name={profile?.display_name} size={34} />
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-white truncate">{profile?.display_name}</p>
+              {profile?.username && <p className="text-[10px] text-[#A8A29E] truncate">@{profile.username}</p>}
+            </div>
+          </div>
+          <button role="menuitem" onClick={async () => { setOpen(false); await signOut(); go({ name: 'hoop' }); }}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-[13px] font-bold text-[#FF8A9C] hover:bg-white/[0.06] cursor-pointer">
+            <LogOut className="w-4 h-4" />Log out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /** Basketball mode: its own look (each club's colours), header and bottom menu. */
 export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ route, go }) => {
   const { user, profile, loading, isModerator } = useAuth();
@@ -214,6 +250,7 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
                   </button>
                 )}
                 <NotificationBell hoop />
+                {user && <HoopUserMenu go={go} />}
               </div>
             </div>
             <div className="px-3.5 pb-2.5"><ModeSwitch active="hoop" /></div>

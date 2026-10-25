@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -62,6 +62,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [boardVisible, setBoardVisible] = useState(true);
   const [headerH, setHeaderH] = useState(64);
   const [busy, setBusy] = useState(false);
+  const [showRot, setShowRot] = useState(false);   // "Games played today" table: hidden until tapped
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -1107,8 +1108,17 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         const rows = [...bookings].sort((x, y) => total(x.profile_id) - total(y.profile_id) || (x.profiles?.display_name || '').localeCompare(y.profiles?.display_name || ''));
         return (
           <section className="space-y-2.5">
-            <h2 className="font-hoop italic font-black text-[22px] uppercase text-white">Games played today</h2>
-            <p className="-mt-1.5 text-[11px] text-[#A8A29E]">Everyone booked on this schedule and which games they played. Players with the fewest games are listed first — give them the next game.</p>
+            <button onClick={() => setShowRot(!showRot)} aria-expanded={showRot}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border border-white/10 text-left cursor-pointer hover:border-white/25" style={{ background: H.surface }}>
+              <span className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--hp)]/15 text-[var(--hp)] flex-shrink-0"><Users className="w-5 h-5" /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-hoop italic font-black text-[20px] uppercase text-white leading-none">Games played today</span>
+                <span className="block text-[11px] text-[#A8A29E] mt-1">{rows.length} player{rows.length === 1 ? '' : 's'} · who played which game · {showRot ? 'tap to hide' : 'tap to show'}</span>
+              </span>
+              <ChevronDown className={`w-5 h-5 text-[#D6D3D1] flex-shrink-0 transition-transform ${showRot ? 'rotate-180' : ''}`} />
+            </button>
+            {showRot && <>
+            <p className="text-[11px] text-[#A8A29E]">Everyone booked on this schedule and which games they played. Players with the fewest games are listed first — give them the next game.</p>
             <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: H.surface }}>
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
@@ -1154,6 +1164,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               </div>
             </div>
             <p className="text-[10px] text-[#78716C]">✓ played (orange / gray = team) · dashed = picked for an upcoming game</p>
+            </>}
           </section>
         );
       })()}
