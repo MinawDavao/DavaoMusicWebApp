@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart3, Building2, CalendarDays, Disc3, Flag, Headphones, Heart, ListMusic, LogIn,
-  MessageCircle, MousePointerClick, Music, Play, RefreshCw, Star, Tag, UserPlus, Users,
+  DatabaseBackup, MessageCircle, MousePointerClick, Music, Play, RefreshCw, Share2, Star, Tag, UserPlus, Users,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { errorMessage } from '../../lib/db';
 import { useNav } from '../../nav';
+import { useAuth } from '../../context/AuthContext';
+import { HOOP_MAIN_ADMIN_ID } from '../../hoop/lib';
 import { ErrorNote, SectionHead, Spinner, btn } from '../../components/ui';
 
 interface Day { day: string; signups: number; active: number; plays: number; posts: number }
@@ -97,7 +99,7 @@ export const AdminDashboard: React.FC<{ openTab: (t: string) => void }> = ({ ope
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  if (!s) return err ? <ErrorNote text={err} /> : <Spinner label="Loading statistics…" />;
+  if (!s) return err ? <div className="space-y-4"><ErrorNote text={err} /><BackupBox /></div> : <Spinner label="Loading statistics…" />;   // the backup still works if the numbers can't load
 
   return (
     <div className="space-y-5">
@@ -106,6 +108,7 @@ export const AdminDashboard: React.FC<{ openTab: (t: string) => void }> = ({ ope
         <button onClick={load} disabled={busy} className={`${btn.ghost} !py-1.5 !px-2.5 !text-[11px]`}><RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />Refresh</button>
       </div>
       <ErrorNote text={err} />
+      <BackupBox />
 
       {(s.reports_open > 0 || s.reviews_pending > 0) && (
         <div className="flex flex-wrap gap-2">
@@ -173,6 +176,43 @@ export const AdminDashboard: React.FC<{ openTab: (t: string) => void }> = ({ ope
           </ol>
         )}
       </section>
+    </div>
+  );
+};
+
+/** Main admin only: one file with every table (plus the account list and the list of uploaded files), to keep in Google Drive. */
+const BackupBox: React.FC = () => {
+  const { user } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  if (user?.id !== HOOP_MAIN_ADMIN_ID) return null;
+  const make = async () => {
+    setBusy(true); setErr(null); setNote(null); setFile(null);
+    const { data, error } = await supabase.rpc('admin_backup');
+    setBusy(false);
+    if (error) return setErr(errorMessage(error));
+    const day = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    const f = new File([JSON.stringify(data)], `minawdavao-backup-${day}.json`, { type: 'application/json' });
+    const t = (data as any)?.tables || {};
+    setNote(`${Object.keys(t).length} tables · ${(f.size / 1024).toFixed(0)} KB · ${t['auth.users']?.length ?? 0} accounts · ${t['storage.objects']?.length ?? 0} uploaded files listed`);
+    setFile(f);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  const canShare = !!file && (() => { try { return !!nav.canShare?.({ files: [file] }); } catch { return false; } })();
+  return (
+    <div className="p-3.5 rounded-2xl bg-[#161B20] border border-white/10 space-y-2">
+      <p className="flex items-center gap-2 font-heading font-bold text-white"><DatabaseBackup className="w-4 h-4 text-[#53E6D4]" />Backup</p>
+      <p className="text-[11px] text-[#8E9AA7] leading-relaxed">Saves every table (accounts, bands, songs list, posts, messages, clubs, games, stats, cards, payments) as one file. Put it in the “MINAW DAVAO Backups” folder in Google Drive. Photos and song files stay in Supabase. The file has private info — keep it private.</p>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={make} disabled={busy} className={`${btn.primary} !py-2 !text-xs`}><DatabaseBackup className="w-4 h-4" />{busy ? 'Making backup…' : 'Download backup'}</button>
+        {canShare && <button onClick={() => nav.share({ files: [file!] }).catch(() => {})} className={`${btn.ghost} !py-2 !text-xs`}><Share2 className="w-4 h-4" />Save to Drive / share</button>}
+      </div>
+      {note && <p className="text-[11px] text-[#53E6D4]">Done: {note}</p>}
+      <ErrorNote text={err} />
     </div>
   );
 };
