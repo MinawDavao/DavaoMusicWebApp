@@ -7,7 +7,7 @@ import { ErrorNote, Spinner } from '../components/ui';
 import { ClubCard, choiceLevel } from './ClubCard';
 import { cardBlob, socialPicture, type SocialFormat } from './TradingCard';
 import { ShareSheet, type ReadyPicture } from './ShareSheet';
-import { H, MEMBER_COLS, gameDate, hbtn, oneGameStats, personOf, useClub, type HoopMember } from './lib';
+import { H, MEMBER_COLS, boxScore, gameDate, hbtn, nightStats, normEvent, oneGameStats, personOf, useClub, type HoopEvent, type HoopMember } from './lib';
 
 /** What a one-game card needs to know about the game. */
 export interface GameCardInfo {
@@ -17,6 +17,43 @@ export interface GameCardInfo {
   result: 'W' | 'L' | 'T';
   mine: number; theirs: number;
   line: { pts: number; reb: number; ast: number; stl: number; blk: number; threes: number; tov?: number; foul?: number } | null | undefined;
+  /** set = a NIGHT card: `line` holds the totals of every game the player played in this schedule */
+  night?: { games: number; wins: number; losses: number; ties: number; best: number };
+}
+
+type Line = NonNullable<GameCardInfo['line']>;
+/**
+ * The night card for one player: every finished game of the schedule they played in, added up.
+ * null = they didn't play a finished game in it.
+ */
+export async function loadNightCard(memberId: string, rootId: string): Promise<GameCardInfo | null> {
+  const { data: gs } = await supabase.from('hoop_games').select('id, session_id, title, starts_at, started_at, status, created_at, hoop_game_players(member_id, team)')
+    .or(`id.eq.${rootId},session_id.eq.${rootId}`);
+  const games = ((gs as any[]) || []);
+  const root = games.find((g) => g.id === rootId);
+  const mine = games.filter((g) => g.status === 'final' && (g.hoop_game_players || []).some((x: any) => x.member_id === memberId && x.team));
+  if (!root || !mine.length) return null;
+  // one request per game (a single query could pass the 1,000-row limit)
+  const evs = await Promise.all(mine.map((g) => supabase.from('hoop_events').select('*').eq('game_id', g.id).then((r) => ((r.data as any[]) || []).map(normEvent) as HoopEvent[])));
+  const tot: Line = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, threes: 0, tov: 0, foul: 0 };
+  let wins = 0, losses = 0, ties = 0, best = 0;
+  mine.forEach((g, i) => {
+    const bs = boxScore(evs.at(i) || []);
+    const l = bs.lines[memberId];
+    const team = (g.hoop_game_players || []).find((x: any) => x.member_id === memberId)?.team as 'A' | 'B';
+    const us = bs.score[team], them = bs.score[team === 'A' ? 'B' : 'A'];
+    if (us > them) wins++; else if (us < them) losses++; else ties++;
+    if (l) {
+      tot.pts += l.pts; tot.reb += l.reb; tot.ast += l.ast; tot.stl += l.stl; tot.blk += l.blk; tot.threes += l.threes;
+      tot.tov = (tot.tov || 0) + (l.tov || 0); tot.foul = (tot.foul || 0) + (l.foul || 0);
+      best = Math.max(best, l.pts);
+    }
+  });
+  return {
+    title: root.title, gameNo: 0, startsAt: root.started_at || root.starts_at,
+    result: wins > losses ? 'W' : wins < losses ? 'L' : 'T', mine: wins, theirs: losses, line: tot,
+    night: { games: mine.length, wins, losses, ties, best },
+  };
 }
 
 /**
@@ -45,10 +82,12 @@ export const GameCardModal: React.FC<{ memberId: string; info: GameCardInfo; onC
   }, [onClose]);
 
   const short = info.title.toUpperCase();
-  const label = `${short} · G${info.gameNo} · ${info.result} ${info.mine}-${info.theirs}`;
-  const stats = oneGameStats(memberId, info.line, label, info.result);
+  const nt = info.night;
+  const label = nt ? `${short} · ${nt.games} GAME${nt.games === 1 ? '' : 'S'} · ${nt.wins}-${nt.losses}${nt.ties ? `-${nt.ties}` : ''}`
+    : `${short} · G${info.gameNo} · ${info.result} ${info.mine}-${info.theirs}`;
+  const stats = nt ? nightStats(memberId, info.line || { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, threes: 0 }, label, nt) : oneGameStats(memberId, info.line, label, info.result);
   const name = m ? personOf(m).display_name : '';
-  const file = (k: string) => `hoop-game${info.gameNo}-${k}-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`;
+  const file = (k: string) => `hoop-${nt ? 'night' : `game${info.gameNo}`}-${k}-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`;
   // a picked 1-of-1 has no stats on it — game cards use the player's level card (or the level they picked)
   const choice = m && typeof choiceLevel(m.card_choice) === 'number' ? m.card_choice : null;
   const isMe = !!user && m?.profile_id === user.id;
@@ -69,9 +108,11 @@ export const GameCardModal: React.FC<{ memberId: string; info: GameCardInfo; onC
       <div className="max-w-[440px] mx-auto px-4 py-5 space-y-3" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Game card">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.25em] text-[var(--hp)]"><IdCard className="w-3.5 h-3.5" />GAME CARD</p>
-            <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none truncate">{info.title} · Game {info.gameNo}</p>
-            <p className="text-[11px] text-[#A8A29E] mt-1">{gameDate(info.startsAt)} · {info.result === 'W' ? 'Won' : info.result === 'L' ? 'Lost' : 'Tied'} {info.mine}-{info.theirs} · this game only</p>
+            <p className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.25em] text-[var(--hp)]"><IdCard className="w-3.5 h-3.5" />{nt ? 'NIGHT CARD' : 'GAME CARD'}</p>
+            <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none truncate">{nt ? `${info.title} · Whole night` : `${info.title} · Game ${info.gameNo}`}</p>
+            <p className="text-[11px] text-[#A8A29E] mt-1">{nt
+              ? `${gameDate(info.startsAt)} · ${nt.games} game${nt.games === 1 ? '' : 's'} · ${nt.wins} W - ${nt.losses} L${nt.ties ? ` - ${nt.ties} T` : ''} · all games added up`
+              : `${gameDate(info.startsAt)} · ${info.result === 'W' ? 'Won' : info.result === 'L' ? 'Lost' : 'Tied'} ${info.mine}-${info.theirs} · this game only`}</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-10 h-10 flex-shrink-0 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
@@ -81,7 +122,7 @@ export const GameCardModal: React.FC<{ memberId: string; info: GameCardInfo; onC
             {/* what gets saved: the card + which game it was */}
             <div ref={shot} className="px-[7%] pt-[6%] pb-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
               <p className="text-center font-hoop font-black uppercase leading-none mb-[5%]" style={{ fontSize: 'clamp(13px, 4.2vw, 18px)', letterSpacing: '0.18em', color: H.orange }}>
-                {info.title} · Game {info.gameNo} · {info.result} {info.mine}-{info.theirs}
+                {nt ? `${info.title} · Whole night · ${nt.games} games · ${nt.wins}-${nt.losses}` : `${info.title} · Game ${info.gameNo} · ${info.result} ${info.mine}-${info.theirs}`}
               </p>
               <ClubCard memberId={m.id} person={personOf(m)} card={m} stats={stats} club={club} choice={choice} />
             </div>
@@ -96,7 +137,7 @@ export const GameCardModal: React.FC<{ memberId: string; info: GameCardInfo; onC
             </div>
 
             <div className="rounded-2xl p-2.5 space-y-2 border border-white/10" style={{ background: H.surface }}>
-              <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#E7E5E4]"><Share2 className="w-3.5 h-3.5 text-[var(--hp)]" />{isMe ? 'SHARE MY GAME' : 'SAVE THIS GAME CARD'}</p>
+              <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#E7E5E4]"><Share2 className="w-3.5 h-3.5 text-[var(--hp)]" />{isMe ? (nt ? 'SHARE MY NIGHT' : 'SHARE MY GAME') : (nt ? 'SAVE THIS NIGHT CARD' : 'SAVE THIS GAME CARD')}</p>
               <div className="grid grid-cols-3 gap-2">
                 <button onClick={() => make('card')} disabled={!!busy} className={`${hbtn.ghost} !py-2.5 !text-xs`}><Download className="w-4 h-4" />{busy === 'card' ? '…' : 'Save'}</button>
                 <button onClick={() => make('story')} disabled={!!busy} className={`${hbtn.primary} !py-2.5 !text-xs`}>{busy === 'story' ? 'Making…' : 'Story'}</button>

@@ -16,7 +16,7 @@ import { ShareSheet, type ReadyPicture } from './ShareSheet';
 import { ClubCard, OwnerCardPreview, type CardLevel } from './ClubCard';
 import { MyCards } from './MyCards';
 import { HoopFace } from './HoopFace';
-import { GameCardModal, type GameCardInfo } from './GameCard';
+import { GameCardModal, loadNightCard, type GameCardInfo } from './GameCard';
 import {
   H, MEMBER_COLS, PERSON, boxScore, fetchStats, fmt1, gameDate, hbtn, hinput, normEvent, personOf, themeVars, useClub,
   type HoopClub, type HoopEvent, type HoopMember, type HoopPerson, type HoopStats,
@@ -32,7 +32,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
   const { club, isAdmin } = useClub();
   const [m, setM] = useState<HoopMember | null | undefined>(undefined);
   const [stats, setStats] = useState<HoopStats | null>(null);
-  const [recent, setRecent] = useState<{ id: string; title: string; starts_at: string; started_at: string | null; team: 'A' | 'B'; team_a: string; team_b: string; a: number; b: number; pts: number; reb: number; ast: number; gameNo: number; line: any }[]>([]);
+  const [recent, setRecent] = useState<{ id: string; title: string; starts_at: string; started_at: string | null; team: 'A' | 'B'; team_a: string; team_b: string; a: number; b: number; pts: number; reb: number; ast: number; gameNo: number; line: any; root: string }[]>([]);
   const [allGames, setAllGames] = useState(false);
   const [gameCard, setGameCard] = useState<GameCardInfo | null>(null);   // the card for one game (not career averages)
   const [fans, setFans] = useState(0);
@@ -47,6 +47,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
+  const [nightBusy, setNightBusy] = useState<string | null>(null);
   const shotRef = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -86,7 +87,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
         const root = g.session_id || g.id;
         const gameNo = Math.max(1, sibs.filter((x) => (x.session_id || x.id) === root).findIndex((x) => x.id === g.id) + 1);
         const title = sibs.find((x) => x.id === root)?.title || g.title;
-        return { ...g, title, gameNo, line: l, a: bs.score.A, b: bs.score.B, pts: l?.pts || 0, reb: l?.reb || 0, ast: l?.ast || 0 };
+        return { ...g, title, gameNo, root, line: l, a: bs.score.A, b: bs.score.B, pts: l?.pts || 0, reb: l?.reb || 0, ast: l?.ast || 0 };
       }));
     } else setRecent([]);
   }, [id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -264,13 +265,26 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
         <section className="space-y-2">
           <div className="flex items-end justify-between gap-2">
             <h2 className="font-hoop italic font-black text-[24px] uppercase text-white">Games played</h2>
-            <p className="text-[11px] text-[#A8A29E] pb-1">Tap <IdCard className="inline w-3.5 h-3.5 -mt-0.5 text-[var(--hp)]" /> for that game’s card</p>
+            <p className="text-[11px] text-[#A8A29E] pb-1">Tap <IdCard className="inline w-3.5 h-3.5 -mt-0.5 text-[var(--hp)]" /> for a game’s card, or Night card for all games added up</p>
           </div>
-          {(allGames ? recent : recent.slice(0, 5)).map((g) => {
+          {(allGames ? recent : recent.slice(0, 5)).map((g, i, list) => {
             const mine = g.team === 'A' ? g.a : g.b, theirs = g.team === 'A' ? g.b : g.a;
             const res = mine > theirs ? 'W' : mine < theirs ? 'L' : 'T';
+            const firstOfNight = i === 0 || list[i - 1].root !== g.root;
+            const nightGames = recent.filter((x) => x.root === g.root);
             return (
-              <div key={g.id} className="flex items-stretch rounded-2xl border border-white/10 overflow-hidden" style={{ background: H.surface }}>
+              <React.Fragment key={g.id}>
+              {firstOfNight && (
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="flex-1 min-w-0 text-[11px] font-black tracking-wider text-[#A8A29E] uppercase truncate">{g.title} · {gameDate(g.starts_at)} · {nightGames.length} game{nightGames.length === 1 ? '' : 's'}</span>
+                  <button onClick={async () => { setNightBusy(g.root); const n = await loadNightCard(id, g.root).catch(() => null); setNightBusy(null); if (n) setGameCard(n); }}
+                    disabled={nightBusy === g.root} aria-label={`Night card for ${g.title}`}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--hp)]/60 text-[10px] font-black tracking-wider text-[var(--hp)] cursor-pointer hover:bg-[var(--hp)]/10 flex-shrink-0">
+                    <IdCard className="w-3.5 h-3.5" />{nightBusy === g.root ? '…' : 'NIGHT CARD'}
+                  </button>
+                </div>
+              )}
+              <div className="flex items-stretch rounded-2xl border border-white/10 overflow-hidden" style={{ background: H.surface }}>
                 <button onClick={() => go({ name: 'hoopGame', id: g.id })} className="flex-1 min-w-0 flex items-center gap-3 p-3 text-left cursor-pointer hover:bg-white/[0.03]">
                   <span className="w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center font-hoop italic font-black text-[18px]" style={{ background: res === 'W' ? H.orange : res === 'L' ? '#3A3A3A' : '#57534E', color: res === 'W' ? '#111' : '#F4F1EE' }}>{res}</span>
                   <span className="flex-1 min-w-0">
@@ -284,6 +298,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
                   <IdCard className="w-5 h-5" /><span className="text-[9px] font-black tracking-wider">CARD</span>
                 </button>
               </div>
+              </React.Fragment>
             );
           })}
           {recent.length > 5 && <button onClick={() => setAllGames(!allGames)} className="w-full text-center text-[12px] font-bold text-[#A8A29E] hover:text-white cursor-pointer py-1">{allGames ? 'Show fewer' : `Show all ${recent.length} games`}</button>}

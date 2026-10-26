@@ -174,6 +174,16 @@ export function oneGameStats(memberId: string, l: { pts: number; reb: number; as
   };
 }
 
+/** A whole schedule (night) added up: totals of every game the player played that night. */
+export function nightStats(memberId: string, l: { pts: number; reb: number; ast: number; stl: number; blk: number; threes: number; tov?: number; foul?: number }, label: string, n: { games: number; wins: number; losses: number; best: number }): HoopStats {
+  return {
+    member_id: memberId, games: n.games, wins: n.wins, losses: n.losses,
+    pts: l.pts, threes: l.threes, reb: l.reb, ast: l.ast, stl: l.stl, blk: l.blk, tov: l.tov ?? 0, fouls: l.foul ?? 0,
+    ppg: l.pts, rpg: l.reb, apg: l.ast, spg: l.stl, bpg: l.blk, tpg: l.threes, topg: l.tov ?? 0, fpg: l.foul ?? 0, best_pts: n.best,
+    game_label: label,
+  };
+}
+
 // ---------------------------------------------------------------- clubs
 export interface HoopClub {
   id: string; name: string; tagline: string | null; description: string | null; rules: string | null; location: string | null;

@@ -14,7 +14,7 @@ import {
 import { MemberPicker } from './HoopPlayer';
 import { GameForm } from './HoopGames';
 import { HoopFace } from './HoopFace';
-import { GameCardModal, type GameCardInfo } from './GameCard';
+import { GameCardModal, loadNightCard, type GameCardInfo } from './GameCard';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { MessageButton } from '../screens/MessagesScreen';
 
@@ -69,6 +69,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [showTeams, setShowTeams] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   const [cardFor, setCardFor] = useState<string | null>(null);
+  const [night, setNight] = useState<GameCardInfo | null>(null);   // my card for the whole schedule
   const [subFor, setSubFor] = useState<string | null>(null);   // live game: the player being subbed out (choose who comes in)
   const removing = useRef<Set<string>>(new Set());   // stats being deleted right now (fast − / Undo taps never pick the same one twice)
 
@@ -1063,6 +1064,15 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         <div className="p-3.5 rounded-2xl border border-white/15 text-center space-y-2" style={{ background: H.surface }}>
           <p className="font-hoop italic font-black text-[20px] uppercase text-white">Schedule finished</p>
           <p className="text-[12px] text-[#A8A29E]">{session.filter((g) => g.status === 'final').length} games played · ended {gameTime(root.closed_at)}</p>
+          {me && (
+            <button onClick={async () => {
+              setBusy(true); setErr(null);
+              const n = await loadNightCard(me.id, root.id).catch(() => null);
+              setBusy(false);
+              if (!n) return setErr('You didn’t play a finished game in this schedule, so there’s no night card yet.');
+              setNight(n);
+            }} disabled={busy} className={`${hbtn.primary} w-full !py-2.5`}><IdCard className="w-4 h-4" />My card for the whole night</button>
+          )}
           {isModerator && <button onClick={reopenSchedule} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><RotateCcw className="w-3.5 h-3.5" />Reopen schedule</button>}
         </div>
       ) : isModerator && game.status === 'final' && !session.some((g) => g.status === 'live') && (
@@ -1228,6 +1238,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {editing && <GameForm game={game} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {landscape && !courtsideOff && (live || game.status === 'final') && courtside}
+      {night && me && <GameCardModal memberId={me.id} info={night} onClose={() => setNight(null)} />}
       {cardFor && cardInfo(cardFor) && <GameCardModal memberId={cardFor} info={cardInfo(cardFor)!} onClose={() => setCardFor(null)} />}
     </div>
   );
