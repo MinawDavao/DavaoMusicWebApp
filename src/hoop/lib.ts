@@ -42,6 +42,7 @@ export interface GamePlayer {
   member_id?: string | null; account_id?: string | null; jersey?: number | null; face?: { url: string; crop: any } | null;
   /** the player was removed from the club (row kept only for past box scores) */ removed?: boolean;
   /** false = subbed out to the bench during the game (keeps their team and stats) */ on_court?: boolean;
+  /** set = left the court during the schedule (emergency…): skipped for the next games, stats kept */ left_at?: string | null;
   member_status?: 'pending' | 'active' | 'suspended' | null;
 }
 export type Kind = 'p1' | 'p2' | 'p3' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'foul';

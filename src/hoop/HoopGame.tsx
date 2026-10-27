@@ -62,7 +62,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [boardVisible, setBoardVisible] = useState(true);
   const [headerH, setHeaderH] = useState(64);
   const [busy, setBusy] = useState(false);
-  const [showRot, setShowRot] = useState(false);   // "Games played today" table: hidden until tapped
+  const [showRot, setShowRot] = useState(false);
+  const [showNext, setShowNext] = useState(false);   // next game's line-up panel
+  const [latePick, setLatePick] = useState(false);   // line-up panel: picking a club player who just arrived
+  const lateAdd = useRef(false);   // "Games played today" table: hidden until tapped
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -210,7 +213,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const bookingOf = (pid: string) => bookings.find((b) => b.profile_id === pid);
   const queue = [...bookings].sort(byArrival);
   const arrivedN = bookings.filter((b) => b.arrived_at).length;
-  const canPlay = (b: GamePlayer) => !b.removed && b.member_status !== 'suspended';
+  const canPlay = (b: GamePlayer) => !b.removed && !b.left_at && b.member_status !== 'suspended';
   // ---------- NEXT UP: the line-up for the next game, ready before this one even starts.
   // Games each player will have played once THIS game is done (this game counts for whoever is on a team),
   // fewest first; ties go to whoever arrived first (then booking order). Once arrivals are marked, only players at the court.
@@ -307,7 +310,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   /** Admin: a club member (with or without an account), or any Fan account — adding them also approves their club card. */
   const addPlayer = async (p: { member_id?: string; profile_id?: string }) => {
     setAdding(false);
-    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p }));
+    const here = lateAdd.current; lateAdd.current = false; setLatePick(false);
+    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p, ...(here ? { arrived_at: new Date().toISOString() } : {}) }));
     loadPlayers();
   };
   /** Mixes the players already on a team into two new random teams. */
@@ -352,8 +356,53 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     go({ name: 'hoopGame', id: (data as any).id as string });   // no teams yet: everyone is sitting out until the admin picks
   };
 
+  // ---------- admin: set up the NEXT game's teams while this one is still being played
+  const nextG = session.find((g) => g.session_id && g.status === 'scheduled' && g.id !== game.id) || null;
+  const playedGames = session.filter((g) => g.status === 'live' || g.status === 'final');
+  const latestPlayed = playedGames[playedGames.length - 1];
+  const nextNo = nextG ? session.indexOf(nextG) + 1 : session.length + 1;
+  const nextTeam = (pid: string) => (nextG?.hoop_game_players.find((x) => x.profile_id === pid)?.team as 'A' | 'B' | null) ?? null;
+  const nextPool = bookings.filter((b) => canPlay(b) && (!arrivedN || b.arrived_at))
+    .sort((a, b) => afterThis(a.profile_id) - afterThis(b.profile_id) || byArrival(a, b));
+  const pickNext = async (pid: string, team: 'A' | 'B' | null) => {
+    setBusy(true); setErr(null);
+    try {
+      let gid = nextG?.id;
+      if (!gid) {
+        if (!team) return;
+        const { data, error } = await supabase.from('hoop_games').insert({
+          session_id: sessionId, title: root.title, venue: root.venue, starts_at: new Date().toISOString(), slots: root.slots,
+          period_seconds: game.period_seconds, periods, team_a: game.team_a, team_b: game.team_b, created_by: user?.id,
+        }).select('id').single();
+        if (error) throw error;
+        gid = (data as any).id as string;
+      }
+      const q = isGuest(pid) ? { col: 'guest_id', on: 'game_id,guest_id' } : { col: 'member_id', on: 'game_id,member_id' };
+      const { error } = team
+        ? await supabase.from('hoop_game_players').upsert({ game_id: gid, ...who(pid), team }, { onConflict: q.on })
+        : await supabase.from('hoop_game_players').delete().eq('game_id', gid).eq(q.col, pid);
+      if (error) throw error;
+    } catch (e) { setErr(errorMessage(e)); }
+    finally { setBusy(false); loadPlayers(); }
+  };
+
+  /** Admin: a player has to leave (emergency…): off the next game's team, out of the pick lists; stats and payment stay. */
+  const markLeft = async (b: GamePlayer, left: boolean) => {
+    if (left && !confirm(`${nameOf(b.profile_id)} left the court?\n\nThey come off Game ${nextNo}'s team and won't be suggested for the next games. Their stats and payment stay.`)) return;
+    setBusy(true); setErr(null);
+    const r1 = await supabase.from('hoop_game_players').update({ left_at: left ? new Date().toISOString() : null }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id);
+    if (!r1.error && left && nextG && nextTeam(b.profile_id)) await supabase.from('hoop_game_players').delete().eq('game_id', nextG.id).eq(col(b.profile_id), b.profile_id);
+    setBusy(false);
+    if (r1.error) setErr(errorMessage(r1.error));
+    loadPlayers();
+  };
+  const leftEarly = bookings.filter((b) => b.left_at);
+  const nextPanel = isModerator && !root.closed_at && !!latestPlayed && latestPlayed.id === game.id;
+
   // ---------- admin: game flow
   const begin = async () => {
+    const other = session.find((g) => g.id !== game.id && g.status === 'live');
+    if (other) return setErr(`Game ${session.indexOf(other) + 1} is still live. Finish it first, then start this one.`);
     const onCourt = teamA.length + teamB.length;
     if (onCourt < MIN_PLAYERS || teamA.length < MIN_PER_TEAM || teamB.length < MIN_PER_TEAM) {
       return setErr(`A game needs at least ${MIN_PLAYERS} players — ${MIN_PER_TEAM} on each team. Right now: ${game.team_a} ${teamA.length}, ${game.team_b} ${teamB.length}.`);
@@ -901,7 +950,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             </div>
             <p className="text-[10px] text-[#A8A29E]">{periods} × {Math.round(game.period_seconds / 60)} min{periods > 1 ? ` = ${periods * Math.round(game.period_seconds / 60)} min game` : ''} · overtime is available if it’s tied</p>
           </div>
-          <button onClick={begin} disabled={busy || teamA.length < MIN_PER_TEAM || teamB.length < MIN_PER_TEAM} className={`${hbtn.primary} w-full !py-3 !text-base`}><Play className="w-5 h-5 fill-current" />Begin game</button>
+          {session.some((g) => g.id !== game.id && g.status === 'live') && (
+            <p className="text-[12px] font-bold text-[#FFC34D] text-center">Game {session.findIndex((g) => g.id !== game.id && g.status === 'live') + 1} is still live — finish it first, then begin this one. Teams set here are kept.</p>
+          )}
+          <button onClick={begin} disabled={busy || teamA.length < MIN_PER_TEAM || teamB.length < MIN_PER_TEAM || session.some((g) => g.id !== game.id && g.status === 'live')} className={`${hbtn.primary} w-full !py-3 !text-base`}><Play className="w-5 h-5 fill-current" />Begin game</button>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setEditing(true)} className={`${hbtn.ghost} !py-2 !text-xs`}><Pencil className="w-3.5 h-3.5" />Edit details</button>
             {isFirst && <button onClick={cancelGame} className={`${hbtn.ghost} !py-2 !text-xs`}><Ban className="w-3.5 h-3.5" />Cancel game</button>}
@@ -1024,7 +1076,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       )}
 
       {/* NEXT UP: next game's line-up, prepared while this game is being set up / played */}
-      {!root.closed_at && game.status !== 'cancelled' && bookings.length > 0 && (session.length === 0 || session[session.length - 1].id === game.id) && (
+      {!nextPanel && !root.closed_at && game.status !== 'cancelled' && bookings.length > 0 && (session.length === 0 || session[session.length - 1].id === game.id) && (
         <section className="rounded-2xl p-3.5 space-y-3 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 7%, #161616)' }}>
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -1110,6 +1162,77 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           <button onClick={deleteGame} className={`${hbtn.ghost} !py-2 !text-xs !text-[#FF6B7A]`}><Trash2 className="w-3.5 h-3.5" />{isFirst ? 'Delete schedule' : `Delete Game ${gameNo}`}</button>
         </div>
       )}
+
+      {/* NEXT GAME LINE-UP: pick Game N+1's teams while this game is still going (admins) */}
+      {nextPanel && (() => {
+        const nA = nextPool.filter((b) => nextTeam(b.profile_id) === 'A').length, nB = nextPool.filter((b) => nextTeam(b.profile_id) === 'B').length;
+        const teamBtn = (pid: string, t: 'A' | 'B') => {
+          const on = nextTeam(pid) === t;
+          return (
+            <button onClick={() => pickNext(pid, on ? null : t)} disabled={busy} aria-pressed={on}
+              aria-label={`${on ? 'Take off' : 'Put on'} ${t === 'A' ? game.team_a : game.team_b} for Game ${nextNo}: ${nameOf(pid)}`}
+              className={`h-8 min-w-[52px] px-2 rounded-lg text-[10px] font-black cursor-pointer border ${on ? 'border-transparent' : 'border-white/15 text-[#A8A29E] bg-transparent hover:border-white/35'}`}
+              style={on ? { background: t === 'A' ? H.orange : '#D6D3D1', color: '#111' } : undefined}>{(t === 'A' ? game.team_a : game.team_b).replace(/^team\s+/i, '').slice(0, 7).toUpperCase()}</button>
+          );
+        };
+        return (
+          <section className="space-y-2.5">
+            <button onClick={() => setShowNext(!showNext)} aria-expanded={showNext}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl border text-left cursor-pointer"
+              style={{ borderColor: 'color-mix(in srgb, var(--hp) 55%, transparent)', background: 'linear-gradient(110deg, color-mix(in srgb, var(--hp) 16%, #141414), #141414 80%)' }}>
+              <span className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--hp)] text-[#111] flex-shrink-0"><Shuffle className="w-5 h-5" /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-hoop italic font-black text-[20px] uppercase text-white leading-none">Line-up for Game {nextNo}</span>
+                <span className="block text-[11px] text-[#D6D3D1] mt-1">{nA + nB ? `${game.team_a} ${nA} · ${game.team_b} ${nB} ready` : 'Set the next teams now'} · {showNext ? 'tap to hide' : 'tap to show'}</span>
+              </span>
+              <ChevronDown className={`w-5 h-5 text-[#D6D3D1] flex-shrink-0 transition-transform ${showNext ? 'rotate-180' : ''}`} />
+            </button>
+            {showNext && (
+              <div className="rounded-2xl p-3 space-y-2 border border-white/10" style={{ background: H.surface }}>
+                <p className="text-[11px] text-[#A8A29E] leading-snug">Everyone {arrivedN ? 'at the court' : 'booked'}, <span className="text-[#8FE36B] font-bold">fresh</span> players first. Tap a team to put them in Game {nextNo}; tap again to take them off. When this game ends, Game {nextNo} is ready to start.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => { lateAdd.current = true; setLatePick(!latePick); }} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Just arrived: club player</button>
+                  <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Just arrived: guest</button>
+                </div>
+                {latePick && <MemberPicker clubId={club!.id} exclude={everyone.map((p) => p.profile_id)} excludeAccounts={everyone.map((p) => p.account_id || '')} onPick={addPlayer} onCancel={() => { lateAdd.current = false; setLatePick(false); }} />}
+                {nextPool.length === 0 ? <p className="text-[12px] text-[#A8A29E]">No players yet.</p> : nextPool.map((b) => {
+                  const n = afterThis(b.profile_id);
+                  const nowOn = teamOf(b.profile_id);
+                  return (
+                    <div key={b.profile_id} className="flex items-center gap-2 p-1.5 rounded-xl bg-black/25 border border-white/[0.07]">
+                      <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={28} />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[12px] font-bold text-white truncate">{short(b.profiles?.display_name)}</span>
+                        <span className="flex items-center gap-1 mt-0.5">
+                          <span className={`px-1 rounded text-[8px] font-black ${n === 0 ? 'bg-[#8FE36B]/15 text-[#8FE36B]' : 'bg-white/10 text-[#D6D3D1]'}`}>{n === 0 ? 'FRESH' : `${n} GP`}</span>
+                          {nowOn && game.status === 'live' && <span className="text-[9px] text-[#A8A29E]">playing now</span>}
+                        </span>
+                      </span>
+                      {teamBtn(b.profile_id, 'A')}{teamBtn(b.profile_id, 'B')}
+                      <button onClick={() => markLeft(b, true)} disabled={busy} aria-label={`${nameOf(b.profile_id)} left the court`} title="Left the court"
+                        className="h-8 w-9 flex-shrink-0 rounded-lg border border-white/10 text-[9px] font-black text-[#A8A29E] hover:text-[#FF8A9C] hover:border-[#FF8A9C]/50 cursor-pointer">LEFT</button>
+                    </div>
+                  );
+                })}
+                {leftEarly.length > 0 && (
+                  <div className="pt-1 space-y-1">
+                    <p className="text-[10px] font-black tracking-wider text-[#78716C]">LEFT EARLY · not in the next games</p>
+                    {leftEarly.map((b) => (
+                      <div key={b.profile_id} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/[0.03]">
+                        <span className="flex-1 min-w-0 text-[12px] text-[#A8A29E] truncate">{short(b.profiles?.display_name)}</span>
+                        <button onClick={() => markLeft(b, false)} disabled={busy} aria-label={`${nameOf(b.profile_id)} is back`} className="px-2 py-1 rounded-md border border-white/15 text-[10px] font-black text-[#D6D3D1] cursor-pointer hover:border-white/35">BACK</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {nextG && game.status === 'final' && (
+                  <button onClick={() => go({ name: 'hoopGame', id: nextG.id })} className={`${hbtn.primary} w-full`}>Go to Game {nextNo} <ChevronRight className="w-4 h-4" /></button>
+                )}
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* ROTATION: who already played which game of this schedule */}
       {bookings.length > 0 && (session.length > 1 || game.status !== 'scheduled') && (() => {
