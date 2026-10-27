@@ -213,6 +213,11 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const bookingOf = (pid: string) => bookings.find((b) => b.profile_id === pid);
   const queue = [...bookings].sort(byArrival);
   const arrivedN = bookings.filter((b) => b.arrived_at).length;
+  // "only players at the court" kicks in when the admin is marking arrivals — not because of a guest or a
+  // late player added on the spot (they're booked and marked arrived at the same moment)
+  const addedOnSpot = (b: GamePlayer) => !!b.is_guest || !!b.guest_id || (!!b.arrived_at && Math.abs(Date.parse(b.arrived_at) - Date.parse(b.booked_at)) < 120000);
+  const arrivalsOn = bookings.some((b) => b.arrived_at && !addedOnSpot(b));
+  const present = (b: GamePlayer) => !arrivalsOn || !!b.arrived_at;
   const canPlay = (b: GamePlayer) => !b.removed && !b.left_at && b.member_status !== 'suspended';
   // ---------- NEXT UP: the line-up for the next game, ready before this one even starts.
   // Games each player will have played once THIS game is done (this game counts for whoever is on a team),
@@ -220,7 +225,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const afterThis = (pid: string) => (played[pid] || 0) + (players.some((p) => p.profile_id === pid && p.team) ? 1 : 0);
   // sized by who is on the court (subs on the bench don't make the next game bigger)
   const perTeam = Math.max(teamA.filter((p) => p.on_court !== false).length, teamB.filter((p) => p.on_court !== false).length) || MIN_PER_TEAM;
-  const lineupPool = bookings.filter((b) => canPlay(b) && (!arrivedN || b.arrived_at));
+  const lineupPool = bookings.filter((b) => canPlay(b) && present(b));
   const lineupOrder = [...lineupPool].sort((a, b) => afterThis(a.profile_id) - afterThis(b.profile_id) || byArrival(a, b));
   const nextUp = lineupOrder.slice(0, perTeam * 2).map((b, i) => ({ b, team: (i % 2 === 0 ? 'A' : 'B') as 'A' | 'B' }));
   const waitingAfter = lineupOrder.slice(perTeam * 2);
@@ -285,8 +290,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const n = Number(prompt('Players per team?', '5'));
     if (!(n >= 1 && n <= 30)) return;
     // fewest games first; ties go to whoever arrived first. Once arrivals are marked, players not at the court yet are skipped.
-    const pool = bookings.filter((b) => canPlay(b) && (!arrivedN || b.arrived_at));
-    if (pool.length < n * 2 && !confirm(`Only ${pool.length} ${arrivedN ? 'arrived' : 'booked'} — fill the teams anyway?`)) return;
+    const pool = bookings.filter((b) => canPlay(b) && present(b));
+    if (pool.length < n * 2 && !confirm(`Only ${pool.length} ${arrivalsOn ? 'arrived' : 'booked'} — fill the teams anyway?`)) return;
     const order = [...pool].sort((a, b) => (played[a.profile_id] || 0) - (played[b.profile_id] || 0) || byArrival(a, b));
     const pick = order.slice(0, n * 2).map((b) => b.profile_id);
     setBusy(true); setErr(null);
@@ -362,7 +367,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const latestPlayed = playedGames[playedGames.length - 1];
   const nextNo = nextG ? session.indexOf(nextG) + 1 : session.length + 1;
   const nextTeam = (pid: string) => (nextG?.hoop_game_players.find((x) => x.profile_id === pid)?.team as 'A' | 'B' | null) ?? null;
-  const nextPool = bookings.filter((b) => canPlay(b) && (!arrivedN || b.arrived_at))
+  const nextPool = bookings.filter((b) => canPlay(b) && present(b))
     .sort((a, b) => afterThis(a.profile_id) - afterThis(b.profile_id) || byArrival(a, b));
   const pickNext = async (pid: string, team: 'A' | 'B' | null) => {
     setBusy(true); setErr(null);
@@ -548,7 +553,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 )}
               </div>
               {canSub && subFor === p.profile_id && (() => {
-                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id), ...sittingOut.filter((b) => canPlay(b) && (!arrivedN || bookingOf(b.profile_id)?.arrived_at))];
+                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id), ...sittingOut.filter((b) => canPlay(b) && present(bookingOf(b.profile_id) || b))];
                 return (
                   <div className="p-2 rounded-xl border border-[var(--hp)]/50 space-y-1.5" style={{ background: 'color-mix(in srgb, var(--hp) 8%, #141414)' }}>
                     <p className="text-[10px] font-bold text-white">{short(p.profiles?.display_name)} goes to the bench — who comes in?</p>
@@ -986,7 +991,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           <p className="text-[11px] text-[#A8A29E]">Tap a player, then tap what they did.</p>
           <p className="text-[11px] font-bold text-white">On the court: {teamA.filter(onCourt).length + teamB.filter(onCourt).length} players ({teamA.filter(onCourt).length} vs {teamB.filter(onCourt).length}) <span className="font-normal text-[#A8A29E]">· tap SUB to swap a player</span></p>
           <div className="grid grid-cols-2 gap-2">{teamCol('A', teamA)}{teamCol('B', teamB)}</div>
-          {sittingOut.length > 0 && (
+          {!live && sittingOut.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-[11px] font-bold text-[#A8A29E]">Sitting out ({sittingOut.length}) — tap a team to sub them in</p>
               {sittingOut.map((b) => (
@@ -1081,7 +1086,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[11px] font-black tracking-wider text-[var(--hp)]">NEXT UP · GAME {Math.max(session.length, 1) + 1}</p>
-              <p className="text-[11px] text-[#A8A29E] mt-0.5">Who plays next: fewest games first, then who arrived first{arrivedN ? ' (only players at the court)' : ''}. You pick their teams when the next game starts.</p>
+              <p className="text-[11px] text-[#A8A29E] mt-0.5">Who plays next: fewest games first, then who arrived first{arrivalsOn ? ' (only players at the court)' : ''}. You pick their teams when the next game starts.</p>
             </div>
             <span className="px-2 py-1 rounded-lg bg-white/[0.06] text-[10px] font-bold text-[#D6D3D1] whitespace-nowrap">{perTeam} vs {perTeam}</span>
           </div>
@@ -1105,7 +1110,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               })}
             </div>
           )}
-          {nextUp.length > 0 && nextUp.length < perTeam * 2 && <p className="text-[11px] text-[#FFC34D]">Only {nextUp.length} player{nextUp.length === 1 ? '' : 's'} available{arrivedN ? ' at the court' : ''} — need {perTeam * 2} for {perTeam} vs {perTeam}.</p>}
+          {nextUp.length > 0 && nextUp.length < perTeam * 2 && <p className="text-[11px] text-[#FFC34D]">Only {nextUp.length} player{nextUp.length === 1 ? '' : 's'} available{arrivalsOn ? ' at the court' : ''} — need {perTeam * 2} for {perTeam} vs {perTeam}.</p>}
           {waitingAfter.length > 0 && (
             <p className="text-[11px] text-[#A8A29E] leading-relaxed"><span className="font-bold text-white">Waiting after that:</span> {waitingAfter.map((b) => `${short(b.profiles?.display_name)} (${afterThis(b.profile_id)} GP)`).join(' · ')}</p>
           )}
@@ -1189,7 +1194,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
             </button>
             {showNext && (
               <div className="rounded-2xl p-3 space-y-2 border border-white/10" style={{ background: H.surface }}>
-                <p className="text-[11px] text-[#A8A29E] leading-snug">Everyone {arrivedN ? 'at the court' : 'booked'}, <span className="text-[#8FE36B] font-bold">fresh</span> players first. Tap a team to put them in Game {nextNo}; tap again to take them off. When this game ends, Game {nextNo} is ready to start.</p>
+                <p className="text-[11px] text-[#A8A29E] leading-snug">Everyone {arrivalsOn ? 'at the court' : 'booked'}, <span className="text-[#8FE36B] font-bold">fresh</span> players first. Tap a team to put them in Game {nextNo}; tap again to take them off. When this game ends, Game {nextNo} is ready to start.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => { lateAdd.current = true; setLatePick(!latePick); }} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Just arrived: club player</button>
                   <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Just arrived: guest</button>
