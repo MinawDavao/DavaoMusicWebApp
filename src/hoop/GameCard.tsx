@@ -18,7 +18,7 @@ export interface GameCardInfo {
   mine: number; theirs: number;
   line: { pts: number; reb: number; ast: number; stl: number; blk: number; threes: number; tov?: number; foul?: number } | null | undefined;
   /** set = a NIGHT card: `line` holds the totals of every game the player played in this schedule */
-  night?: { games: number; wins: number; losses: number; ties: number; best: number };
+  night?: { games: number; wins: number; losses: number; ties: number; best: number; ongoing?: boolean };
 }
 
 type Line = NonNullable<GameCardInfo['line']>;
@@ -27,14 +27,14 @@ type Line = NonNullable<GameCardInfo['line']>;
  * null = they didn't play a finished game in it.
  */
 export async function loadNightCard(memberId: string, rootId: string): Promise<GameCardInfo | null> {
-  const { data: gs } = await supabase.from('hoop_games').select('id, session_id, title, starts_at, started_at, status, created_at, hoop_game_players(member_id, team)')
+  const { data: gs } = await supabase.from('hoop_games').select('id, session_id, title, starts_at, started_at, status, created_at, closed_at, hoop_game_players(member_id, team)')
     .or(`id.eq.${rootId},session_id.eq.${rootId}`);
   const games = ((gs as any[]) || []);
   const root = games.find((g) => g.id === rootId);
   const mine = games.filter((g) => g.status === 'final' && (g.hoop_game_players || []).some((x: any) => x.member_id === memberId && x.team));
   if (!root || !mine.length) return null;
   // one request per game (a single query could pass the 1,000-row limit)
-  const evs = await Promise.all(mine.map((g) => supabase.from('hoop_events').select('*').eq('game_id', g.id).then((r) => ((r.data as any[]) || []).map(normEvent) as HoopEvent[])));
+  const evs = await Promise.all(mine.map((g) => supabase.from('hoop_events').select('*').eq('game_id', g.id).then((r) => { if (r.error) throw r.error; return ((r.data as any[]) || []).map(normEvent) as HoopEvent[]; })));
   const tot: Line = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, threes: 0, tov: 0, foul: 0 };
   let wins = 0, losses = 0, ties = 0, best = 0;
   mine.forEach((g, i) => {
@@ -52,7 +52,7 @@ export async function loadNightCard(memberId: string, rootId: string): Promise<G
   return {
     title: root.title, gameNo: 0, startsAt: root.started_at || root.starts_at,
     result: wins > losses ? 'W' : wins < losses ? 'L' : 'T', mine: wins, theirs: losses, line: tot,
-    night: { games: mine.length, wins, losses, ties, best },
+    night: { games: mine.length, wins, losses, ties, best, ongoing: !root.closed_at },
   };
 }
 
@@ -87,7 +87,7 @@ export const GameCardModal: React.FC<{ memberId: string; info: GameCardInfo; onC
     : `${short} · G${info.gameNo} · ${info.result} ${info.mine}-${info.theirs}`;
   const stats = nt ? nightStats(memberId, info.line || { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, threes: 0 }, label, nt) : oneGameStats(memberId, info.line, label, info.result);
   const name = m ? personOf(m).display_name : '';
-  const file = (k: string) => `hoop-${nt ? 'night' : `game${info.gameNo}`}-${k}-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`;
+  const file = (k: string) => `hoop-${nt ? `night-${(info.startsAt || '').slice(0, 10)}` : `game${info.gameNo}`}-${k}-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`;
   // a picked 1-of-1 has no stats on it — game cards use the player's level card (or the level they picked)
   const choice = m && typeof choiceLevel(m.card_choice) === 'number' ? m.card_choice : null;
   const isMe = !!user && m?.profile_id === user.id;
@@ -109,7 +109,7 @@ export const GameCardModal: React.FC<{ memberId: string; info: GameCardInfo; onC
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-[10px] font-black tracking-[0.25em] text-[var(--hp)]"><IdCard className="w-3.5 h-3.5" />{nt ? 'NIGHT CARD' : 'GAME CARD'}</p>
-            <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none truncate">{nt ? `${info.title} · Whole night` : `${info.title} · Game ${info.gameNo}`}</p>
+            <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none truncate">{nt ? `${info.title} · ${nt.ongoing ? 'Night so far' : 'Whole night'}` : `${info.title} · Game ${info.gameNo}`}</p>
             <p className="text-[11px] text-[#A8A29E] mt-1">{nt
               ? `${gameDate(info.startsAt)} · ${nt.games} game${nt.games === 1 ? '' : 's'} · ${nt.wins} W - ${nt.losses} L${nt.ties ? ` - ${nt.ties} T` : ''} · all games added up`
               : `${gameDate(info.startsAt)} · ${info.result === 'W' ? 'Won' : info.result === 'L' ? 'Lost' : 'Tied'} ${info.mine}-${info.theirs} · this game only`}</p>
@@ -122,7 +122,7 @@ export const GameCardModal: React.FC<{ memberId: string; info: GameCardInfo; onC
             {/* what gets saved: the card + which game it was */}
             <div ref={shot} className="px-[7%] pt-[6%] pb-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #2A1606 0%, #0B0710 55%, #050508 100%)' }}>
               <p className="text-center font-hoop font-black uppercase leading-none mb-[5%]" style={{ fontSize: 'clamp(13px, 4.2vw, 18px)', letterSpacing: '0.18em', color: H.orange }}>
-                {nt ? `${info.title} · Whole night · ${nt.games} games · ${nt.wins}-${nt.losses}` : `${info.title} · Game ${info.gameNo} · ${info.result} ${info.mine}-${info.theirs}`}
+                {nt ? `${info.title} · ${nt.ongoing ? 'Night so far' : 'Whole night'} · ${nt.games} game${nt.games === 1 ? '' : 's'} · ${nt.wins}-${nt.losses}${nt.ties ? `-${nt.ties}` : ''}` : `${info.title} · Game ${info.gameNo} · ${info.result} ${info.mine}-${info.theirs}`}
               </p>
               <ClubCard memberId={m.id} person={personOf(m)} card={m} stats={stats} club={club} choice={choice} />
             </div>

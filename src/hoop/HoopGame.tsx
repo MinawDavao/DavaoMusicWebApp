@@ -62,10 +62,11 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [boardVisible, setBoardVisible] = useState(true);
   const [headerH, setHeaderH] = useState(64);
   const [busy, setBusy] = useState(false);
-  const [showRot, setShowRot] = useState(false);
+  const [showRot, setShowRot] = useState(false);   // "Games played today" table: hidden until tapped
   const [showNext, setShowNext] = useState(false);   // next game's line-up panel
   const [latePick, setLatePick] = useState(false);   // line-up panel: picking a club player who just arrived
-  const lateAdd = useRef(false);   // "Games played today" table: hidden until tapped
+  const lateAdd = useRef(false);   // the next club player picked is marked as arrived
+  const creatingNext = useRef<Promise<string> | null>(null);   // the next game being created (double taps reuse it)
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -117,6 +118,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const r = p.new && Object.keys(p.new).length ? p.new : p.old;
     return !r?.id || mineRef.current.has(r.id) || (!!r.session_id && mineRef.current.has(r.session_id));
   };
+  const lateReload = useRef<ReturnType<typeof setTimeout>>();
   const myPlayers = (p: any) => { const gid = p.new?.game_id ?? p.old?.game_id; return !gid || mineRef.current.has(gid); };
 
   useEffect(() => {
@@ -134,7 +136,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'hoop_events' }, (p: any) => {
         setEvents((xs) => xs.filter((x) => x.id !== p.old?.id));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, (p: any) => { if (myPlayers(p)) loadPlayers(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hoop_game_players' }, (p: any) => {
+        if (myPlayers(p)) loadPlayers();
+        else { clearTimeout(lateReload.current); lateReload.current = setTimeout(loadPlayers, 900); }   // maybe a game of this schedule we haven't loaded yet
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [id, load, loadPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -269,7 +274,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const setTeam = (pid: string, team: 'A' | 'B' | null) => run(() => writeTeam(pid, team) as any).then(loadPlayers);
   const togglePaid = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ paid: !b.paid, paid_at: b.paid ? null : new Date().toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
   /** Admin: tap when a player shows up at the court — first to arrive plays first. Tap again to undo. */
-  const toggleArrived = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ arrived_at: b.arrived_at ? null : new Date().toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
+  const toggleArrived = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ arrived_at: b.arrived_at ? null : new Date(now()).toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
   /** Admin: change how many players can book this schedule. */
   const setSlots = async (n: number) => {
     if (n < Math.max(2, bookings.length)) return setErr(n < 2 ? 'At least 2 slots.' : `${bookings.length} players already booked — remove someone first to go lower.`);
@@ -282,7 +287,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const name = (prompt('Guest player’s name (not on the app yet):') || '').trim().slice(0, 40);
     if (!name) return;
     setAdding(false);
-    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, guest_id: crypto.randomUUID(), guest_name: name, arrived_at: new Date().toISOString() }));
+    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, guest_id: crypto.randomUUID(), guest_name: name, arrived_at: new Date(now()).toISOString() }));
     loadPlayers();
   };
   /** Fills both teams with the players who have played the fewest games of this schedule. */
@@ -316,7 +321,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const addPlayer = async (p: { member_id?: string; profile_id?: string }) => {
     setAdding(false);
     const here = lateAdd.current; lateAdd.current = false; setLatePick(false);
-    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p, ...(here ? { arrived_at: new Date().toISOString() } : {}) }));
+    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p, ...(here ? { arrived_at: new Date(now()).toISOString() } : {}) }));
     loadPlayers();
   };
   /** Mixes the players already on a team into two new random teams. */
@@ -336,10 +341,13 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   /** Admin: end the whole schedule (no more games today). An empty, not-started extra game is removed. */
   const endSchedule = async () => {
     const playedGames = session.filter((g) => g.status === 'final').length;
-    if (!confirm(`End this schedule?\n\n${playedGames} game${playedGames === 1 ? '' : 's'} played. No more games can be added, and everyone’s stats stay on their cards.`)) return;
+    const prepared = session.filter((g) => g.session_id && g.status === 'scheduled');
+    if (!confirm(`End this schedule?\n\n${playedGames} game${playedGames === 1 ? '' : 's'} played. No more games can be added, and everyone’s stats stay on their cards.`
+      + (prepared.length ? `\n\nThe prepared next game (not played yet) will be removed.` : ''))) return;
     setBusy(true); setErr(null);
-    for (const g of session) {
-      if (g.session_id && g.status === 'scheduled') await supabase.from('hoop_games').delete().eq('id', g.id);
+    for (const g of prepared) {
+      const { error: de } = await supabase.from('hoop_games').delete().eq('id', g.id);
+      if (de) { setBusy(false); return setErr(errorMessage(de)); }
     }
     const { error } = await supabase.from('hoop_games').update({ closed_at: new Date().toISOString() }).eq('id', sessionId);
     setBusy(false);
@@ -356,6 +364,11 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       session_id: sessionId, title: root.title, venue: root.venue, starts_at: new Date().toISOString(), slots: root.slots,
       period_seconds: game.period_seconds, periods, team_a: game.team_a, team_b: game.team_b, created_by: user?.id,
     }).select('id').single();
+    if (error && (error as any).code === '23505') {   // a next game was already prepared → open it
+      const { data: ex } = await supabase.from('hoop_games').select('id').eq('session_id', sessionId).eq('status', 'scheduled').maybeSingle();
+      setBusy(false);
+      if (ex) return go({ name: 'hoopGame', id: (ex as any).id as string });
+    }
     if (error) { setBusy(false); return setErr(errorMessage(error)); }
     setBusy(false);
     go({ name: 'hoopGame', id: (data as any).id as string });   // no teams yet: everyone is sitting out until the admin picks
@@ -375,12 +388,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
       let gid = nextG?.id;
       if (!gid) {
         if (!team) return;
-        const { data, error } = await supabase.from('hoop_games').insert({
-          session_id: sessionId, title: root.title, venue: root.venue, starts_at: new Date().toISOString(), slots: root.slots,
-          period_seconds: game.period_seconds, periods, team_a: game.team_a, team_b: game.team_b, created_by: user?.id,
-        }).select('id').single();
-        if (error) throw error;
-        gid = (data as any).id as string;
+        creatingNext.current = creatingNext.current || makeNextGame();
+        try { gid = await creatingNext.current; } catch (e) { creatingNext.current = null; throw e; }
       }
       const q = isGuest(pid) ? { col: 'guest_id', on: 'game_id,guest_id' } : { col: 'member_id', on: 'game_id,member_id' };
       const { error } = team
@@ -388,7 +397,21 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         : await supabase.from('hoop_game_players').delete().eq('game_id', gid).eq(q.col, pid);
       if (error) throw error;
     } catch (e) { setErr(errorMessage(e)); }
-    finally { setBusy(false); loadPlayers(); }
+    await loadPlayers();
+    creatingNext.current = null;   // the next game is in the list now
+    setBusy(false);
+  };
+  /** Creates the next (scheduled) game once; if one already exists (another admin was faster), uses that one. */
+  const makeNextGame = async (): Promise<string> => {
+    const { data, error } = await supabase.from('hoop_games').insert({
+      session_id: sessionId, title: root.title, venue: root.venue, starts_at: new Date().toISOString(), slots: root.slots,
+      period_seconds: game.period_seconds, periods, team_a: game.team_a, team_b: game.team_b, created_by: user?.id,
+    }).select('id').single();
+    if (!error) return (data as any).id as string;
+    if ((error as any).code !== '23505') throw error;
+    const { data: ex } = await supabase.from('hoop_games').select('id').eq('session_id', sessionId).eq('status', 'scheduled').maybeSingle();
+    if (!ex) throw error;
+    return (ex as any).id as string;
   };
 
   /** Admin: a player has to leave (emergency…): off the next game's team, out of the pick lists; stats and payment stay. */
@@ -396,9 +419,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     if (left && !confirm(`${nameOf(b.profile_id)} left the court?\n\nThey come off Game ${nextNo}'s team and won't be suggested for the next games. Their stats and payment stay.`)) return;
     setBusy(true); setErr(null);
     const r1 = await supabase.from('hoop_game_players').update({ left_at: left ? new Date().toISOString() : null }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id);
-    if (!r1.error && left && nextG && nextTeam(b.profile_id)) await supabase.from('hoop_game_players').delete().eq('game_id', nextG.id).eq(col(b.profile_id), b.profile_id);
+    const r2 = !r1.error && left && nextG && nextTeam(b.profile_id)
+      ? await supabase.from('hoop_game_players').delete().eq('game_id', nextG.id).eq(col(b.profile_id), b.profile_id) : { error: null };
     setBusy(false);
-    if (r1.error) setErr(errorMessage(r1.error));
+    if (r1.error || r2.error) setErr(errorMessage(r1.error || r2.error));
     loadPlayers();
   };
   const leftEarly = bookings.filter((b) => b.left_at);
@@ -553,7 +577,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 )}
               </div>
               {canSub && subFor === p.profile_id && (() => {
-                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id), ...sittingOut.filter((b) => canPlay(b) && present(bookingOf(b.profile_id) || b))];
+                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id && !bookingOf(b.profile_id)?.left_at), ...sittingOut.filter((b) => canPlay(b) && present(bookingOf(b.profile_id) || b))];
                 return (
                   <div className="p-2 rounded-xl border border-[var(--hp)]/50 space-y-1.5" style={{ background: 'color-mix(in srgb, var(--hp) 8%, #141414)' }}>
                     <p className="text-[10px] font-bold text-white">{short(p.profiles?.display_name)} goes to the bench — who comes in?</p>
@@ -1170,7 +1194,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
 
       {/* NEXT GAME LINE-UP: pick Game N+1's teams while this game is still going (admins) */}
       {nextPanel && (() => {
-        const nA = nextPool.filter((b) => nextTeam(b.profile_id) === 'A').length, nB = nextPool.filter((b) => nextTeam(b.profile_id) === 'B').length;
+        const nA = (nextG?.hoop_game_players || []).filter((x) => x.team === 'A').length, nB = (nextG?.hoop_game_players || []).filter((x) => x.team === 'B').length;
         const teamBtn = (pid: string, t: 'A' | 'B') => {
           const on = nextTeam(pid) === t;
           return (
@@ -1196,7 +1220,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <div className="rounded-2xl p-3 space-y-2 border border-white/10" style={{ background: H.surface }}>
                 <p className="text-[11px] text-[#A8A29E] leading-snug">Everyone {arrivalsOn ? 'at the court' : 'booked'}, <span className="text-[#8FE36B] font-bold">fresh</span> players first. Tap a team to put them in Game {nextNo}; tap again to take them off. When this game ends, Game {nextNo} is ready to start.</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => { lateAdd.current = true; setLatePick(!latePick); }} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Just arrived: club player</button>
+                  <button onClick={() => { lateAdd.current = !latePick; setLatePick(!latePick); }} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Just arrived: club player</button>
                   <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Just arrived: guest</button>
                 </div>
                 {latePick && <MemberPicker clubId={club!.id} exclude={everyone.map((p) => p.profile_id)} excludeAccounts={everyone.map((p) => p.account_id || '')} onPick={addPlayer} onCancel={() => { lateAdd.current = false; setLatePick(false); }} />}
@@ -1219,6 +1243,21 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                     </div>
                   );
                 })}
+                {(() => {
+                  // on the next game's team but not in the list anymore (left, suspended, not at the court…)
+                  const hidden = (nextG?.hoop_game_players || []).filter((x) => x.team && !nextPool.some((b) => b.profile_id === x.profile_id));
+                  return hidden.length > 0 && (
+                    <div className="pt-1 space-y-1">
+                      <p className="text-[10px] font-black tracking-wider text-[#FFC34D]">ON GAME {nextNo} BUT NOT AVAILABLE</p>
+                      {hidden.map((x) => (
+                        <div key={x.profile_id} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-[#FFC34D]/[0.06] border border-[#FFC34D]/25">
+                          <span className="flex-1 min-w-0 text-[12px] text-[#E7E5E4] truncate">{nameOf(x.profile_id)} · {x.team === 'A' ? game.team_a : game.team_b}</span>
+                          <button onClick={() => pickNext(x.profile_id, null)} disabled={busy} aria-label={`Take ${nameOf(x.profile_id)} off Game ${nextNo}`} className="px-2 py-1 rounded-md border border-white/15 text-[10px] font-black text-[#D6D3D1] cursor-pointer hover:border-white/35">TAKE OFF</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {leftEarly.length > 0 && (
                   <div className="pt-1 space-y-1">
                     <p className="text-[10px] font-black tracking-wider text-[#78716C]">LEFT EARLY · not in the next games</p>
@@ -1229,9 +1268,6 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                       </div>
                     ))}
                   </div>
-                )}
-                {nextG && game.status === 'final' && (
-                  <button onClick={() => go({ name: 'hoopGame', id: nextG.id })} className={`${hbtn.primary} w-full`}>Go to Game {nextNo} <ChevronRight className="w-4 h-4" /></button>
                 )}
               </div>
             )}

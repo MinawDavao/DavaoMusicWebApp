@@ -48,6 +48,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
   const [busy, setBusy] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [nightBusy, setNightBusy] = useState<string | null>(null);
+  const [nightErr, setNightErr] = useState<string | null>(null);
   const shotRef = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -277,7 +278,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
               {firstOfNight && (
                 <div className="flex items-center gap-2 pt-1">
                   <span className="flex-1 min-w-0 text-[11px] font-black tracking-wider text-[#A8A29E] uppercase truncate">{g.title} · {gameDate(g.starts_at)} · {nightGames.length} game{nightGames.length === 1 ? '' : 's'}</span>
-                  <button onClick={async () => { setNightBusy(g.root); const n = await loadNightCard(id, g.root).catch(() => null); setNightBusy(null); if (n) setGameCard(n); }}
+                  <button onClick={async () => { setNightBusy(g.root); setNightErr(null); const n = await loadNightCard(id, g.root).catch(() => undefined); setNightBusy(null); if (n) setGameCard(n); else setNightErr(n === undefined ? 'Couldn’t load the night card — check your connection and try again.' : 'No finished games for this night yet.'); }}
                     disabled={nightBusy === g.root} aria-label={`Night card for ${g.title}`}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-[var(--hp)]/60 text-[10px] font-black tracking-wider text-[var(--hp)] cursor-pointer hover:bg-[var(--hp)]/10 flex-shrink-0">
                     <IdCard className="w-3.5 h-3.5" />{nightBusy === g.root ? '…' : 'NIGHT CARD'}
@@ -301,6 +302,7 @@ export const HoopPlayerScreen: React.FC<{ id: string }> = ({ id }) => {
               </React.Fragment>
             );
           })}
+          <ErrorNote text={nightErr} />
           {recent.length > 5 && <button onClick={() => setAllGames(!allGames)} className="w-full text-center text-[12px] font-bold text-[#A8A29E] hover:text-white cursor-pointer py-1">{allGames ? 'Show fewer' : `Show all ${recent.length} games`}</button>}
         </section>
       )}
