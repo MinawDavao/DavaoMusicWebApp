@@ -16,23 +16,23 @@ const hbtnPrimary = hbtn.primary, hbtnGhost = hbtn.ghost;
 export const MyCards: React.FC<{ memberId: string; choice: string | null | undefined; onChanged: () => void } & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ memberId, choice, onChanged, ...card }) => {
   const { level, ready } = useMemberSchedules(memberId);
   const [ones, setOnes] = useState<{ id: string; won_at: string; signature_url: string | null; design: string | null; frame_url: string | null }[]>([]);
-  const [sels, setSels] = useState<{ id: string; serial: number; total: number; signature_url: string | null }[]>([]);
-  const [signing, setSigning] = useState<{ id: string; current: string | null; kind: 'one' | 'sel'; serial?: number; design?: string | null; frame?: string | null } | null>(null);
+  const [sels, setSels] = useState<{ id: string; serial: number; total: number; signature_url: string | null; series: string }[]>([]);
+  const [signing, setSigning] = useState<{ id: string; current: string | null; kind: 'one' | 'sel'; serial?: number; design?: string | null; frame?: string | null; series?: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.from('hoop_one_of_ones').select('id, won_at, signature_url, design, frame_url').eq('member_id', memberId).order('won_at')
       .then(({ data }) => setOnes((data as any[]) || []));
-    supabase.from('hoop_numbered_cards').select('id, serial, total, signature_url').eq('member_id', memberId).not('revealed_at', 'is', null).order('created_at')
+    supabase.from('hoop_numbered_cards').select('id, serial, total, signature_url, series').eq('member_id', memberId).not('revealed_at', 'is', null).order('created_at')
       .then(({ data }) => setSels((data as any[]) || []));
   }, [memberId]);
   if (!ready) return null;
 
-  const owned: { key: string; level: CardLevel; label: string; oneId?: string; selId?: string; serial?: number; design?: string | null; frame?: string | null; signed?: boolean; sig?: string | null }[] = [
+  const owned: { key: string; level: CardLevel; label: string; oneId?: string; selId?: string; serial?: number; series?: string; design?: string | null; frame?: string | null; signed?: boolean; sig?: string | null }[] = [
     ...CARD_LEVELS.filter((l) => l.n <= level.n).map((l) => ({ key: `level${l.n}`, level: l.n as CardLevel, label: `Level ${l.n}` })),
     ...ones.map((o, i) => ({ key: `one:${o.id}`, level: 'one' as CardLevel, label: ones.length > 1 ? `1 of 1 · #${i + 1}` : '1 of 1', oneId: o.id, design: o.design, frame: o.frame_url, signed: !!o.signature_url, sig: o.signature_url })),
-    ...sels.map((x) => ({ key: `sel:${x.id}`, level: 'sel' as CardLevel, label: `Chosen ${x.serial}/${x.total}`, selId: x.id, serial: x.serial, signed: !!x.signature_url, sig: x.signature_url })),
+    ...sels.map((x) => ({ key: `sel:${x.id}`, level: 'sel' as CardLevel, label: x.series === 'ten' ? `10-10 · ${x.serial}-${x.total}` : `Chosen ${x.serial}/${x.total}`, selId: x.id, serial: x.serial, series: x.series, signed: !!x.signature_url, sig: x.signature_url })),
   ];
   const current = choice && owned.some((o) => o.key === choice) ? choice : `level${level.n}`;
   if (owned.length < 2 && !ones.length && !sels.length) return null;   // only one card so far — nothing to choose yet
@@ -70,9 +70,9 @@ export const MyCards: React.FC<{ memberId: string; choice: string | null | undef
         })}
       </div>
       {owned.filter((o) => o.selId).map((o) => (
-        <button key={`sign-${o.selId}`} onClick={() => setSigning({ id: o.selId!, current: o.sig ?? null, kind: 'sel', serial: o.serial })}
+        <button key={`sign-${o.selId}`} onClick={() => setSigning({ id: o.selId!, current: o.sig ?? null, kind: 'sel', serial: o.serial, series: o.series })}
           className={`${o.signed ? hbtnGhost : hbtnPrimary} w-full !py-2.5`}>
-          <PenLine className="w-4 h-4" />{o.signed ? `Re-sign your Chosen ${o.serial}/10` : `Sign your Chosen ${o.serial}/10 card now`}
+          <PenLine className="w-4 h-4" />{o.series === 'ten' ? (o.signed ? `Re-sign your 10-10 card (${o.serial}-10)` : `Sign your 10-10 card (${o.serial}-10) now`) : o.signed ? `Re-sign your Chosen ${o.serial}/10` : `Sign your Chosen ${o.serial}/10 card now`}
         </button>
       ))}
       {owned.filter((o) => o.oneId).map((o) => (
@@ -81,7 +81,7 @@ export const MyCards: React.FC<{ memberId: string; choice: string | null | undef
           <PenLine className="w-4 h-4" />{o.signed ? 'Re-sign your 1-1 card' : 'Sign your 1-1 card now'}{ones.length > 1 ? ` (${o.label.split('· ')[1]})` : ''}
         </button>
       ))}
-      {signing && <SignCard {...card} oneId={signing.id} kind={signing.kind} serial={signing.serial} design={signing.design} frame={signing.frame} current={signing.current} onClose={() => setSigning(null)}
+      {signing && <SignCard {...card} oneId={signing.id} kind={signing.kind} serial={signing.serial} design={signing.design} frame={signing.frame} series={signing.series} current={signing.current} onClose={() => setSigning(null)}
         onSaved={(url) => {
           announceSigned(signing.id, url);
           if (signing.kind === 'sel') setSels((l) => l.map((x) => (x.id === signing.id ? { ...x, signature_url: url } : x)));

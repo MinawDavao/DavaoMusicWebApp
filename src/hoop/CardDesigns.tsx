@@ -997,11 +997,11 @@ export const HoloOneCard: React.FC<TradingCardProps & { glow?: boolean; signatur
       </div>
       <img src={frame || p.club?.oneofone_holo_url || ONE_HOLO_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
       {/* club name on the dark top plate */}
-      <At x={14.5} r={31.5} y={8.8} h={8.6} className="flex items-center justify-center pointer-events-none">
-        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 600, fontSize: cq(clubSize), letterSpacing: cq(0.2), color: '#FFFFFF', textShadow: `0 ${cq(0.3)} ${cq(0.6)} rgba(0,0,0,0.6)`, transform: `translateY(${cq(0.5)})` }}>{club}</span>
+      <At x={15} r={31} y={8.8} h={8.6} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 600, fontSize: cq(clubSize), letterSpacing: cq(0.2), color: '#FFFFFF', textShadow: `0 ${cq(0.3)} ${cq(0.6)} rgba(0,0,0,0.6)`, transform: `translateY(${cq(0.8)})` }}>{club}</span>
       </At>
       {/* club logo in the silver box */}
-      <At x={75.4} w={14.6} y={8.4} h={14.6} className="flex items-center justify-center pointer-events-none">
+      <At x={75.6} w={14.6} y={8.1} h={14.6} className="flex items-center justify-center pointer-events-none">
         <img src={f.logo} alt="" draggable={false} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover rounded-full"
           style={{ boxShadow: `0 0 0 ${cq(0.5)} #9AA3B0, 0 ${cq(0.4)} ${cq(1.2)} rgba(0,0,0,0.35)` }} />
       </At>
@@ -1018,22 +1018,85 @@ export const HoloOneCard: React.FC<TradingCardProps & { glow?: boolean; signatur
       {/* first name on the silver plate */}
       {first && (
         <At x={30} r={30} y={109} h={5.4} className="flex items-center justify-center pointer-events-none">
-          <span className="whitespace-nowrap leading-none" style={{ fontFamily: ORBITRON, fontWeight: 700, fontSize: cq(firstSize), letterSpacing: cq(0.15), color: '#2E3238' }}>{first}</span>
+          <span className="whitespace-nowrap leading-none" style={{ fontFamily: ORBITRON, fontWeight: 700, fontSize: cq(firstSize), letterSpacing: cq(0.15), color: '#2E3238', transform: `translateY(${cq(0.2)})` }}>{first}</span>
         </At>
       )}
       {/* LAST NAME in gold on the dark band */}
       <At x={20} r={20} y={115.8} h={7.8} className="flex items-center justify-center pointer-events-none">
-        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 600, fontSize: cq(lastSize), letterSpacing: cq(0.15), ...textFill(HOLO_GOLD), filter: `drop-shadow(0 ${cq(0.3)} 0 rgba(0,0,0,0.6))`, transform: `translateY(${cq(0.6)})` }}>{last}</span>
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 600, fontSize: cq(lastSize), letterSpacing: cq(0.15), ...textFill(HOLO_GOLD), filter: `drop-shadow(0 ${cq(0.3)} 0 rgba(0,0,0,0.6))`, transform: `translateY(${cq(0.9)})` }}>{last}</span>
       </At>
       {/* position / # */}
       {detail && (
-        <At x={25} r={27} y={125.4} h={5.4} className="flex items-center justify-center pointer-events-none">
+        <At x={26} r={26} y={125.4} h={5.4} className="flex items-center justify-center pointer-events-none">
           <span className="whitespace-nowrap leading-none" style={{ fontFamily: ORBITRON, fontWeight: 700, fontSize: cq(2.7), letterSpacing: cq(0.3), color: '#D4D7DC', textShadow: `0 ${cq(0.2)} ${cq(0.3)} rgba(0,0,0,0.5)` }}>{detail}</span>
         </At>
       )}
       {/* 1-1 in the shield */}
       <At x={75.8} w={15.4} y={114.5} h={14} className="flex items-center justify-center pointer-events-none">
-        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 700, fontSize: cq(10.5), color: '#33373D', textShadow: `0 ${cq(0.3)} 0 rgba(255,255,255,0.7)`, transform: `translateY(${cq(0.9)})` }}>1-1</span>
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 700, fontSize: cq(10.5), color: '#33373D', textShadow: `0 ${cq(0.3)} 0 rgba(255,255,255,0.7)`, transform: `translateY(${cq(0.7)})` }}>1-1</span>
+      </At>
+    </div>
+  );
+};
+
+// =====================================================================================================
+// 10-10 — a numbered series (only 10 per club: 1/10 … 10/10), from Hoop Method's 4th schedule
+// (hoop_numbered_cards.series = 'ten'). Maroon & silver frame (public/hoop-cards/ten-frame.webp, see-through photo
+// window): club logo in the top circle, jersey number in the silver corner, full name on the silver plate, the card's
+// number ("3-10") at its right, average stats on the dark band. Teko, like the Holo 1-of-1. Can be signed.
+// =====================================================================================================
+export const TEN_FRAME = '/hoop-cards/ten-frame.webp';
+export const TenCard: React.FC<TradingCardProps & { serial?: number | null; total?: number; signature?: string | null; glow?: boolean }> = (props) => {
+  const { serial, total = 10, signature, glow = true, ...p } = props;
+  const f = useFace(p as TradingCardProps);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const name = p.person.display_name.trim().toUpperCase();
+  const nameSize = Math.min(5.6, 46 / Math.max(1, name.length * 0.42));
+  const num = f.num != null ? String(f.num) : '–';
+  const st = f.s;
+  const stats = `${(st?.ppg ?? 0).toFixed(1)} PPG · ${(st?.rpg ?? 0).toFixed(1)} RPG · ${(st?.apg ?? 0).toFixed(1)} APG`;
+  return (
+    <div className="relative w-full aspect-[5/7] select-none" style={{
+      containerType: 'inline-size',
+      filter: glow ? `drop-shadow(0 0 ${cq(1)} rgba(255,120,150,0.9)) drop-shadow(0 0 ${cq(3.5)} rgba(190,30,70,0.6)) drop-shadow(0 0 ${cq(8)} rgba(220,220,230,0.35))` : undefined,
+    }}>
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(9.5), right: cq(8.4), top: cq(9.8), height: cq(108.2), borderRadius: cq(2), background: 'radial-gradient(90% 60% at 50% 30%, #F2EEF0 0%, #CFC6CB 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(110,20,45,0.25)" />
+      </div>
+      <img src={TEN_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {/* club logo in the top circle */}
+      <At x={42} w={15} y={8.2} h={15} className="flex items-center justify-center pointer-events-none">
+        <img src={f.logo} alt="" draggable={false} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full object-cover rounded-full" />
+      </At>
+      {editing && (
+        <At x={0} r={0} y={62} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {signature && (
+        <At x={SIG_ZONE.x} y={SIG_ZONE.y} w={SIG_ZONE.w} h={SIG_ZONE.h} className="pointer-events-none">
+          <img src={signature} alt="Signed" draggable={false} className="w-full h-full object-contain" style={{ filter: `drop-shadow(0 ${cq(0.25)} ${cq(0.3)} rgba(0,0,0,0.55))` }} />
+        </At>
+      )}
+      {/* jersey number in the silver corner */}
+      <At x={0.8} w={21} y={116.5} h={17.5} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 700, fontSize: cq(num.length > 1 ? 14 : 16), color: '#3E4045', textShadow: `0 ${cq(0.3)} 0 rgba(255,255,255,0.75)`, transform: `translateY(${cq(0.5)})` }}>{num}</span>
+      </At>
+      {/* full name on the silver plate */}
+      <At x={25.6} r={24.4} y={119.6} h={5.6} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 600, fontSize: cq(nameSize), letterSpacing: cq(0.15), color: '#3A3C41', transform: `translateY(${cq(-0.35)})` }}>{name}</span>
+      </At>
+      {/* the card's number, e.g. 3-10 */}
+      <At x={77} w={14} y={119.6} h={5.6} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 600, fontSize: cq(3.6), color: '#3A3C41', transform: `translateY(${cq(-0.3)})` }}>{serial ?? '–'}-{total}</span>
+      </At>
+      {/* average stats on the dark band */}
+      <At x={25.6} r={21.6} y={125.9} h={5.5} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: TEKO, fontWeight: 600, fontSize: cq(4.2), letterSpacing: cq(0.15), color: '#FFFFFF', transform: `translateY(${cq(-0.3)})` }}>{stats}</span>
       </At>
     </div>
   );
@@ -1243,4 +1306,5 @@ export const CARD_SERIES: CardSeries[] = [
   { n: 4, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — only the player you pick wins it from a card pack each schedule. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
   { n: 5, key: 'selected', name: 'Chosen', tagline: 'Numbered limited series — only 10 ever (1/10 … 10/10). Hidden in 10 random players’ packs after a schedule. Can be signed.', Comp: SelectedCard, unlock: 'Random 10 packs' },
   { n: 6, key: 'oneofone-holo', name: '1 of 1 · Holo', tagline: 'The new 1-of-1 from Hoop Method’s 4th schedule on — holographic silver frame, club name and logo, gold last name, 1-1 shield. Cards won before keep the gold design.', Comp: HoloOneCard, unlock: 'Pack winner only' },
+  { n: 7, key: 'ten', name: '10-10', tagline: 'Numbered series — only 10 per club (1-10 … 10-10). From Hoop Method’s 4th schedule, hidden in random players’ packs. Can be signed.', Comp: TenCard, unlock: 'Random 10 packs' },
 ];

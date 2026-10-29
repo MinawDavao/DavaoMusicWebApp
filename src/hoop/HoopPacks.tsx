@@ -8,7 +8,7 @@ import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, PERSON, fetchStats, gameDate, hbtn, forgetUnlocks, ordinal, personOf, useClub, useClubUnlocks, type HoopMember, type HoopStats } from './lib';
 import { DESIGNS, announceSigned, levelFor, useMemberSchedules } from './ClubCard';
-import { OneOfOneCard, SelectedCard } from './CardDesigns';
+import { OneOfOneCard, SelectedCard, TenCard } from './CardDesigns';
 import { SignCard } from './SignCard';
 import { CardBack, TiltCard } from './CardDesigns';
 
@@ -128,8 +128,9 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const [draws, setDraws] = useState<Draw[]>([]);
   const [pick, setPick] = useState<Record<string, string>>({});
   // what each sealed schedule gives out (its own number decides, not the club's total)
-  const [gives, setGives] = useState<Record<string, { no: number; packs: boolean; chosen: boolean; holo?: boolean }>>({});
-  const chosenFor = (id: string) => !!gives[id]?.chosen;
+  const [gives, setGives] = useState<Record<string, { no: number; packs: boolean; chosen: boolean; holo?: boolean; ten?: boolean; ten_left?: number }>>({});
+  const chosenFor = (id: string) => !!gives[id]?.chosen || !!gives[id]?.ten;
+  const extraText = (id: string) => [gives[id]?.chosen ? 'Chosen cards' : '', gives[id]?.ten ? '10-10 cards' : ''].filter(Boolean).join(' and ');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -167,7 +168,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const draw = async (scheduleId: string, title: string, noOne = false) => {
     const winner = noOne ? null : pick[scheduleId]; if (!noOne && !winner) return;
     if (noOne) {
-      if (!(await confirmDelete({ title: 'Open the packs without a 1-of-1?', message: `Every pack for “${title}” opens now. Nobody gets the 1-of-1 this time${chosenFor(scheduleId) ? ' — Chosen cards still go to up to 10 random players' : ''}. This can’t be changed.`, confirmLabel: 'Open packs' }))) return;
+      if (!(await confirmDelete({ title: 'Open the packs without a 1-of-1?', message: `Every pack for “${title}” opens now. Nobody gets the 1-of-1 this time${chosenFor(scheduleId) ? ` — ${extraText(scheduleId)} still go to random players` : ''}. This can’t be changed.`, confirmLabel: 'Open packs' }))) return;
     } else {
       const who = nameOf(packs.find((p) => p.member_id === winner));
       if (!(await confirmDelete({ title: `Give the 1-of-1 to ${who}?`, message: `Every pack for “${title}” opens now, and ${who} finds the 1-of-1 hidden in theirs. This can’t be changed.`, confirmLabel: 'Yes, pick them' }))) return;
@@ -206,6 +207,12 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
               );
             })}
           </div>
+          {gives[s.id]?.ten && (
+            <div className="flex items-center gap-2.5 p-2 rounded-xl border border-[#C2334F]/40 bg-[#C2334F]/[0.07]">
+              <div className="w-12 flex-shrink-0 pointer-events-none"><TenCard glow={false} serial={1} person={{ id: 'x', display_name: 'Player Name', username: '', avatar_url: null } as any} card={{ jersey_number: null, position: null } as any} stats={null} club={club ? { name: club.name, logo_url: club.logo_url } : null} /></div>
+              <p className="text-[11px] text-[#D6D3D1] leading-snug"><strong className="text-white">10-10 cards</strong> go to up to {Math.min(gives[s.id]?.ten_left ?? 10, Math.max(0, s.list.length - 1))} random players in these packs (not the 1-of-1 winner). Only 10 will ever exist{(gives[s.id]?.ten_left ?? 10) < 10 ? ` — ${gives[s.id]?.ten_left} left` : ''}.</p>
+            </div>
+          )}
           {gives[s.id]?.holo && (
             <div className="flex items-center gap-2.5 p-2 rounded-xl border border-white/15 bg-white/[0.04]">
               <div className="w-12 flex-shrink-0 pointer-events-none"><OneOfOneCard design="holo" glow={false} person={{ id: 'x', display_name: 'Player Name', username: '', avatar_url: null } as any} card={{ jersey_number: null, position: null } as any} stats={null} club={club ? { name: club.name, logo_url: club.logo_url } : null} /></div>
@@ -223,7 +230,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
             <Crown className="w-4 h-4" />{busy ? 'Opening packs…' : pick[s.id] ? `Give the 1-of-1 to ${nameOf(s.list.find((p) => p.member_id === pick[s.id]))}` : 'Pick the lucky winner'}
           </button>
           <button onClick={() => draw(s.id, s.game?.title || 'this schedule', true)} disabled={busy} className={`${hbtn.ghost} w-full !py-2 !text-xs`}>
-            No 1-of-1 this time — just open the packs{chosenFor(s.id) ? ' (Chosen cards still go out)' : ''}
+            No 1-of-1 this time — just open the packs{chosenFor(s.id) ? ` (${extraText(s.id)} still go out)` : ''}
           </button>
         </div>
       ))}
@@ -251,7 +258,7 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
 const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null; onClose: () => void; demo?: boolean }> = ({ pack, me, stats, onClose, demo = false }) => {
   const go = useNav();
   const { club, reload } = useClub();
-  const [res, setRes] = useState<{ cards: string[]; one_slot: number | null; one_id: string | null; one_design?: string | null; one_frame?: string | null; sel_slot?: number | null; sel_id?: string | null; sel_serial?: number | null; sel_total?: number | null } | null>(null);
+  const [res, setRes] = useState<{ cards: string[]; one_slot: number | null; one_id: string | null; one_design?: string | null; one_frame?: string | null; sel_slot?: number | null; sel_id?: string | null; sel_serial?: number | null; sel_total?: number | null; sel_series?: string | null } | null>(null);
   const [flipped, setFlipped] = useState<boolean[]>([false, false, false, false, false]);
   const [big, setBig] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -277,9 +284,9 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
         const cards = Array.from({ length: 5 }, (_, i) => pool[i] ?? pool[Math.floor(Math.random() * pool.length)]);
         const slot = 1 + Math.floor(Math.random() * 5); cards[slot - 1] = 'oneofone';
         // the test pack also shows a numbered Selected card (when the club has that design)
-        const selSlot = club?.selected_url ? [1, 2, 3, 4, 5].filter((x) => x !== slot)[Math.floor(Math.random() * 4)] : null;
+        const selSlot = [1, 2, 3, 4, 5].filter((x) => x !== slot)[Math.floor(Math.random() * 4)];   // the test pack also shows the new 10-10 card
         if (selSlot) cards[selSlot - 1] = 'selected';
-        if (live) setRes({ cards, one_slot: slot, one_id: null, one_design: 'holo', sel_slot: selSlot, sel_id: null, sel_serial: selSlot ? 1 + Math.floor(Math.random() * 10) : null, sel_total: 10 });
+        if (live) setRes({ cards, one_slot: slot, one_id: null, one_design: 'holo', sel_slot: selSlot, sel_id: null, sel_serial: selSlot ? 1 + Math.floor(Math.random() * 10) : null, sel_total: 10, sel_series: 'ten' });
       })();
       return () => { live = false; };
     }
@@ -351,6 +358,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
   const face = (i: number) => {
     const key = res!.cards[i];
     if (key === 'oneofone') return <OneOfOneCard {...cardProps} signature={sig} design={res!.one_design} frame={res!.one_frame} />;
+    if (key === 'selected' && res!.sel_series === 'ten') return <TenCard {...cardProps} serial={res!.sel_serial} total={res!.sel_total ?? 10} signature={selSig} />;
     if (key === 'selected') return <SelectedCard {...cardProps} serial={res!.sel_serial} total={res!.sel_total ?? 10} signature={selSig} />;
     const [design, id] = key.split(':');
     const Comp = DESIGNS[design] || DESIGNS.glow;
@@ -384,7 +392,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
 
         {err ? <ErrorNote text={err} /> : !res ? <Spinner label="Opening your pack…" /> : (
           <>
-            <p className="text-center text-[13px] text-[#D6D3D1]">{all ? (res.one_slot ? 'You pulled the 1-of-1!' : res.sel_slot ? `You pulled a Chosen card — ${res.sel_serial} of ${res.sel_total ?? 10}!` : 'All 5 cards revealed. Tap a card to see it big.') : `Tap a card to flip it · ${flipped.filter(Boolean).length} of 5`}</p>
+            <p className="text-center text-[13px] text-[#D6D3D1]">{all ? (res.one_slot ? 'You pulled the 1-of-1!' : res.sel_slot ? (res.sel_series === 'ten' ? `You pulled a 10-10 card — ${res.sel_serial}-${res.sel_total ?? 10}!` : `You pulled a Chosen card — ${res.sel_serial} of ${res.sel_total ?? 10}!`) : 'All 5 cards revealed. Tap a card to see it big.') : `Tap a card to flip it · ${flipped.filter(Boolean).length} of 5`}</p>
             <div className="flex flex-wrap justify-center gap-3" style={{ perspective: '1100px' }}>
               {res.cards.map((key, i) => {
                 const isOne = key === 'oneofone';
@@ -394,7 +402,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
                 return (
                   <div key={i} className={`pack-card relative w-[30%] ${shown ? '' : 'is-idle'}`} style={{ animationDelay: `${i * 0.12}s` }}>
                     <TiltCard>
-                      <button onClick={() => flip(i)} aria-label={shown ? `Card ${i + 1}: ${isOne ? '1 of 1' : isSel ? `Chosen ${res.sel_serial} of 10` : 'player card'} — tap to see it big` : `Flip card ${i + 1}`}
+                      <button onClick={() => flip(i)} aria-label={shown ? `Card ${i + 1}: ${isOne ? '1 of 1' : isSel ? (res.sel_series === 'ten' ? `10-10 card ${res.sel_serial} of 10` : `Chosen ${res.sel_serial} of 10`) : 'player card'} — tap to see it big` : `Flip card ${i + 1}`}
                         className={`relative block w-full cursor-pointer ${justNow ? 'pack-lift' : ''}`}>
                         <div className={`pack-flipper relative w-full ${shown ? 'is-flipped' : ''}`}>
                           <div style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
@@ -417,7 +425,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
                           return <span key={k} className="pack-spark absolute left-1/2 top-1/2 w-2 h-2 -ml-1 -mt-1 rounded-full pointer-events-none"
                             style={{ background: k % 2 ? (isSel ? '#8EC5FF' : '#FFE38A') : '#FFFFFF', boxShadow: isSel ? '0 0 8px #4A9BFF' : '0 0 8px #FFC94A', ['--dx' as any]: `${Math.cos(a) * d}px`, ['--dy' as any]: `${Math.sin(a) * d}px` }} />;
                         })}
-                        {isSel && shown && <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black text-white whitespace-nowrap z-10" style={{ background: 'linear-gradient(180deg,#4FA3FF,#1D4FB8)', boxShadow: '0 0 12px rgba(80,160,255,0.8)' }}>{res.sel_serial}/10</span>}
+                        {isSel && shown && <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black text-white whitespace-nowrap z-10" style={{ background: 'linear-gradient(180deg,#4FA3FF,#1D4FB8)', boxShadow: '0 0 12px rgba(80,160,255,0.8)', ...(res.sel_series === 'ten' ? { background: 'linear-gradient(180deg,#C2334F,#6E0F25)', boxShadow: '0 0 12px rgba(220,60,100,0.8)' } : {}) }}>{res.sel_series === 'ten' ? `${res.sel_serial}-10` : `${res.sel_serial}/10`}</span>}
                         {isOne && shown && <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black text-[#1A1205] whitespace-nowrap z-10" style={{ background: 'linear-gradient(180deg,#FFE98A,#F5A623)', boxShadow: '0 0 12px rgba(255,200,80,0.8)' }}>1 OF 1</span>}
                       </button>
                     </TiltCard>
@@ -429,10 +437,10 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
             {wonSel && (
               <div className="p-4 rounded-2xl text-center space-y-2 border border-[#5AA2FF]/60" style={{ background: 'linear-gradient(160deg, rgba(60,130,255,0.25), rgba(246,201,76,0.12))', boxShadow: '0 0 40px rgba(80,150,255,0.25)' }}>
                 <Crown className="w-9 h-9 mx-auto text-[#8EC5FF]" />
-                <p className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">You’re Chosen! {res.sel_serial}/{res.sel_total ?? 10}</p>
-                <p className="text-[12px] text-[#E7E5E4]">Only 10 Chosen cards will ever exist — you got number {res.sel_serial}. It’s in your card list on My Card.</p>
+                <p className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">{res.sel_series === 'ten' ? `You got a 10-10 card! No. ${res.sel_serial}` : `You’re Chosen! ${res.sel_serial}/${res.sel_total ?? 10}`}</p>
+                <p className="text-[12px] text-[#E7E5E4]">Only 10 {res.sel_series === 'ten' ? '10-10' : 'Chosen'} cards will ever exist in {club?.name || 'the club'} — you got number {res.sel_serial}. It’s in your card list on My Card.</p>
                 {(demo || res.sel_id) && (
-                  <button onClick={() => setSigning('sel')} className={`${hbtn.primary} w-full`}><PenLine className="w-4 h-4" />{selSig ? 'Re-sign your Chosen card' : 'Sign your Chosen card now'}</button>
+                  <button onClick={() => setSigning('sel')} className={`${hbtn.primary} w-full`}><PenLine className="w-4 h-4" />{selSig ? `Re-sign your ${res.sel_series === 'ten' ? '10-10' : 'Chosen'} card` : `Sign your ${res.sel_series === 'ten' ? '10-10' : 'Chosen'} card now`}</button>
                 )}
                 {demo && <p className="text-[11px] text-[#8EC5FF]">Test pack — nothing was saved.</p>}
                 {!demo && res.sel_id && <button onClick={() => useIt('sel')} disabled={using} className={`${hbtn.ghost} w-full`}><Crown className="w-4 h-4" />{using ? 'Saving…' : 'Use it on My Card'}</button>}
@@ -459,14 +467,14 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
 
       {signing === 'one' && res && <SignCard {...cardProps} design={res.one_design} frame={res.one_frame} oneId={res.one_id} current={sig} demo={demo} onClose={() => setSigning(false)}
         onSaved={(url) => { setSig(url); if (res.one_id && !demo) announceSigned(res.one_id, url); }} />}
-      {signing === 'sel' && res && <SignCard {...cardProps} kind="sel" serial={res.sel_serial} oneId={res.sel_id ?? null} current={selSig} demo={demo} onClose={() => setSigning(false)}
+      {signing === 'sel' && res && <SignCard {...cardProps} kind="sel" serial={res.sel_serial} series={res.sel_series} oneId={res.sel_id ?? null} current={selSig} demo={demo} onClose={() => setSigning(false)}
         onSaved={(url) => { setSelSig(url); if (res.sel_id && !demo) announceSigned(res.sel_id, url); }} />}
       {big !== null && res && (
         <div role="dialog" aria-modal="true" aria-label="Your card — tap to go back" onClick={() => setBig(null)}
           className="pack-fade-in fixed inset-0 z-[80] flex flex-col items-center justify-center p-5 cursor-pointer"
           style={{ background: res.cards[big] === 'oneofone' ? 'radial-gradient(80% 60% at 50% 45%, rgba(120,84,10,0.85) 0%, rgba(5,4,8,0.96) 70%)' : res.cards[big] === 'selected' ? 'radial-gradient(80% 60% at 50% 45%, rgba(130,90,15,0.85) 0%, rgba(5,4,8,0.96) 70%)' : 'radial-gradient(80% 60% at 50% 45%, rgba(40,36,70,0.9) 0%, rgba(5,4,8,0.96) 70%)' }}>
           {res.cards[big] === 'selected' && (
-            <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>Chosen {res.sel_serial}/10!</p>
+            <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>{res.sel_series === 'ten' ? `10-10 · ${res.sel_serial}-10!` : `Chosen ${res.sel_serial}/10!`}</p>
           )}
           {res.cards[big] === 'oneofone' && (
             <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>1 of 1!</p>

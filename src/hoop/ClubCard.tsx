@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { HOOP_MAIN_ADMIN_ID } from './lib';
 import { useAuth } from '../context/AuthContext';
 import { TradingCard, type TradingCardProps } from './TradingCard';
-import { OneOfOneCard, RoyalCard, SelectedCard, StarlightCard } from './CardDesigns';
+import { OneOfOneCard, RoyalCard, SelectedCard, StarlightCard, TenCard } from './CardDesigns';
 
 /**
  * Each PLAYER's card design, based on how many finished (closed) schedules THEY played in
@@ -25,7 +25,7 @@ export const CARD_LEVELS: CardLevelDef[] = [
 /** Every design by its key (card packs use these keys). */
 export const DESIGNS: Record<string, React.FC<TradingCardProps>> = { ...Object.fromEntries(CARD_LEVELS.map((l) => [l.key, l.Comp])), oneofone: OneOfOneCard };
 /** A level number, or 'one' for the 1-of-1. */
-export type CardLevel = number | 'one' | 'sel';
+export type CardLevel = number | 'one' | 'sel' | 'holo' | 'ten';   // holo / ten: only the main admin's preview
 
 /**
  * A 1-of-1: its signature picture (null = not signed yet) and whether it still exists (null = still checking;
@@ -54,7 +54,7 @@ export function useOneOfOne(oneId?: string | null): OneInfo {
 export const announceSigned = (id: string, url: string | null) => window.dispatchEvent(new CustomEvent('hoop-signed', { detail: { id, url } }));
 
 /** A numbered "Selected" card (only 10 exist): its number, signature, and whether it (still) exists. Refreshes when signed. */
-type SelInfo = { serial: number | null; total: number; sig: string | null; exists: boolean | null };
+type SelInfo = { serial: number | null; total: number; sig: string | null; exists: boolean | null; series?: string | null };
 const selCache = new Map<string, SelInfo>();
 export function useSelected(selId?: string | null): SelInfo {
   const empty: SelInfo = { serial: null, total: 10, sig: null, exists: null };
@@ -63,11 +63,11 @@ export function useSelected(selId?: string | null): SelInfo {
     if (!selId) { setInfo(empty); return; }
     let live = true;
     setInfo(selCache.get(selId) ?? empty);
-    supabase.from('hoop_numbered_cards').select('serial, total, signature_url').eq('id', selId).maybeSingle()
+    supabase.from('hoop_numbered_cards').select('serial, total, signature_url, series').eq('id', selId).maybeSingle()
       .then(({ data, error }) => {
         if (!live || error) return;
         const d = data as any;
-        const v: SelInfo = { serial: d?.serial ?? null, total: d?.total ?? 10, sig: d?.signature_url ?? null, exists: !!d };
+        const v: SelInfo = { serial: d?.serial ?? null, total: d?.total ?? 10, sig: d?.signature_url ?? null, exists: !!d, series: d?.series ?? null };
         selCache.set(selId, v); setInfo(v);
       });
     const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.id === selId) setInfo((x) => { const v = { ...x, sig: d.url, exists: true }; selCache.set(selId, v); return v; }); };
@@ -124,8 +124,12 @@ export const ClubCard: React.FC<TradingCardProps & { memberId?: string | null; l
   const c0 = choiceLevel(choice);
   const picked = (c0 === 'one' && one.exists === false) || (c0 === 'sel' && sel.exists === false) ? null : c0;
   const want: CardLevel = level ?? (picked === 'one' || picked === 'sel' || (typeof picked === 'number' && picked <= auto.level.n) ? picked : auto.level.n);
+  if (want === 'holo') return <OneOfOneCard {...p} design="holo" />;   // preview: the new Holo 1-of-1
+  if (want === 'ten') return <TenCard {...p} serial={1} />;             // preview: the 10-10 card
   if (want === 'one' && sigId && one.exists === null) return <div data-card-loading className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.04] animate-pulse" />;   // don't flash the wrong design
   if (want === 'one') return <OneOfOneCard {...p} signature={one.sig} design={one.design} frame={one.frame} />;
+  if (want === 'sel' && selKey && sel.exists === null) return <div data-card-loading className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.04] animate-pulse" />;   // don't flash the wrong design
+  if (want === 'sel' && sel.series === 'ten') return <TenCard {...p} serial={sel.serial} total={sel.total} signature={sel.sig} />;
   if (want === 'sel') return <SelectedCard {...p} serial={sel.serial} total={sel.total} signature={sel.sig} />;
   const Comp = (CARD_LEVELS.find((l) => l.n === want) || auto.level).Comp;
   return <Comp {...p} />;
@@ -143,7 +147,7 @@ export const OwnerCardPreview: React.FC<{ memberId: string; value: CardLevel | n
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-black tracking-wider text-[var(--hp)]">OWNER PREVIEW</p>
         <div className="flex gap-1.5 flex-wrap justify-end">
-          {[...CARD_LEVELS.map((l) => ({ v: l.n as CardLevel, label: `Card ${l.n}${l.n > 1 ? ` · ${l.name}` : ''}` })), { v: 'one' as CardLevel, label: '1 of 1' }, { v: 'sel' as CardLevel, label: 'Chosen' }].map(({ v, label }) => (
+          {[...CARD_LEVELS.map((l) => ({ v: l.n as CardLevel, label: `Card ${l.n}${l.n > 1 ? ` · ${l.name}` : ''}` })), { v: 'one' as CardLevel, label: '1 of 1' }, { v: 'holo' as CardLevel, label: '1 of 1 · Holo' }, { v: 'sel' as CardLevel, label: 'Chosen' }, { v: 'ten' as CardLevel, label: '10-10' }].map(({ v, label }) => (
             <button key={String(v)} onClick={() => onChange(v === level.n ? null : v)}
               className={`h-7 px-3 rounded-full text-[11px] font-bold border cursor-pointer ${shown === v ? 'bg-[var(--hp)] border-[var(--hp)] text-[#111]' : 'bg-[#151515] border-white/15 text-[#E7E5E4]'}`}>
               {label}
