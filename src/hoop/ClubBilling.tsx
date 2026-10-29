@@ -213,10 +213,10 @@ export const OneOfOneDesign: React.FC<{ club: HoopClub; onChanged: () => void }>
 
   const u = unlocks;
   const sub = !u ? 'Checking…'
-    : u.lead ? (has ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner picks each schedule’s winner in the Packs tab.' : 'Off for this club.')
+    : u.lead ? (has ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner opens each schedule’s packs in the Packs tab — special cards go to random players.' : 'Off for this club.')
     : u.packs_from == null ? 'Coming soon — card packs and the rare 1-of-1 unlock for every club once Hoop Method gives them out.'
-    : u.played >= u.packs_from ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner picks each schedule’s winner in the Packs tab.'
-    : `Starts at your ${ordinal(u.packs_from)} schedule (${u.packs_from - u.played} more to go) — same as Hoop Method. The club owner picks the winner in the Packs tab.`;
+    : u.played >= u.packs_from ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner opens each schedule’s packs in the Packs tab — special cards go to random players.'
+    : `Starts at your ${ordinal(u.packs_from)} schedule (${u.packs_from - u.played} more to go) — same as Hoop Method. The club owner opens the packs in the Packs tab.`;
   return (
     <Box icon={Crown} title="1-of-1 card" tone="gold" sub={sub}>
       <div className="w-[46%] mx-auto pointer-events-none">

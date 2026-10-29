@@ -1159,6 +1159,67 @@ export const CARD_SERIES: CardSeries[] = [
   { n: 1, key: 'glow', name: 'Glow', tagline: 'Your first card — gold glow and light streaks.', Comp: TradingCard },
   { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard, unlock: 'After 2 schedules' },
   { n: 3, key: 'starlight', name: 'Starlight', tagline: 'HOOP METHOD glitter & gold frame — logo and number circles, PPG and LEVEL 3 over the photo. Players get it after their 3rd finished schedule.', Comp: StarlightCard, unlock: 'After 3 schedules' },
-  { n: 4, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — only the player you pick wins it from a card pack each schedule. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
+  { n: 4, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — hidden in one random player’s pack. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
   { n: 5, key: 'selected', name: 'Chosen', tagline: 'Numbered limited series — only 10 ever (1/10 … 10/10). Hidden in 10 random players’ packs after a schedule. Can be signed.', Comp: SelectedCard, unlock: 'Random 10 packs' },
 ];
+
+// =====================================================================================================
+// CARD SETS — special cards the main admin makes for a schedule (1 of 1, 2 of 2 … 100 of 100), hoop_card_sets.
+// Same layout as the 1-of-1 (public/hoop-cards/card-set-template.png): the uploaded frame has a see-through photo
+// window; the app writes the set's title on the top plate (unless the picture already has it), the number on the
+// ribbon, and the winner's name on the bottom plate. Can be signed (same spot as the 1-of-1).
+// =====================================================================================================
+export interface CardSetInfo { id: string; title: string; image_url: string; show_title: boolean; total: number }
+export const CARD_SET_TEMPLATE = '/hoop-cards/card-set-template.png';
+/** "1 OF 1", "3 / 10" */
+export const setNumber = (serial: number | null | undefined, total: number) => (total === 1 ? '1 OF 1' : `${serial ?? '–'} / ${total}`);
+
+export const SetCard: React.FC<TradingCardProps & { set: CardSetInfo; serial?: number | null; glow?: boolean; signature?: string | null }> = (props) => {
+  const { set, serial, glow = true, signature, ...p } = props;
+  const f = useFace(p as TradingCardProps);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const name = p.person.display_name.trim().toUpperCase();
+  const size = Math.min(4.8, 62 / Math.max(1, name.length * 0.52));
+  const lines = plateLines(set.title);
+  const longest = Math.max(...lines.map((l) => l.length), 1);
+  const tSize = Math.min(lines.length > 1 ? 5.2 : 7.4, 58 / (longest * 0.5));
+  const num = setNumber(serial, set.total);
+  return (
+    <div className="relative w-full aspect-[5/7] select-none" style={{
+      containerType: 'inline-size',
+      filter: glow ? `drop-shadow(0 0 ${cq(1)} rgba(255,214,110,0.95)) drop-shadow(0 0 ${cq(3.5)} rgba(255,184,60,0.7)) drop-shadow(0 0 ${cq(8)} rgba(240,160,40,0.4))` : undefined,
+    }}>
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(11.5), right: cq(11.5), top: cq(26), height: cq(93), background: 'radial-gradient(90% 60% at 50% 30%, #3A3220 0%, #15120C 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(242,210,122,0.25)" />
+      </div>
+      <img src={set.image_url} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {set.show_title && (
+        <At x={19.5} r={19.5} y={6.4} h={10.2} className="flex flex-col items-center justify-center pointer-events-none">
+          {lines.map((l, i) => (
+            <span key={i} className="font-hoop italic font-black whitespace-nowrap leading-[0.95]" style={{ fontSize: cq(tSize), letterSpacing: cq(0.15), ...textFill(ONE_GOLD), filter: `drop-shadow(0 ${cq(0.3)} 0 rgba(60,32,4,0.95)) drop-shadow(0 0 ${cq(0.8)} rgba(0,0,0,0.6))` }}>{l}</span>
+          ))}
+        </At>
+      )}
+      <At x={31} r={31} y={18.3} h={4.4} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop font-black whitespace-nowrap leading-none" style={{ fontSize: cq(3.3), letterSpacing: cq(0.5), color: '#141A3A', textShadow: `0 ${cq(0.18)} 0 rgba(255,240,190,0.6)` }}>{num}</span>
+      </At>
+      {editing && (
+        <At x={0} r={0} y={62} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {signature && (
+        <At x={SIG_ZONE.x} y={SIG_ZONE.y} w={SIG_ZONE.w} h={SIG_ZONE.h} className="pointer-events-none">
+          <img src={signature} alt="Signed" draggable={false} className="w-full h-full object-contain" style={{ filter: `drop-shadow(0 ${cq(0.25)} ${cq(0.3)} rgba(0,0,0,0.55))` }} />
+        </At>
+      )}
+      <At x={18} r={18} y={121.7} h={6.8} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop font-black whitespace-nowrap leading-none" style={{ fontSize: cq(size), letterSpacing: cq(0.35), color: '#141A3A', textShadow: `0 ${cq(0.2)} 0 rgba(255,240,190,0.65)` }}>{name}</span>
+      </At>
+    </div>
+  );
+};

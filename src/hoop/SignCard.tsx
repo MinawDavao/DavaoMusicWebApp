@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, uploadImage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { ErrorNote } from '../components/ui';
-import { OneOfOneCard, SEL_ZONE, SIG_ZONE, SelectedCard } from './CardDesigns';
+import { OneOfOneCard, SEL_ZONE, SIG_ZONE, SelectedCard, SetCard, setNumber, type CardSetInfo } from './CardDesigns';
 import { hbtn } from './lib';
 import type { TradingCardProps } from './TradingCard';
 
@@ -22,9 +22,9 @@ const INKS = [
  */
 export const SignCard: React.FC<{ oneId: string | null; current?: string | null; demo?: boolean; onSaved: (url: string | null) => void; onClose: () => void;
   /** 'sel' = a numbered Selected card (oneId is then its id in hoop_numbered_cards) */
-  kind?: 'one' | 'sel'; serial?: number | null }
-  & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ oneId, current, demo = false, onSaved, onClose, kind = 'one', serial, ...card }) => {
-  const ZONE = kind === 'sel' ? SEL_ZONE : SIG_ZONE;
+  kind?: 'one' | 'sel'; serial?: number | null; set?: CardSetInfo | null }
+  & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ oneId, current, demo = false, onSaved, onClose, kind = 'one', serial, set, ...card }) => {
+  const ZONE = kind === 'sel' && !set ? SEL_ZONE : SIG_ZONE;
   const W = ZONE.w * 12, H = ZONE.h * 12;
   const { user } = useAuth();
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -95,16 +95,16 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
       <div className="max-w-[440px] mx-auto px-4 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">{demo ? 'TEST · NOTHING SAVED' : kind === 'sel' ? `YOUR CHOSEN ${serial ?? ''}/10` : 'YOUR 1-OF-1'}</p>
+            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">{demo ? 'TEST · NOTHING SAVED' : set ? `YOUR ${set.title.toUpperCase()} · ${setNumber(serial, set.total)}` : kind === 'sel' ? `YOUR CHOSEN ${serial ?? ''}/10` : 'YOUR 1-OF-1'}</p>
             <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none flex items-center gap-2"><PenLine className="w-6 h-6 text-[#F6C94C]" />Sign your card</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
-        <p className="text-[12px] text-[#D6D3D1]">Sign inside the dotted box with your finger (or mouse on a computer). Your autograph shows on your {kind === 'sel' ? 'Chosen' : '1-of-1'} card.</p>
+        <p className="text-[12px] text-[#D6D3D1]">Sign inside the dotted box with your finger (or mouse on a computer). Your autograph shows on your {set ? set.title : kind === 'sel' ? 'Chosen' : '1-of-1'} card.</p>
 
         {/* the card with the signing box exactly where the signature will sit */}
         <div className="relative mx-auto w-full max-w-[340px]">
-          {kind === 'sel' ? <SelectedCard {...card} serial={serial} signature={null} glow={false} /> : <OneOfOneCard {...card} signature={null} glow={false} />}
+          {set ? <SetCard {...card} set={set} serial={serial} signature={null} glow={false} /> : kind === 'sel' ? <SelectedCard {...card} serial={serial} signature={null} glow={false} /> : <OneOfOneCard {...card} signature={null} glow={false} />}
           <div className="absolute rounded-lg" style={{
             left: `${ZONE.x}%`, top: `${(ZONE.y / 140) * 100}%`, width: `${ZONE.w}%`, height: `${(ZONE.h / 140) * 100}%`,
             outline: '2px dashed rgba(246,201,76,0.85)', background: 'rgba(0,0,0,0.18)',
