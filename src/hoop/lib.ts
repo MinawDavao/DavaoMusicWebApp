@@ -194,6 +194,8 @@ export interface HoopClub {
   paid_until?: string | null; billing_free?: boolean;
   /** this club's own 1-of-1 card artwork (null = no 1-of-1 / card packs yet) */
   oneofone_url?: string | null;
+  /** the club's own Holo 1-of-1 frame (null = built-in) — the 1-of-1 from the 4th schedule on */
+  oneofone_holo_url?: string | null;
   /** this club's numbered "Selected" card artwork (only 10 ever) — null = none */
   selected_url?: string | null;
 }
@@ -269,8 +271,6 @@ export const useHoopAdmin = (): boolean => useClub().isAdmin;
 
 /** The app's main admin (robertvtemployee@gmail.com). Card series + the card 2 preview are only for this account. */
 export const HOOP_MAIN_ADMIN_ID = '6a06f84b-ef85-4c61-9734-1948af7e2c83';
-/** Hoop Method itself — other clubs follow its card packs (same as private.hoop_lead_club() in the database). */
-export const HOOP_LEAD_CLUB_ID = '3d8e60ee-f3f9-4540-9663-dcc09bf5a8a8';
 
 /**
  * Cards follow Hoop Method: a card Hoop Method has given out unlocks for every club at the same schedule number

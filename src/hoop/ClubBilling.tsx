@@ -7,7 +7,7 @@ import { useNav } from '../nav';
 import { ErrorNote, FilePick, OkNote } from '../components/ui';
 import { MessageButton } from '../screens/MessagesScreen';
 import { CLUB_PRICE, GCASH_NUMBER, GCASH_QR, H, HOOP_MAIN_ADMIN_ID, clubBilling, hbtn, hinput, longDate, ordinal, useClubUnlocks, type HoopClub } from './lib';
-import { ONE_FRAME, OneOfOneCard } from './CardDesigns';
+import { OneOfOneCard } from './CardDesigns';
 
 /**
  * CLUB SUBSCRIPTIONS — every new club gets a 1-month free trial, then ₱400/month.
@@ -187,53 +187,73 @@ export const ClubSubscription: React.FC<{ club: HoopClub; onChanged: () => void 
   );
 };
 
-/** Manage tab: the club's own 1-of-1 card. Hoop Method has its own; the main admin uploads every other club's design. */
+/**
+ * Manage tab: the club's 1-of-1 cards. Two designs are kept side by side:
+ *   BEFORE — the gold 1-of-1 (Hoop Method's 2nd–3rd schedules; other clubs' 2nd–3rd)
+ *   NEW    — the Holo 1-of-1, from the 4th schedule on
+ * Changing a design only changes cards won AFTER that: every 1-of-1 keeps the picture it was won with
+ * (hoop_one_of_ones.frame_url). Only the main admin can upload designs.
+ */
 export const OneOfOneDesign: React.FC<{ club: HoopClub; onChanged: () => void }> = ({ club, onChanged }) => {
   const { user, profile } = useAuth();
   const isMain = user?.id === HOOP_MAIN_ADMIN_ID;
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<null | 'gold' | 'holo'>(null);
   const [err, setErr] = useState<string | null>(null);
-  const has = !!club.oneofone_url;
   const unlocks = useClubUnlocks(club);
+  const lead = !!unlocks?.lead;
 
-  const save = async (url: string | null) => {
-    setBusy(true); setErr(null);
-    const { error } = await supabase.from('hoop_clubs').update({ oneofone_url: url }).eq('id', club.id);
-    setBusy(false);
+  const save = async (which: 'gold' | 'holo', url: string | null) => {
+    setBusy(which); setErr(null);
+    const { error } = await supabase.from('hoop_clubs').update(which === 'holo' ? { oneofone_holo_url: url } : { oneofone_url: url }).eq('id', club.id);
+    setBusy(null);
     if (error) return setErr(errorMessage(error));
     onChanged();
   };
-  const upload = async (f: File) => {
-    if (!/^image\/(png|webp)$/.test(f.type)) return setErr('Use a PNG or WebP picture with a see-through photo area (same layout as the Hoop Method 1-of-1).');
+  const upload = async (which: 'gold' | 'holo', f: File) => {
+    if (!/^image\/(png|webp)$/.test(f.type)) return setErr('Use a PNG or WebP picture with a see-through photo window (the player’s photo shows through it).');
     if (f.size > 8 * 1024 * 1024) return setErr('That picture is too big (max 8 MB).');
-    setBusy(true); setErr(null);
-    try { await save(await uploadImage('avatars', user!.id, f)); } catch (e) { setErr(errorMessage(e)); setBusy(false); }
+    setBusy(which); setErr(null);
+    try { await save(which, await uploadImage('avatars', user!.id, f)); } catch (e) { setErr(errorMessage(e)); setBusy(null); }
   };
   const person = { id: user?.id || 'x', display_name: profile?.display_name || 'Player Name', avatar_url: profile?.avatar_url ?? null } as any;
+  const card = { jersey_number: 10, position: 'Shooting Guard' } as any;
+  const lite = { name: club.name, logo_url: club.logo_url, oneofone_url: club.oneofone_url, oneofone_holo_url: club.oneofone_holo_url };
 
   const u = unlocks;
   const sub = !u ? 'Checking…'
-    : u.lead ? (has ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner opens each schedule’s packs in the Packs tab — special cards go to random players.' : 'Off for this club.')
+    : u.lead ? 'One lucky player gets the 1-of-1 each schedule. The club owner picks (or picks at random) in the Packs tab.'
     : u.packs_from == null ? 'Coming soon — card packs and the rare 1-of-1 unlock for every club once Hoop Method gives them out.'
-    : u.played >= u.packs_from ? 'On ✓ — card packs and the 1-of-1 are on for this club. The club owner opens each schedule’s packs in the Packs tab — special cards go to random players.'
-    : `Starts at your ${ordinal(u.packs_from)} schedule (${u.packs_from - u.played} more to go) — same as Hoop Method. The club owner opens the packs in the Packs tab.`;
+    : u.played >= u.packs_from ? 'On ✓ — one lucky player gets the 1-of-1 each schedule. The club owner picks in the Packs tab.'
+    : `Starts at your ${ordinal(u.packs_from)} schedule (${u.packs_from - u.played} more to go) — same as Hoop Method.`;
   return (
-    <Box icon={Crown} title="1-of-1 card" tone="gold" sub={sub}>
-      <div className="w-[46%] mx-auto pointer-events-none">
-        <OneOfOneCard person={person} card={{ jersey_number: null, position: null } as any} stats={null} club={{ name: club.name, logo_url: club.logo_url, oneofone_url: club.oneofone_url }} />
-      </div>
-      {!has && !u?.lead && <p className="text-[11px] text-[#A8A29E] text-center">Your club’s name and logo go on top of the card.</p>}
-      {isMain && (
-        <div className="space-y-2 p-3 rounded-xl border border-dashed border-[#F6C94C]/50">
-          <p className="flex items-center gap-1.5 text-[11px] font-black tracking-wider text-[#F6C94C]"><Crown className="w-4 h-4" />ONLY YOU · OWN DESIGN FOR THIS CLUB (OPTIONAL)</p>
-          <p className="text-[11px] text-[#A8A29E]">PNG/WebP, 1000×1400, same layout as the Hoop Method 1-of-1 (see-through photo area, name plate at the bottom). Without one, the club uses the 1-of-1 frame with its own name and logo.</p>
-          <div className="flex gap-2">
-            <FilePick accept="image/png,image/webp" disabled={busy} onPick={upload} className={`${hbtn.primary} flex-1 cursor-pointer`}><Upload className="w-4 h-4" />{busy ? 'Uploading…' : has ? 'Replace design' : 'Upload design'}</FilePick>
-            {u && !u.lead && club.oneofone_url !== ONE_FRAME && <button onClick={() => save(ONE_FRAME)} disabled={busy} className={`${hbtn.ghost} !text-xs`}>Use Hoop Method’s</button>}
-            {has && u && !u.lead && <button onClick={() => { if (window.confirm('Remove this club’s own design? It goes back to the 1-of-1 frame with the club’s name and logo. Cards already won stay.')) save(null); }} disabled={busy} aria-label="Remove design" className={hbtn.ghost}><Trash2 className="w-4 h-4" /></button>}
-          </div>
+    <Box icon={Crown} title="1-of-1 cards" tone="gold" sub={sub}>
+      <div className="grid grid-cols-2 gap-3">
+        {/* BEFORE: the gold 1-of-1 */}
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-black tracking-wider text-[#A8A29E]">{lead ? '2ND–3RD SCHEDULES' : 'YOUR 2ND–3RD SCHEDULES'}</p>
+          <div className="pointer-events-none"><OneOfOneCard person={person} card={card} stats={null} club={lite} glow={false} /></div>
+          <p className="text-[11px] text-[#A8A29E] leading-snug">Gold 1-of-1. Players who won it keep it.</p>
+          {isMain && !lead && (
+            <div className="flex gap-1.5">
+              <FilePick accept="image/png,image/webp" disabled={!!busy} onPick={(f) => upload('gold', f)} className={`${hbtn.ghost} flex-1 !text-xs !py-2 cursor-pointer`}><Upload className="w-3.5 h-3.5" />{busy === 'gold' ? 'Uploading…' : 'Own design'}</FilePick>
+              {club.oneofone_url && <button onClick={() => { if (window.confirm('Go back to the gold frame with the club’s name and logo? Cards already won keep their picture.')) save('gold', null); }} disabled={!!busy} aria-label="Remove own design" className={`${hbtn.ghost} !py-2 !px-2`}><Trash2 className="w-3.5 h-3.5" /></button>}
+            </div>
+          )}
         </div>
-      )}
+        {/* NEW: the Holo 1-of-1 */}
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-black tracking-wider text-[#F6C94C]">NEW · FROM THE 4TH SCHEDULE</p>
+          <div className="pointer-events-none"><OneOfOneCard design="holo" person={person} card={card} stats={null} club={lite} glow={false} /></div>
+          <p className="text-[11px] text-[#A8A29E] leading-snug">Holo 1-of-1 with {lead ? 'Hoop Method’s' : 'your club’s'} name and logo.</p>
+          {isMain && (
+            <div className="flex gap-1.5">
+              <FilePick accept="image/png,image/webp" disabled={!!busy} onPick={(f) => upload('holo', f)} className={`${hbtn.ghost} flex-1 !text-xs !py-2 cursor-pointer`}><Upload className="w-3.5 h-3.5" />{busy === 'holo' ? 'Uploading…' : club.oneofone_holo_url ? 'Change frame' : 'Own frame'}</FilePick>
+              {club.oneofone_holo_url && <button onClick={() => { if (window.confirm('Go back to the built-in Holo frame? Cards already won keep their picture.')) save('holo', null); }} disabled={!!busy} aria-label="Back to the built-in Holo frame" className={`${hbtn.ghost} !py-2 !px-2`}><Trash2 className="w-3.5 h-3.5" /></button>}
+            </div>
+          )}
+        </div>
+      </div>
+      {isMain && <p className="text-[11px] text-[#78716C]">Only you can change these. A new design only goes on cards won after the change — every 1-of-1 keeps the picture it was won with.</p>}
       <ErrorNote text={err} />
     </Box>
   );

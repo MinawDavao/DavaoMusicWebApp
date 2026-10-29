@@ -6,7 +6,6 @@ import { ErrorNote } from '../components/ui';
 import { CARD_LEVELS, ClubCard, announceSigned, useMemberSchedules, type CardLevel } from './ClubCard';
 import { SignCard } from './SignCard';
 import type { TradingCardProps } from './TradingCard';
-import { setNumber, type CardSetInfo } from './CardDesigns';
 import { hbtn } from './lib';
 const hbtnPrimary = hbtn.primary, hbtnGhost = hbtn.ghost;
 
@@ -16,24 +15,24 @@ const hbtnPrimary = hbtn.primary, hbtnGhost = hbtn.ghost;
  */
 export const MyCards: React.FC<{ memberId: string; choice: string | null | undefined; onChanged: () => void } & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ memberId, choice, onChanged, ...card }) => {
   const { level, ready } = useMemberSchedules(memberId);
-  const [ones, setOnes] = useState<{ id: string; won_at: string; signature_url: string | null }[]>([]);
-  const [sels, setSels] = useState<{ id: string; serial: number; total: number; signature_url: string | null; set: CardSetInfo | null }[]>([]);
-  const [signing, setSigning] = useState<{ id: string; current: string | null; kind: 'one' | 'sel'; serial?: number; total?: number; set?: CardSetInfo | null } | null>(null);
+  const [ones, setOnes] = useState<{ id: string; won_at: string; signature_url: string | null; design: string | null; frame_url: string | null }[]>([]);
+  const [sels, setSels] = useState<{ id: string; serial: number; total: number; signature_url: string | null }[]>([]);
+  const [signing, setSigning] = useState<{ id: string; current: string | null; kind: 'one' | 'sel'; serial?: number; design?: string | null; frame?: string | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from('hoop_one_of_ones').select('id, won_at, signature_url').eq('member_id', memberId).order('won_at')
+    supabase.from('hoop_one_of_ones').select('id, won_at, signature_url, design, frame_url').eq('member_id', memberId).order('won_at')
       .then(({ data }) => setOnes((data as any[]) || []));
-    supabase.from('hoop_numbered_cards').select('id, serial, total, signature_url, set:hoop_card_sets(id, title, image_url, show_title, total)').eq('member_id', memberId).not('revealed_at', 'is', null).order('created_at')
+    supabase.from('hoop_numbered_cards').select('id, serial, total, signature_url').eq('member_id', memberId).not('revealed_at', 'is', null).order('created_at')
       .then(({ data }) => setSels((data as any[]) || []));
   }, [memberId]);
   if (!ready) return null;
 
-  const owned: { key: string; level: CardLevel; label: string; oneId?: string; selId?: string; serial?: number; total?: number; set?: CardSetInfo | null; signed?: boolean; sig?: string | null }[] = [
+  const owned: { key: string; level: CardLevel; label: string; oneId?: string; selId?: string; serial?: number; design?: string | null; frame?: string | null; signed?: boolean; sig?: string | null }[] = [
     ...CARD_LEVELS.filter((l) => l.n <= level.n).map((l) => ({ key: `level${l.n}`, level: l.n as CardLevel, label: `Level ${l.n}` })),
-    ...ones.map((o, i) => ({ key: `one:${o.id}`, level: 'one' as CardLevel, label: ones.length > 1 ? `1 of 1 · #${i + 1}` : '1 of 1', oneId: o.id, signed: !!o.signature_url, sig: o.signature_url })),
-    ...sels.map((x) => ({ key: `sel:${x.id}`, level: 'sel' as CardLevel, label: x.set ? `${x.set.title} · ${setNumber(x.serial, x.total).toLowerCase().replace(' / ', '/')}` : `Chosen ${x.serial}/${x.total}`, selId: x.id, serial: x.serial, total: x.total, set: x.set, signed: !!x.signature_url, sig: x.signature_url })),
+    ...ones.map((o, i) => ({ key: `one:${o.id}`, level: 'one' as CardLevel, label: ones.length > 1 ? `1 of 1 · #${i + 1}` : '1 of 1', oneId: o.id, design: o.design, frame: o.frame_url, signed: !!o.signature_url, sig: o.signature_url })),
+    ...sels.map((x) => ({ key: `sel:${x.id}`, level: 'sel' as CardLevel, label: `Chosen ${x.serial}/${x.total}`, selId: x.id, serial: x.serial, signed: !!x.signature_url, sig: x.signature_url })),
   ];
   const current = choice && owned.some((o) => o.key === choice) ? choice : `level${level.n}`;
   if (owned.length < 2 && !ones.length && !sels.length) return null;   // only one card so far — nothing to choose yet
@@ -71,18 +70,18 @@ export const MyCards: React.FC<{ memberId: string; choice: string | null | undef
         })}
       </div>
       {owned.filter((o) => o.selId).map((o) => (
-        <button key={`sign-${o.selId}`} onClick={() => setSigning({ id: o.selId!, current: o.sig ?? null, kind: 'sel', serial: o.serial, total: o.total, set: o.set })}
+        <button key={`sign-${o.selId}`} onClick={() => setSigning({ id: o.selId!, current: o.sig ?? null, kind: 'sel', serial: o.serial })}
           className={`${o.signed ? hbtnGhost : hbtnPrimary} w-full !py-2.5`}>
-          <PenLine className="w-4 h-4" />{o.set ? (o.signed ? `Re-sign your ${o.label}` : `Sign your ${o.label} card now`) : o.signed ? `Re-sign your Chosen ${o.serial}/10` : `Sign your Chosen ${o.serial}/10 card now`}
+          <PenLine className="w-4 h-4" />{o.signed ? `Re-sign your Chosen ${o.serial}/10` : `Sign your Chosen ${o.serial}/10 card now`}
         </button>
       ))}
       {owned.filter((o) => o.oneId).map((o) => (
-        <button key={`sign-${o.oneId}`} onClick={() => setSigning({ id: o.oneId!, current: o.sig ?? null, kind: 'one' })}
+        <button key={`sign-${o.oneId}`} onClick={() => setSigning({ id: o.oneId!, current: o.sig ?? null, kind: 'one', design: o.design, frame: o.frame })}
           className={`${o.signed ? hbtnGhost : hbtnPrimary} w-full !py-2.5`}>
           <PenLine className="w-4 h-4" />{o.signed ? 'Re-sign your 1-1 card' : 'Sign your 1-1 card now'}{ones.length > 1 ? ` (${o.label.split('· ')[1]})` : ''}
         </button>
       ))}
-      {signing && <SignCard {...card} oneId={signing.id} kind={signing.kind} serial={signing.serial} set={signing.set} current={signing.current} onClose={() => setSigning(null)}
+      {signing && <SignCard {...card} oneId={signing.id} kind={signing.kind} serial={signing.serial} design={signing.design} frame={signing.frame} current={signing.current} onClose={() => setSigning(null)}
         onSaved={(url) => {
           announceSigned(signing.id, url);
           if (signing.kind === 'sel') setSels((l) => l.map((x) => (x.id === signing.id ? { ...x, signature_url: url } : x)));

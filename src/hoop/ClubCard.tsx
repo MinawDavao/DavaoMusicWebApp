@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { HOOP_MAIN_ADMIN_ID } from './lib';
 import { useAuth } from '../context/AuthContext';
 import { TradingCard, type TradingCardProps } from './TradingCard';
-import { OneOfOneCard, RoyalCard, SelectedCard, SetCard, StarlightCard, type CardSetInfo } from './CardDesigns';
+import { OneOfOneCard, RoyalCard, SelectedCard, StarlightCard } from './CardDesigns';
 
 /**
  * Each PLAYER's card design, based on how many finished (closed) schedules THEY played in
@@ -31,7 +31,7 @@ export type CardLevel = number | 'one' | 'sel';
  * A 1-of-1: its signature picture (null = not signed yet) and whether it still exists (null = still checking;
  * false = gone, e.g. its schedule was deleted). Refreshes when it's signed (window event 'hoop-signed').
  */
-type OneInfo = { sig: string | null; exists: boolean | null };
+type OneInfo = { sig: string | null; exists: boolean | null; design?: string | null; frame?: string | null };
 const oneCache = new Map<string, OneInfo>();
 export function useOneOfOne(oneId?: string | null): OneInfo {
   const [info, setInfo] = useState<OneInfo>(oneId ? oneCache.get(oneId) ?? { sig: null, exists: null } : { sig: null, exists: null });
@@ -39,13 +39,13 @@ export function useOneOfOne(oneId?: string | null): OneInfo {
     if (!oneId) { setInfo({ sig: null, exists: null }); return; }
     let live = true;
     setInfo(oneCache.get(oneId) ?? { sig: null, exists: null });
-    supabase.from('hoop_one_of_ones').select('signature_url').eq('id', oneId).maybeSingle()
+    supabase.from('hoop_one_of_ones').select('signature_url, design, frame_url').eq('id', oneId).maybeSingle()
       .then(({ data, error }) => {
         if (!live || error) return;
-        const v: OneInfo = { sig: (data as any)?.signature_url ?? null, exists: !!data };
+        const v: OneInfo = { sig: (data as any)?.signature_url ?? null, exists: !!data, design: (data as any)?.design ?? null, frame: (data as any)?.frame_url ?? null };
         oneCache.set(oneId, v); setInfo(v);
       });
-    const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.id === oneId) { const v = { sig: d.url, exists: true }; oneCache.set(oneId, v); setInfo(v); } };
+    const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.id === oneId) setInfo((x) => { const v = { ...x, sig: d.url, exists: true }; oneCache.set(oneId, v); return v; }); };
     window.addEventListener('hoop-signed', on);
     return () => { live = false; window.removeEventListener('hoop-signed', on); };
   }, [oneId]);
@@ -54,22 +54,20 @@ export function useOneOfOne(oneId?: string | null): OneInfo {
 export const announceSigned = (id: string, url: string | null) => window.dispatchEvent(new CustomEvent('hoop-signed', { detail: { id, url } }));
 
 /** A numbered "Selected" card (only 10 exist): its number, signature, and whether it (still) exists. Refreshes when signed. */
-type SelInfo = { serial: number | null; total: number; sig: string | null; exists: boolean | null; set: CardSetInfo | null };
-/** what to read for a numbered card (its set's design comes along for cards from a card set) */
-export const SEL_COLS = 'serial, total, signature_url, set:hoop_card_sets(id, title, image_url, show_title, total)';
+type SelInfo = { serial: number | null; total: number; sig: string | null; exists: boolean | null };
 const selCache = new Map<string, SelInfo>();
 export function useSelected(selId?: string | null): SelInfo {
-  const empty: SelInfo = { serial: null, total: 10, sig: null, exists: null, set: null };
+  const empty: SelInfo = { serial: null, total: 10, sig: null, exists: null };
   const [info, setInfo] = useState<SelInfo>(selId ? selCache.get(selId) ?? empty : empty);
   useEffect(() => {
     if (!selId) { setInfo(empty); return; }
     let live = true;
     setInfo(selCache.get(selId) ?? empty);
-    supabase.from('hoop_numbered_cards').select(SEL_COLS).eq('id', selId).maybeSingle()
+    supabase.from('hoop_numbered_cards').select('serial, total, signature_url').eq('id', selId).maybeSingle()
       .then(({ data, error }) => {
         if (!live || error) return;
         const d = data as any;
-        const v: SelInfo = { serial: d?.serial ?? null, total: d?.total ?? 10, sig: d?.signature_url ?? null, exists: !!d, set: d?.set ?? null };
+        const v: SelInfo = { serial: d?.serial ?? null, total: d?.total ?? 10, sig: d?.signature_url ?? null, exists: !!d };
         selCache.set(selId, v); setInfo(v);
       });
     const on = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.id === selId) setInfo((x) => { const v = { ...x, sig: d.url, exists: true }; selCache.set(selId, v); return v; }); };
@@ -126,9 +124,8 @@ export const ClubCard: React.FC<TradingCardProps & { memberId?: string | null; l
   const c0 = choiceLevel(choice);
   const picked = (c0 === 'one' && one.exists === false) || (c0 === 'sel' && sel.exists === false) ? null : c0;
   const want: CardLevel = level ?? (picked === 'one' || picked === 'sel' || (typeof picked === 'number' && picked <= auto.level.n) ? picked : auto.level.n);
-  if (want === 'one') return <OneOfOneCard {...p} signature={one.sig} />;
-  if (want === 'sel' && sel.exists === null) return <div data-card-loading className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.04] animate-pulse" />;   // don't flash the wrong design
-  if (want === 'sel' && sel.set) return <SetCard {...p} set={sel.set} serial={sel.serial} signature={sel.sig} />;
+  if (want === 'one' && sigId && one.exists === null) return <div data-card-loading className="w-full aspect-[5/7] rounded-[5cqw] bg-white/[0.04] animate-pulse" />;   // don't flash the wrong design
+  if (want === 'one') return <OneOfOneCard {...p} signature={one.sig} design={one.design} frame={one.frame} />;
   if (want === 'sel') return <SelectedCard {...p} serial={sel.serial} total={sel.total} signature={sel.sig} />;
   const Comp = (CARD_LEVELS.find((l) => l.n === want) || auto.level).Comp;
   return <Comp {...p} />;

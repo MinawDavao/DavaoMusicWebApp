@@ -31,7 +31,7 @@ export interface TradingCardProps {
   crop?: CardCrop;
   onCropChange?: (c: CardCrop) => void;
   /** the club this card belongs to (badge top-left) */
-  club?: { name: string; logo_url: string | null; oneofone_url?: string | null; selected_url?: string | null } | null;
+  club?: { name: string; logo_url: string | null; oneofone_url?: string | null; oneofone_holo_url?: string | null; selected_url?: string | null } | null;
 }
 
 /** White letters with a black stroke and a soft drop shadow (8-way text-shadow = a solid outline that also shows in saved pictures). */
