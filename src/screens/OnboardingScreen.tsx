@@ -130,7 +130,7 @@ const TermsStep: React.FC = () => {
   );
 };
 
-// ===================================================================== FAN SETUP
+// ===================================================================== SELF (fan) / VENUE SETUP
 const FanSetup: React.FC<{ onDone: () => void; venue?: boolean }> = ({ onDone, venue = false }) => {
   const { user, profile, refresh } = useAuth();
   const [vinfo, setVinfo] = useState(venueInfoFrom(profile));
@@ -177,7 +177,7 @@ const FanSetup: React.FC<{ onDone: () => void; venue?: boolean }> = ({ onDone, v
 
   return (
     <div className="space-y-3.5">
-      <Section title={venue ? 'Venue Photo / Logo' : 'Profile Photo'} sub={venue ? 'Shown on your venue page and whenever people tag you' : 'Shown on your Fan Profile and next to your posts'}>
+      <Section title={venue ? 'Venue Photo / Logo' : 'Profile Photo'} sub={venue ? 'Shown on your venue page and whenever people tag you' : 'Shown on your profile and next to your posts'}>
         <div className="flex items-center gap-3.5">
           <Avatar src={avatar} name={name} size={80} square={venue} ring />
           <div className="space-y-1.5">
@@ -486,7 +486,7 @@ export const OnboardingScreen: React.FC = () => {
               </p>
             </div>
             <div role="group" aria-label="Account type" className="flex gap-1 p-1 rounded-2xl bg-[#161B20] border border-white/[0.08]">
-              {roleBtn('fan', 'Fan', Headphones)}
+              {roleBtn('fan', 'Self', Headphones)}
               {roleBtn('artist', 'Artist', Music)}
               {roleBtn('venue', 'Venue/Business', Building2)}
             </div>

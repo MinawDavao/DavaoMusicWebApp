@@ -122,7 +122,7 @@ export const AdminUsers: React.FC = () => {
   return (
     <div className="space-y-3">
       <SearchBar value={search} onChange={setSearch} placeholder="Search name, @username or email">
-        <Select label="Account type" value={role} onChange={setRole} options={[['', 'Everyone'], ['fan', 'Fans'], ['artist', 'Artists'], ['venue', 'Venues/Businesses']]} />
+        <Select label="Account type" value={role} onChange={setRole} options={[['', 'Everyone'], ['fan', 'Self accounts'], ['artist', 'Artists'], ['venue', 'Venues/Businesses']]} />
       </SearchBar>
       <ListBody loading={list.loading} err={list.err} empty="No users found" count={list.rows.length} more={list.more} onMore={list.loadMore}>
         {list.rows.map((u) => (

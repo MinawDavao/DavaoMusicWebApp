@@ -170,8 +170,8 @@ export const HoopShell: React.FC<{ route: Route; go: (r: Route) => void }> = ({ 
   else if (profile && profile.role !== 'fan' && !isModerator) screen = (
     <div className="px-4 py-10 text-center space-y-4">
       <img src="/hoop-ball.png" alt="" className="w-20 h-20 mx-auto" />
-      <p className="font-hoop italic font-extrabold text-2xl text-white uppercase">For Fan accounts</p>
-      <p className="text-sm text-[#A8A29E]">Hoop Method clubs are for individual (Fan) accounts. Artist and Venue/Business accounts can’t join clubs.</p>
+      <p className="font-hoop italic font-extrabold text-2xl text-white uppercase">For Self accounts</p>
+      <p className="text-sm text-[#A8A29E]">Hoop Method clubs are for individual (Self) accounts. Artist and Venue/Business accounts can’t join clubs.</p>
       <button onClick={() => go({ name: 'home' })} className={hbtn.primary}><Music className="w-4 h-4" />Back to MINAW</button>
     </div>
   );

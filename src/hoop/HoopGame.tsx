@@ -317,7 +317,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     await run(() => supabase.from('hoop_game_players').delete().eq('game_id', game.id).eq(col(pid), pid));
     load();
   };
-  /** Admin: a club member (with or without an account), or any Fan account — adding them also approves their club card. */
+  /** Admin: a club member (with or without an account), or any Self account — adding them also approves their club card. */
   const addPlayer = async (p: { member_id?: string; profile_id?: string }) => {
     setAdding(false);
     const here = lateAdd.current; lateAdd.current = false; setLatePick(false);

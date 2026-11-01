@@ -19,16 +19,36 @@ const REACTIONS: { key: Reaction; label: string; Icon: React.ElementType; color:
 
 const POST_COLS: string = '*, profiles!posts_author_id_fkey(id, display_name, username, avatar_url, role, is_verified), '
   + 'venue:profiles!posts_venue_id_fkey(id, display_name, username), '
-  + 'playlists(id, name, owner_id, owner:profiles!playlists_owner_id_fkey(id, display_name), playlist_tracks(track_id))';
+  + 'playlists(id, name, owner_id, owner:profiles!playlists_owner_id_fkey(id, display_name), playlist_tracks(track_id, position, tracks(cover_url, bands(name, logo_url))))';
+
+/** The playlist's cover: its bands' pictures — 1 fills the square, 2 side by side, 3 = one big + two small, 4 = a 2×2 grid. */
+const PlaylistCover: React.FC<{ pics: { url: string; name: string }[] }> = ({ pics }) => {
+  const img = (i: number, cls: string) => (
+    <img key={i} src={pics[i].url} alt={pics[i].name} loading="lazy" className={`${cls} w-full h-full object-cover bg-[#1D232A]`}
+      onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+  );
+  const n = pics.length;
+  return (
+    <span className={`w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 grid gap-px bg-black/40 ${n === 1 ? 'grid-cols-1' : 'grid-cols-2'} ${n >= 3 ? 'grid-rows-2' : ''}`}>
+      {n === 3 ? [img(0, 'row-span-2'), img(1, ''), img(2, '')] : pics.map((_, i) => img(i, ''))}
+    </span>
+  );
+};
 
 /** Shared playlist card inside a post. */
 const PlaylistEmbed: React.FC<{ pl: any }> = ({ pl }) => {
   const go = useNav();
   if (!pl) return <p className="text-[11px] italic text-[#8E9AA7] px-3 py-2 rounded-xl bg-[#161B20] border border-white/[0.08]">This playlist is no longer available.</p>;
   const n = (pl.playlist_tracks || []).length;
+  // the bands in the playlist (in playlist order), each band once — their pictures make the playlist's cover
+  const pics: { url: string; name: string }[] = [];
+  [...(pl.playlist_tracks || [])].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0)).forEach((t: any) => {
+    const url = t.tracks?.bands?.logo_url || t.tracks?.cover_url;
+    if (url && !pics.some((x) => x.url === url) && pics.length < 4) pics.push({ url, name: t.tracks?.bands?.name || '' });
+  });
   return (
     <button onClick={() => go({ name: 'playlist', id: pl.id })} className="w-full flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-[#2A2160] to-[#161B20] border border-[#6045F4]/40 text-left cursor-pointer hover:border-[#6045F4]">
-      <span className="w-14 h-14 rounded-xl bg-[#53E6D4]/15 text-[#53E6D4] flex items-center justify-center flex-shrink-0"><ListMusic className="w-6 h-6" /></span>
+      {pics.length ? <PlaylistCover pics={pics} /> : <span className="w-14 h-14 rounded-xl bg-[#53E6D4]/15 text-[#53E6D4] flex items-center justify-center flex-shrink-0"><ListMusic className="w-6 h-6" /></span>}
       <span className="flex-1 min-w-0">
         <span className="block text-[10px] font-bold tracking-wider text-[#B7A8FF]">SHARED PLAYLIST</span>
         <span className="block text-sm font-bold text-white truncate">{pl.name}</span>
@@ -360,7 +380,7 @@ export const PostScreen: React.FC<{ id: string }> = ({ id }) => {
 
 type Person = { id: string; display_name: string; username: string; avatar_url: string | null; role: string; district: string | null; is_verified: boolean; venue_type: string | null };
 
-/** Search fans, artists and venues/businesses by name or @username. */
+/** Search people (Self accounts), artists and venues/businesses by name or @username. */
 const PeopleSearch: React.FC<{ q: string; setQ: (v: string) => void }> = ({ q, setQ }) => {
   const go = useNav();
   const [role, setRole] = useState('');
@@ -389,12 +409,12 @@ const PeopleSearch: React.FC<{ q: string; setQ: (v: string) => void }> = ({ q, s
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E9AA7] pointer-events-none" />
         <input type="text" inputMode="search" enterKeyHint="search" aria-label="Search people" value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="Search fans, artists, venues/businesses…" className={`${inputCls} !pl-9 !pr-9`} />
+          placeholder="Search people, artists, venues/businesses…" className={`${inputCls} !pl-9 !pr-9`} />
         {q && <button onClick={() => setQ('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center text-[#8E9AA7] hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>}
       </div>
       {q.trim() && (
         <>
-          <div className="flex flex-wrap gap-1.5">{chip('', 'Everyone')}{chip('fan', 'Fans')}{chip('artist', 'Artists')}{chip('venue', 'Venues/Businesses')}</div>
+          <div className="flex flex-wrap gap-1.5">{chip('', 'Everyone')}{chip('fan', 'Self')}{chip('artist', 'Artists')}{chip('venue', 'Venues/Businesses')}</div>
           {res === null ? <Spinner /> : res.length === 0 ? (
             <p className="text-xs text-[#8E9AA7] px-1">No one found for “{q.trim()}”.</p>
           ) : (

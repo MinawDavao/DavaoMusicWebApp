@@ -138,7 +138,7 @@ export const AdminDashboard: React.FC<{ openTab: (t: string) => void }> = ({ ope
         <SectionHead icon={Users} title="Community" />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <Tile icon={Users} label="Total users" value={s.users_total} sub={`${n(s.suspended)} suspended`} onClick={() => openTab('users')} />
-          <Tile icon={Headphones} label="Fans" value={s.fans} />
+          <Tile icon={Headphones} label="Self accounts" value={s.fans} />
           <Tile icon={Music} label="Artists" value={s.artists} accent="#B7A8FF" />
           <Tile icon={Building2} label="Venues/Businesses" value={s.venues} accent="#FFC34D" />
           <Tile icon={Heart} label="Follows" value={s.follows_total} />

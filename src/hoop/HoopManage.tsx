@@ -209,7 +209,7 @@ export const HoopManage: React.FC = () => {
         {addAdmin
           ? <AccountPicker autoFocus roles={['fan']} exclude={admins.map((a) => a.profile_id)} onPick={(p) => addAdminFn(p.id)} onCancel={() => setAddAdmin(false)} />
           : <button onClick={() => (isOwner ? setAddAdmin(true) : setErr('Only the club owner can assign admins. Message the owner if you need another admin.'))} disabled={busy} className={`${hbtn.primary} w-full !py-3 !text-base`}><ShieldCheck className="w-5 h-5" />Assign admin</button>}
-        <p className="text-[10px] text-[#78716C]">Search their name — they need a MINAW DAVAO Fan account. Assigned admins can do everything you do here, except add/remove admins, delete played games or delete the club.</p>
+        <p className="text-[10px] text-[#78716C]">Search their name — they need a MINAW DAVAO Self account. Assigned admins can do everything you do here, except add/remove admins, delete played games or delete the club.</p>
         <div className="space-y-1.5">
           {admins.map((a) => (
             <div key={a.profile_id} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.03] border border-white/10">

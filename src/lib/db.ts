@@ -3,9 +3,9 @@ import { supabase } from './supabase';
 // ---------- Row types (mirror supabase/migrations) ----------
 export type Role = 'fan' | 'artist' | 'venue';
 
-/** Label + colours for each account type (fans mint, artists purple, venues amber). */
+/** Label + colours for each account type (Self mint, artists purple, venues amber). 'fan' is the database value of a Self account. */
 export const ROLE_META: Record<Role, { label: string; text: string; chip: string; square: boolean }> = {
-  fan:    { label: 'Fan',    text: 'text-[#53E6D4]', chip: 'bg-[#53E6D4]/15 text-[#53E6D4]', square: false },
+  fan:    { label: 'Self',    text: 'text-[#53E6D4]', chip: 'bg-[#53E6D4]/15 text-[#53E6D4]', square: false },
   artist: { label: 'Artist', text: 'text-[#B7A8FF]', chip: 'bg-[#6045F4]/25 text-[#B7A8FF]', square: true },
   venue:  { label: 'Venue/Business',  text: 'text-[#FFC34D]', chip: 'bg-[#FFB800]/15 text-[#FFC34D]', square: true },
 };

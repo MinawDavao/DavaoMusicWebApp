@@ -7,7 +7,7 @@ import { ErrorNote, Field, btn, inputCls } from '../components/ui';
 import { NameHint, nameBlocked, useNameCheck } from '../components/NameCheck';
 
 const ROLE_HINT: Record<Role, string> = {
-  fan: 'Follow bands, make playlists, RSVP to gigs and join the feed.',
+  fan: 'Just you: follow bands, make playlists, RSVP to gigs, join the feed and play in Hoop Method clubs.',
   artist: 'Get a band page, upload your music and post your gigs.',
   venue: 'For bars, cafés, event places, studios and music shops. People can tag your business with @.',
 };
@@ -243,14 +243,14 @@ export const AuthScreen: React.FC<{ initialMode?: 'login' | 'signup' }> = ({ ini
         <div className="text-center space-y-1.5">
           <h1 className="font-heading font-bold text-2xl text-white">{mode === 'login' ? 'Welcome back' : 'Create Your Account'}</h1>
           <p className="text-xs text-[#8E9AA7]">
-            {mode === 'login' ? 'Log in to post, upload music and join the Davao scene.' : 'Join as a Fan, an Artist, or a Venue/Business.'}
+            {mode === 'login' ? 'Log in to post, upload music and join the Davao scene.' : 'Join as Self (just you), an Artist, or a Venue/Business.'}
           </p>
         </div>
 
         {mode === 'signup' && (
           <>
             <div role="group" aria-label="Account type" className="flex gap-1 p-1 rounded-2xl bg-[#161B20] border border-white/[0.08]">
-              {roleBtn('fan', 'Fan', Headphones)}
+              {roleBtn('fan', 'Self', Headphones)}
               {roleBtn('artist', 'Artist', Music)}
               {roleBtn('venue', 'Venue/Business', MapPin)}
             </div>

@@ -138,7 +138,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
     <div className="px-3 py-4 space-y-6">
       <div className="flex items-center justify-between">
         <button onClick={() => go({ name: 'connect' })} className={`${btn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" /> Back to Feed</button>
-        <span className="px-2 py-0.5 rounded-full bg-[#53E6D4]/10 border border-[#53E6D4]/35 text-[#53E6D4] font-mono text-[10px] font-bold">{p.role === 'artist' ? 'Artist Account' : p.role === 'venue' ? 'Venue/Business' : 'Davao Fan Profile'}</span>
+        <span className="px-2 py-0.5 rounded-full bg-[#53E6D4]/10 border border-[#53E6D4]/35 text-[#53E6D4] font-mono text-[10px] font-bold">{p.role === 'artist' ? 'Artist Account' : p.role === 'venue' ? 'Venue/Business' : 'Self · Davao Profile'}</span>
       </div>
 
       {block && !isMe && <BlockedBanner block={block} name={p.display_name} onChange={() => { reloadBlock(); load(); }} />}
@@ -218,7 +218,7 @@ export const ProfileScreen: React.FC<{ id?: string }> = ({ id }) => {
       </Panel>
 
       <Panel tone="followers" icon={Users} title={`Followers (${fans.length})`}>
-        {fans.length === 0 ? <EmptyState icon={Users} title="No followers yet" text={isMe ? 'Fans and artists who follow you will show up here.' : 'Be the first to follow.'} /> : personGrid(fans)}
+        {fans.length === 0 ? <EmptyState icon={Users} title="No followers yet" text={isMe ? 'People and artists who follow you will show up here.' : 'Be the first to follow.'} /> : personGrid(fans)}
       </Panel>
 
       {followingPeople.length > 0 && (

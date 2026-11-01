@@ -84,7 +84,7 @@ export const DealsScreen: React.FC = () => {
         {!user && (
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#1B1D33] border border-[#6045F4]/40">
             <Lock className="w-5 h-5 text-[#B7A8FF] flex-shrink-0" />
-            <span className="flex-1 text-xs text-[#EBEBED]">Log in as a Fan or Artist to post your own gear deals.</span>
+            <span className="flex-1 text-xs text-[#EBEBED]">Log in with a Self or Artist account to post your own gear deals.</span>
             <button onClick={() => go({ name: 'auth' })} className={`${btn.primary} !py-1.5 !text-xs`}>Log In</button>
           </div>
         )}
