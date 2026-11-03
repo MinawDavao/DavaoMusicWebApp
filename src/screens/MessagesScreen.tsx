@@ -234,7 +234,16 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
-  useLayoutEffect(() => { if (stick.current) bottom.current?.scrollIntoView({ block: 'end' }); }, [msgs.length, conv === undefined]);
+  const toEnd = () => window.scrollTo({ top: document.documentElement.scrollHeight });   // the spacer under the composer keeps the last message above it
+  useLayoutEffect(() => { if (stick.current) toEnd(); }, [msgs.length, conv === undefined]);
+  // photos load after the text: keep following the newest message while the list grows
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = listRef.current; if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => { if (stick.current) toEnd(); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const loadOlder = async () => {
     if (!msgs.length || !s) return;
@@ -250,6 +259,7 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
     if (!uid || busy) return;
     const body = text.trim();
     if (!body && !photo) return;
+    stick.current = true;   // my own message: always jump to it
     setBusy(true); setErr(null);
     try {
       const image_path = photo ? await uploadChatPhoto(id, uid, photo.file) : null;
@@ -322,7 +332,7 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
       </div>
 
       {/* messages */}
-      <div className="flex-1 px-3 pt-3 pb-2 space-y-1.5">
+      <div ref={listRef} className="flex-1 px-3 pt-3 pb-2 space-y-1.5">
         {hasOlder && <div className="text-center pb-2"><button onClick={loadOlder} className={`${btn.ghost} !py-1.5 !text-xs`}>Load earlier messages</button></div>}
         {msgs.length === 0 && (
           <p className="py-10 text-center text-[12px] text-[#8E9AA7] leading-relaxed">Say hi to {other?.display_name || 'them'}!<br />Keep deals safe: meet in public places and don’t send payment before you see the item.</p>
@@ -404,6 +414,8 @@ export const ChatScreen: React.FC<{ id: string; listing?: string }> = ({ id, lis
         )}
       </div>
       {report && <ReportModal targetType={report.type as any} targetId={report.id} label={report.label} onClose={() => setReport(null)} onLogin={() => go({ name: 'auth' })} />}
+      {/* room for the bottom menu (and music player) under the composer, so nothing hides behind them */}
+      <div aria-hidden className={current ? 'h-[150px]' : 'h-[84px]'} />
     </div>
   );
 };
