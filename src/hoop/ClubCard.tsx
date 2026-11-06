@@ -3,14 +3,15 @@ import { supabase } from '../lib/supabase';
 import { HOOP_MAIN_ADMIN_ID } from './lib';
 import { useAuth } from '../context/AuthContext';
 import { TradingCard, type TradingCardProps } from './TradingCard';
-import { OneOfOneCard, RoyalCard, SelectedCard, StarlightCard, TenCard } from './CardDesigns';
+import { OneOfOneCard, PrismCard, RoyalCard, SelectedCard, StarlightCard, TenCard } from './CardDesigns';
 
 /**
  * Each PLAYER's card design, based on how many finished (closed) schedules THEY played in
  * (view public.hoop_member_schedules — on a team in a final game of that schedule).
  *   0–1 schedules → Card 1 · Glow
  *   2   schedules → Card 2 · Royal Crest
- *   3+  schedules → Card 3 · Starlight
+ *   3   schedules → Card 3 · Starlight
+ *   4+  schedules → Card 4 · Prism
  * (the database repeats these numbers in private.hoop_member_level — change both together)
  * Plus the rare 1-of-1, won from a card pack. A player has every level card up to theirs (+ any 1-of-1s) and can pick
  * which card they show (hoop_members.card_choice: 'level1'…'level3' or 'one:<id>') — everyone sees the card they picked.
@@ -20,7 +21,7 @@ export const CARD_LEVELS: CardLevelDef[] = [
   { n: 1, key: 'glow', name: 'Glow', fromSchedules: 0, Comp: TradingCard },
   { n: 2, key: 'royal', name: 'Royal Crest', fromSchedules: 2, Comp: RoyalCard },
   { n: 3, key: 'starlight', name: 'Starlight', fromSchedules: 3, Comp: StarlightCard },
-  // { n: 4, key: '…', name: '…', fromSchedules: 4, Comp: … },
+  { n: 4, key: 'prism', name: 'Prism', fromSchedules: 4, Comp: PrismCard },
 ];
 /** Every design by its key (card packs use these keys). */
 export const DESIGNS: Record<string, React.FC<TradingCardProps>> = { ...Object.fromEntries(CARD_LEVELS.map((l) => [l.key, l.Comp])), oneofone: OneOfOneCard };

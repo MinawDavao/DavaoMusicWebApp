@@ -1298,11 +1298,73 @@ export const TiltCard: React.FC<{ children: React.ReactNode; className?: string 
   );
 };
 
+// =====================================================================================================
+// CARD 4 · PRISM — after a player's 4th finished schedule. Holographic rainbow & gold frame with the big chrome
+// "PRISM" title and the Lvl. 4 wings badge (public/hoop-cards/prism-frame.webp, see-through photo window).
+// Club logo in the top-left circle, full name on the gold plate, big 3-D stats on the dark starry panel.
+// =====================================================================================================
+export const PRISM_FRAME = '/hoop-cards/prism-frame.webp';
+/** chunky 3-D letters: light face + a stacked edge going down-right, then a soft shadow */
+const extrude = (face: string, edge: string[], k = 1, glow?: string): React.CSSProperties => ({
+  color: face,
+  textShadow: [...edge.map((c, i) => `${cq((i + 1) * 0.13 * k)} ${cq((i + 1) * 0.2 * k)} 0 ${c}`), `${cq(0.9 * k)} ${cq(1.4 * k)} ${cq(1.2 * k)} rgba(0,0,0,0.65)`, ...(glow ? [`0 0 ${cq(2.5 * k)} ${glow}`] : [])].join(', '),
+});
+const PRISM_EDGE = ['#F3D58A', '#D9AE4E', '#B98A2C', '#93661A', '#6A460E'];
+export const PrismCard: React.FC<TradingCardProps> = (p) => {
+  const f = useFace(p);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const name = p.person.display_name.trim().toUpperCase();
+  const nameSize = Math.min(6.2, 50 / Math.max(1, name.length * 0.5));
+  const big: [string, number | undefined][] = [['PPG', f.s?.ppg], ['RPG', f.s?.rpg], ['APG', f.s?.apg]];
+  const foot = [f.num != null ? `#${f.num}` : '', f.pos, `${statNum(f.s?.spg, f.s)} ${statLabel('SPG', f.s)}`, `${statNum(f.s?.bpg, f.s)} ${statLabel('BPG', f.s)}`, footer(f.s)].filter(Boolean).join(' · ');
+  return (
+    <Shell radius={2.2} /* holographic glow: cyan, pink and gold */ glow={`0 0 ${cq(1.2)} rgba(200,250,255,0.9), 0 0 ${cq(3.6)} rgba(120,220,255,0.55), 0 0 ${cq(6)} rgba(255,120,220,0.4), 0 0 ${cq(10)} rgba(255,200,90,0.3)`}>
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(90% 60% at 50% 40%, #1B2550 0%, #0B1029 75%)' }} />
+      {/* photo behind the frame's window */}
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(3.5), right: cq(3.5), top: cq(13), height: cq(96), background: 'radial-gradient(90% 60% at 50% 30%, #2A3570 0%, #0F1636 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(190,220,255,0.22)" />
+      </div>
+      <img src={PRISM_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {editing && (
+        <At x={0} r={0} y={62} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {/* club logo in the top-left circle */}
+      <At x={5.4} w={8.6} y={4.9} h={8.6} className="pointer-events-none">
+        <img src={f.logo} alt="" draggable={false} onError={(e) => { e.currentTarget.style.display = 'none'; }} className="w-full h-full rounded-full object-cover" />
+      </At>
+      {/* full name on the gold plate */}
+      <At x={22.2} r={21.7} y={95.2} h={8.3} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop italic font-black whitespace-nowrap leading-none" style={{ fontSize: cq(nameSize), letterSpacing: cq(0.15), transform: `translateY(${cq(0.2)})`,
+          ...extrude('#1A2148', ['rgba(255,244,210,0.9)', 'rgba(150,110,40,0.75)'], 0.7) }}>{name}</span>
+      </At>
+      {/* big stats on the starry panel */}
+      <At x={11} r={11} y={108.5} h={19} className="grid grid-cols-3 items-center pointer-events-none">
+        {big.map(([k, v], i) => (
+          <span key={k} className="flex flex-col items-center" style={{ borderLeft: i ? `${cq(0.25)} solid rgba(240,200,110,0.35)` : undefined }}>
+            <span className="font-hoop italic font-black leading-none" style={{ fontSize: cq(10.5), ...extrude('#FFF6DC', PRISM_EDGE, 1, 'rgba(255,190,80,0.45)') }}>{statNum(v, f.s)}</span>
+            <span className="font-hoop font-black leading-none" style={{ fontSize: cq(3), letterSpacing: cq(0.6), marginTop: cq(1.4), ...extrude('#9FE8FF', ['#3A7FA8', '#1D4A6E'], 0.5) }}>{statLabel(k, f.s)}</span>
+          </span>
+        ))}
+      </At>
+      <At x={11} r={11} y={129.6} h={4.2} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop font-bold whitespace-nowrap leading-none" style={{ fontSize: cq(Math.min(2.7, 78 / Math.max(1, foot.length * 0.52))), letterSpacing: cq(0.25), color: '#E8DCC0', textShadow: `0 ${cq(0.2)} ${cq(0.4)} rgba(0,0,0,0.8)` }}>{foot}</span>
+      </At>
+    </Shell>
+  );
+};
+
 /** The cards in use, in order. Each player moves to card 2 after THEIR 2nd finished schedule (see ClubCard.tsx). */
 export const CARD_SERIES: CardSeries[] = [
   { n: 1, key: 'glow', name: 'Glow', tagline: 'Your first card — gold glow and light streaks.', Comp: TradingCard },
   { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard, unlock: 'After 2 schedules' },
   { n: 3, key: 'starlight', name: 'Starlight', tagline: 'HOOP METHOD glitter & gold frame — logo and number circles, PPG and LEVEL 3 over the photo. Players get it after their 3rd finished schedule.', Comp: StarlightCard, unlock: 'After 3 schedules' },
+  { n: 4, key: 'prism', name: 'Prism', tagline: 'Holographic rainbow & gold frame with the chrome PRISM title and Lvl. 4 wings — big 3-D stats. Players get it after their 4th finished schedule.', Comp: PrismCard, unlock: 'After 4 schedules' },
   { n: 4, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — only the player you pick wins it from a card pack each schedule. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
   { n: 5, key: 'selected', name: 'Chosen', tagline: 'Numbered limited series — only 10 ever (1/10 … 10/10). Hidden in 10 random players’ packs after a schedule. Can be signed.', Comp: SelectedCard, unlock: 'Random 10 packs' },
   { n: 6, key: 'oneofone-holo', name: '1 of 1 · Holo', tagline: 'The new 1-of-1 from Hoop Method’s 4th schedule on — holographic silver frame, club name and logo, gold last name, 1-1 shield. Cards won before keep the gold design.', Comp: HoloOneCard, unlock: 'Pack winner only' },
