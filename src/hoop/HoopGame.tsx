@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Search, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -64,8 +64,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [busy, setBusy] = useState(false);
   const [showRot, setShowRot] = useState(false);   // "Games played today" table: hidden until tapped
   const [showNext, setShowNext] = useState(false);   // next game's line-up panel
-  const [latePick, setLatePick] = useState(false);   // line-up panel: picking a club player who just arrived
+  const [latePick, setLatePick] = useState(false);   // line-up panel: the "add a club player" search is open
   const lateAdd = useRef(false);   // the next club player picked is marked as arrived
+  const [nextAdds, setNextAdds] = useState<string[]>([]);   // next-game line-up: players the admin searched and added (cleared when the game changes)
   const creatingNext = useRef<Promise<string> | null>(null);   // the next game being created (double taps reuse it)
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -144,6 +145,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     return () => { supabase.removeChannel(ch); };
   }, [id, load, loadPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => { setNextAdds([]); }, [id]);   // new game opened → start the next-game line-up empty again
   useTick(!!game?.clock_running);
   const landscape = usePhoneLandscape();   // phone turned sideways → full-screen courtside view during a live game
   const [courtsideOff, setCourtsideOff] = useState(false);   // closed with ✕ → back to the normal page until the phone turns again
@@ -287,7 +289,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     const name = (prompt('Guest player’s name (not on the app yet):') || '').trim().slice(0, 40);
     if (!name) return;
     setAdding(false);
-    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, guest_id: crypto.randomUUID(), guest_name: name, arrived_at: new Date(now()).toISOString() }));
+    const gid = crypto.randomUUID();
+    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, guest_id: gid, guest_name: name, arrived_at: new Date(now()).toISOString() }));
+    setNextAdds((a) => [...a, gid]);   // show the new guest in the next-game line-up straight away
     loadPlayers();
   };
   /** Fills both teams with the players who have played the fewest games of this schedule. */
@@ -380,8 +384,25 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const latestPlayed = playedGames[playedGames.length - 1];
   const nextNo = nextG ? session.indexOf(nextG) + 1 : session.length + 1;
   const nextTeam = (pid: string) => (nextG?.hoop_game_players.find((x) => x.profile_id === pid)?.team as 'A' | 'B' | null) ?? null;
-  const nextPool = bookings.filter((b) => canPlay(b) && present(b))
+  // the next-game line-up starts empty — it only shows players the admin searched and added, plus anyone already on the next game's teams
+  const nextIds = new Set<string>([...(nextG?.hoop_game_players || []).map((x) => x.profile_id), ...nextAdds]);
+  const nextPool = bookings.filter((b) => nextIds.has(b.profile_id) && canPlay(b))
     .sort((a, b) => afterThis(a.profile_id) - afterThis(b.profile_id) || byArrival(a, b));
+  /** Admin: add any club player (booked or not, arrived or not) to the next-game line-up. */
+  const addToNext = async (p: { member_id?: string; profile_id?: string }) => {
+    const pid = p.member_id || p.profile_id!;
+    setLatePick(false);
+    setNextAdds((a) => (a.includes(pid) ? a : [...a, pid]));
+    if (!bookings.some((b) => b.profile_id === pid)) {   // not booked yet → add them so their stats and payment are tracked
+      await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p, arrived_at: new Date(now()).toISOString() }));
+      loadPlayers();
+    }
+  };
+  /** Admin: take a player out of the next-game line-up (keeps their booking, stats and payment). */
+  const dropFromNext = async (pid: string) => {
+    if (nextTeam(pid)) await pickNext(pid, null);
+    setNextAdds((a) => a.filter((x) => x !== pid));
+  };
   const pickNext = async (pid: string, team: 'A' | 'B' | null) => {
     setBusy(true); setErr(null);
     try {
@@ -1212,19 +1233,19 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <span className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--hp)] text-[#111] flex-shrink-0"><Shuffle className="w-5 h-5" /></span>
               <span className="flex-1 min-w-0">
                 <span className="block font-hoop italic font-black text-[20px] uppercase text-white leading-none">Line-up for Game {nextNo}</span>
-                <span className="block text-[11px] text-[#D6D3D1] mt-1">{nA + nB ? `${game.team_a} ${nA} · ${game.team_b} ${nB} ready` : 'Set the next teams now'} · {showNext ? 'tap to hide' : 'tap to show'}</span>
+                <span className="block text-[11px] text-[#D6D3D1] mt-1">{nA + nB ? `${game.team_a} ${nA} · ${game.team_b} ${nB} ready` : 'Search and add players'} · {showNext ? 'tap to hide' : 'tap to show'}</span>
               </span>
               <ChevronDown className={`w-5 h-5 text-[#D6D3D1] flex-shrink-0 transition-transform ${showNext ? 'rotate-180' : ''}`} />
             </button>
             {showNext && (
               <div className="rounded-2xl p-3 space-y-2 border border-white/10" style={{ background: H.surface }}>
-                <p className="text-[11px] text-[#A8A29E] leading-snug">Everyone {arrivalsOn ? 'at the court' : 'booked'}, <span className="text-[#8FE36B] font-bold">fresh</span> players first. Tap a team to put them in Game {nextNo}; tap again to take them off. When this game ends, Game {nextNo} is ready to start.</p>
+                <p className="text-[11px] text-[#A8A29E] leading-snug"><strong className="text-white">Search and add</strong> the players for Game {nextNo} — any club player shows up, booked or not. Tap a team to put them in; tap again to take them off. When this game ends, Game {nextNo} is ready to start.</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => { lateAdd.current = !latePick; setLatePick(!latePick); }} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Just arrived: club player</button>
-                  <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Just arrived: guest</button>
+                  <button onClick={() => setLatePick(!latePick)} disabled={busy} aria-expanded={latePick} className={`${latePick ? hbtn.primary : hbtn.ghost} !py-2 !text-xs`}><Search className="w-3.5 h-3.5" />Add a club player</button>
+                  <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Add a guest</button>
                 </div>
-                {latePick && <MemberPicker clubId={club!.id} exclude={everyone.map((p) => p.profile_id)} excludeAccounts={everyone.map((p) => p.account_id || '')} onPick={addPlayer} onCancel={() => { lateAdd.current = false; setLatePick(false); }} />}
-                {nextPool.length === 0 ? <p className="text-[12px] text-[#A8A29E]">No players yet.</p> : nextPool.map((b) => {
+                {latePick && <MemberPicker clubId={club!.id} exclude={[...nextIds]} excludeAccounts={[]} onPick={addToNext} onCancel={() => setLatePick(false)} />}
+                {nextPool.length === 0 ? <p className="text-[12px] text-[#A8A29E] py-1">No one added yet. Tap <strong className="text-white">Add a club player</strong> and search by name.</p> : nextPool.map((b) => {
                   const n = afterThis(b.profile_id);
                   const nowOn = teamOf(b.profile_id);
                   return (
@@ -1238,8 +1259,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                         </span>
                       </span>
                       {teamBtn(b.profile_id, 'A')}{teamBtn(b.profile_id, 'B')}
-                      <button onClick={() => markLeft(b, true)} disabled={busy} aria-label={`${nameOf(b.profile_id)} left the court`} title="Left the court"
-                        className="h-8 w-9 flex-shrink-0 rounded-lg border border-white/10 text-[9px] font-black text-[#A8A29E] hover:text-[#FF8A9C] hover:border-[#FF8A9C]/50 cursor-pointer">LEFT</button>
+                      <button onClick={() => dropFromNext(b.profile_id)} disabled={busy} aria-label={`Remove ${nameOf(b.profile_id)} from the Game ${nextNo} line-up`} title="Remove from the line-up"
+                        className="h-8 w-8 flex-shrink-0 rounded-lg border border-white/10 flex items-center justify-center text-[#A8A29E] hover:text-[#FF8A9C] hover:border-[#FF8A9C]/50 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   );
                 })}
