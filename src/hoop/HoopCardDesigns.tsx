@@ -45,9 +45,9 @@ export const HoopCardDesigns: React.FC = () => {
   const { user } = useAuth();
   const [data, setData] = useState<{ member: HoopMember | null; club: HoopClub | null; stats: HoopStats | null; name: string; avatar: string | null } | null>(null);
   const [useMine, setUseMine] = useState(true);
-  const [saving, setSaving] = useState<number | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const refs = useRef<Record<number, HTMLDivElement | null>>({});
+  const refs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     (async () => {
@@ -71,10 +71,10 @@ export const HoopCardDesigns: React.FC = () => {
   const stats = mine ? data.stats : SAMPLE_STATS;
   const clubLite = data.club ? { name: data.club.name, logo_url: data.club.logo_url, oneofone_url: data.club.oneofone_url, oneofone_holo_url: data.club.oneofone_holo_url, selected_url: data.club.selected_url } : null;
 
-  const save = async (n: number) => {
-    const node = refs.current[n]; if (!node) return;
-    setSaving(n); setErr(null);
-    try { await saveCardImage(node, `hoop-card-series-${n}.png`); } catch (e) { setErr(errorMessage(e)); }
+  const save = async (key: string, n: number) => {
+    const node = refs.current[key]; if (!node) return;
+    setSaving(key); setErr(null);
+    try { await saveCardImage(node, `hoop-card-series-${n}-${key}.png`); } catch (e) { setErr(errorMessage(e)); }
     setSaving(null);
   };
 
@@ -93,8 +93,8 @@ export const HoopCardDesigns: React.FC = () => {
         </div>
       )}
       <ErrorNote text={err} />
-      {CARD_SERIES.map(({ n, name, tagline, Comp, unlock }) => (
-        <section key={n} className="space-y-2">
+      {CARD_SERIES.map(({ n, key, name, tagline, Comp, unlock }) => (
+        <section key={key} className="space-y-2">
           <div className="flex items-end justify-between gap-2">
             <div>
               <p className="text-[10px] font-black tracking-[0.25em] text-[var(--hp)]">SERIES {n}</p>
@@ -103,10 +103,10 @@ export const HoopCardDesigns: React.FC = () => {
             </div>
             {unlock && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] text-[10px] font-bold text-[#D6D3D1] whitespace-nowrap"><Lock className="w-3 h-3" />{unlock}</span>}
           </div>
-          <div ref={(el) => { refs.current[n] = el; }} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #22201c 0%, #0B0B0E 60%, #050508 100%)' }}>
+          <div ref={(el) => { refs.current[key] = el; }} className="-mx-1 px-[7%] py-[8%] rounded-[28px]" style={{ background: 'radial-gradient(120% 80% at 50% 0%, #22201c 0%, #0B0B0E 60%, #050508 100%)' }}>
             <TiltCard><Comp person={person} card={card} stats={stats} club={clubLite} /></TiltCard>
           </div>
-          <button onClick={() => save(n)} disabled={saving !== null} className={`${hbtn.ghost} w-full !py-2 !text-xs`}><Download className="w-3.5 h-3.5" />{saving === n ? 'Making picture…' : 'Save this card as a picture'}</button>
+          <button onClick={() => save(key, n)} disabled={saving !== null} className={`${hbtn.ghost} w-full !py-2 !text-xs`}><Download className="w-3.5 h-3.5" />{saving === key ? 'Making picture…' : 'Save this card as a picture'}</button>
         </section>
       ))}
     </div>
