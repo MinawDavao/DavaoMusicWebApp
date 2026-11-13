@@ -1359,14 +1359,82 @@ export const PrismCard: React.FC<TradingCardProps> = (p) => {
   );
 };
 
+// =====================================================================================================
+// CARD 5 · LEGACY — after a player's 5th finished schedule. Navy jersey-mesh & silver-chrome frame with the
+// "LEVEL 5" plate (public/hoop-cards/level5-frame.webp, see-through photo window). Jersey number top-right, big 3-D
+// stats low over the photo, name on the silver banner and position in the corner box. Blue & silver glow.
+// =====================================================================================================
+export const LEVEL5_FRAME = '/hoop-cards/level5-frame.webp';
+const L5_EDGE = ['#CBD9F0', '#9DB4D8', '#6E8BB8', '#3F5C8E', '#23406E'];   // silver → navy, for the 3-D stack
+export const Level5Card: React.FC<TradingCardProps> = (p) => {
+  const f = useFace(p);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const name = p.person.display_name.trim().toUpperCase();
+  const nameSize = Math.min(5.6, 42 / Math.max(1, name.length * 0.52));
+  const num = f.num != null ? String(f.num) : '–';
+  const stats: [string, number | undefined][] = [['PPG', f.s?.ppg], ['RPG', f.s?.rpg], ['APG', f.s?.apg], ['SPG', f.s?.spg], ['BPG', f.s?.bpg]];
+  return (
+    <Shell radius={2.2} /* blue & silver glow */ glow={`0 0 ${cq(1.2)} rgba(210,228,255,0.95), 0 0 ${cq(3.6)} rgba(90,150,255,0.6), 0 0 ${cq(7)} rgba(150,185,255,0.4), 0 0 ${cq(11)} rgba(80,120,255,0.28)`}>
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(90% 60% at 50% 40%, #16234A 0%, #0A1024 75%)' }} />
+      {/* photo behind the frame's window */}
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(13), right: cq(12), top: cq(14.5), height: cq(101), background: 'radial-gradient(90% 60% at 50% 30%, #243764 0%, #0E1838 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(180,205,255,0.22)" />
+        {/* darken the lower photo so the stats read */}
+        <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: cq(28), background: 'linear-gradient(0deg, rgba(8,14,36,0.9) 0%, rgba(8,14,36,0.55) 45%, transparent 100%)' }} />
+      </div>
+      <img src={LEVEL5_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {editing && (
+        <At x={0} r={0} y={60} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {/* LEVEL 5 on the top plate */}
+      <At x={30} r={35} y={6} h={7} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop italic font-black whitespace-nowrap leading-none" style={{ fontSize: cq(4.6), letterSpacing: cq(0.25), transform: `translateY(${cq(0)})`,
+          ...extrude('#1A2A4C', ['rgba(255,255,255,0.9)', 'rgba(150,170,205,0.7)'], 0.5) }}>LEVEL 5</span>
+      </At>
+      {/* jersey number, top-right over the photo */}
+      <At x={61} r={5} y={18.5} h={16} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop italic font-black leading-none" style={{ fontSize: cq(num.length > 1 ? 13 : 15),
+          ...extrude('#EAF2FF', L5_EDGE, 1.1, 'rgba(120,175,255,0.6)') }}>{num}</span>
+      </At>
+      {/* big 3-D stats low over the photo */}
+      <At x={14} r={14} y={98.5} h={13} className="grid grid-cols-5 items-center pointer-events-none">
+        {stats.map(([k, v], i) => (
+          <span key={k} className="flex flex-col items-center" style={{ borderLeft: i ? `${cq(0.22)} solid rgba(150,180,235,0.3)` : undefined }}>
+            <span className="font-hoop italic font-black leading-none" style={{ fontSize: cq(6.6), ...extrude('#FFFFFF', L5_EDGE, 0.95, 'rgba(120,180,255,0.6)') }}>{statNum(v, f.s)}</span>
+            <span className="font-hoop font-black leading-none" style={{ fontSize: cq(2.5), letterSpacing: cq(0.3), marginTop: cq(1), ...extrude('#A9C6FF', ['#3C5C92', '#22406E'], 0.4) }}>{statLabel(k, f.s)}</span>
+          </span>
+        ))}
+      </At>
+      {/* name on the silver banner */}
+      <At x={23} r={31} y={117.5} h={7} className="flex items-center justify-center pointer-events-none">
+        <span className="font-hoop italic font-black whitespace-nowrap leading-none" style={{ fontSize: cq(nameSize), letterSpacing: cq(0.1), transform: `translateY(${cq(0)})`,
+          ...extrude('#15223F', ['rgba(255,255,255,0.85)', 'rgba(150,170,205,0.65)'], 0.45) }}>{name}</span>
+      </At>
+      {/* position in the corner box */}
+      {f.pos && (
+        <At x={75} r={6} y={118} h={6} className="flex items-center justify-center pointer-events-none">
+          <span className="font-hoop font-black whitespace-nowrap leading-none" style={{ fontSize: cq(3.2), letterSpacing: cq(0.2), color: '#17233E', textShadow: `0 ${cq(0.15)} 0 rgba(255,255,255,0.6)` }}>{f.pos}</span>
+        </At>
+      )}
+    </Shell>
+  );
+};
+
 /** The cards in use, in order. Each player moves to card 2 after THEIR 2nd finished schedule (see ClubCard.tsx). */
 export const CARD_SERIES: CardSeries[] = [
   { n: 1, key: 'glow', name: 'Glow', tagline: 'Your first card — gold glow and light streaks.', Comp: TradingCard },
   { n: 2, key: 'royal', name: 'Royal Crest', tagline: 'Gold & sapphire frame with the club badge, crest shield and a gold nameplate. Players get it after their 2nd finished schedule.', Comp: RoyalCard, unlock: 'After 2 schedules' },
   { n: 3, key: 'starlight', name: 'Starlight', tagline: 'HOOP METHOD glitter & gold frame — logo and number circles, PPG and LEVEL 3 over the photo. Players get it after their 3rd finished schedule.', Comp: StarlightCard, unlock: 'After 3 schedules' },
   { n: 4, key: 'prism', name: 'Prism', tagline: 'Holographic rainbow & gold frame with the chrome PRISM title and Lvl. 4 wings — big 3-D stats. Players get it after their 4th finished schedule.', Comp: PrismCard, unlock: 'After 4 schedules' },
-  { n: 5, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — only the player you pick wins it from a card pack each schedule. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
-  { n: 6, key: 'selected', name: 'Chosen', tagline: 'Numbered limited series — only 10 ever (1/10 … 10/10). Hidden in 10 random players’ packs after a schedule. Can be signed.', Comp: SelectedCard, unlock: 'Random 10 packs' },
-  { n: 7, key: 'oneofone-holo', name: '1 of 1 · Holo', tagline: 'The new 1-of-1 from Hoop Method’s 4th schedule on — holographic silver frame, club name and logo, gold last name, 1-1 shield. Cards won before keep the gold design.', Comp: HoloOneCard, unlock: 'Pack winner only' },
-  { n: 8, key: 'ten', name: '10-10', tagline: 'Numbered series — only 10 per club (1-10 … 10-10). From Hoop Method’s 4th schedule, hidden in random players’ packs. Can be signed.', Comp: TenCard, unlock: 'Random 10 packs' },
+  { n: 5, key: 'level5', name: 'Legacy', tagline: 'Navy jersey-mesh & silver-chrome frame with the LEVEL 5 plate — jersey number, big 3-D stats, name and position. Players get it after their 5th finished schedule.', Comp: Level5Card, unlock: 'After 5 schedules' },
+  { n: 6, key: 'oneofone', name: '1 of 1', tagline: 'The rare card — only the player you pick wins it from a card pack each schedule. Name only, golden glow.', Comp: OneOfOneCard, unlock: 'Pack winner only' },
+  { n: 7, key: 'selected', name: 'Chosen', tagline: 'Numbered limited series — only 10 ever (1/10 … 10/10). Hidden in 10 random players’ packs after a schedule. Can be signed.', Comp: SelectedCard, unlock: 'Random 10 packs' },
+  { n: 8, key: 'oneofone-holo', name: '1 of 1 · Holo', tagline: 'The new 1-of-1 from Hoop Method’s 4th schedule on — holographic silver frame, club name and logo, gold last name, 1-1 shield. Cards won before keep the gold design.', Comp: HoloOneCard, unlock: 'Pack winner only' },
+  { n: 9, key: 'ten', name: '10-10', tagline: 'Numbered series — only 10 per club (1-10 … 10-10). From Hoop Method’s 4th schedule, hidden in random players’ packs. Can be signed.', Comp: TenCard, unlock: 'Random 10 packs' },
 ];
