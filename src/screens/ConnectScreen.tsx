@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDelete } from '../components/ConfirmDelete';
-import { BadgeCheck, Building2, Camera, Check, Search, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Pencil, Play, Send, Trash2, X, Zap } from 'lucide-react';
+import { BadgeCheck, Building2, Calendar, Camera, Check, Search, Flag, Flame, Heart, ImagePlus, ListMusic, LogIn, MapPin, MessageCircle, Pencil, Play, Repeat2, Send, Ticket, Trash2, X, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { checkFile, errorMessage, removeImageByUrl, timeAgo, uploadImage, type Comment, type Post, roleMeta } from '../lib/db';
+import { checkFile, errorMessage, formatGigDate, removeImageByUrl, timeAgo, uploadImage, type Comment, type Gig, type Post, roleMeta } from '../lib/db';
+import { fetchUpcomingGigs } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
 import { ZoomImg } from '../components/Zoom';
@@ -19,7 +20,8 @@ const REACTIONS: { key: Reaction; label: string; Icon: React.ElementType; color:
 
 const POST_COLS: string = '*, profiles!posts_author_id_fkey(id, display_name, username, avatar_url, role, is_verified), '
   + 'venue:profiles!posts_venue_id_fkey(id, display_name, username), '
-  + 'playlists(id, name, owner_id, owner:profiles!playlists_owner_id_fkey(id, display_name), playlist_tracks(track_id, position, tracks(cover_url, bands(name, logo_url))))';
+  + 'playlists(id, name, owner_id, owner:profiles!playlists_owner_id_fkey(id, display_name), playlist_tracks(track_id, position, tracks(cover_url, bands(name, logo_url)))), '
+  + 'gig:gigs!posts_gig_id_fkey(id, title, poster_url, venue, starts_at, district, band_id, bands(id, name, logo_url))';
 
 /** The playlist's cover: its bands' pictures — 1 fills the square, 2 side by side, 3 = one big + two small, 4 = a 2×2 grid. */
 const PlaylistCover: React.FC<{ pics: { url: string; name: string }[] }> = ({ pics }) => {
@@ -59,12 +61,106 @@ const PlaylistEmbed: React.FC<{ pl: any }> = ({ pl }) => {
   );
 };
 
+/** A reposted gig shown inside a post (like PlaylistEmbed): poster + the key details, tap the poster to zoom. */
+const GigEmbed: React.FC<{ gig: Post['gig'] }> = ({ gig }) => {
+  const go = useNav();
+  const [zoom, setZoom] = useState(false);
+  if (!gig) return <p className="text-[11px] italic text-[#8E9AA7] px-3 py-2 rounded-xl bg-[#161B20] border border-white/[0.08]">This gig is no longer available.</p>;
+  return (
+    <div className="rounded-2xl overflow-hidden border border-[#6045F4]/40 bg-[#161B20]">
+      {gig.poster_url && (
+        <button onClick={() => setZoom(true)} aria-label="View full poster" className="block w-full bg-black cursor-zoom-in">
+          <img src={gig.poster_url} alt={`${gig.title} poster`} className="w-full max-h-[420px] object-contain mx-auto" />
+        </button>
+      )}
+      <div className="p-3 space-y-1.5">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider text-[#B7A8FF]"><Ticket className="w-3 h-3" />UPCOMING GIG</span>
+        <p className="text-sm font-bold text-white leading-snug">{gig.title}</p>
+        <p className="flex items-center gap-1.5 text-[11px] font-mono text-[#B7A8FF]"><Calendar className="w-3.5 h-3.5" />{formatGigDate(gig.starts_at)}</p>
+        <p className="flex items-start gap-1.5 text-[12px] text-[#FFB800]"><MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" /><span>{gig.venue}</span></p>
+        {gig.bands && <button onClick={() => go({ name: 'band', id: gig.bands!.id })} className="text-[12px] text-[#53E6D4] hover:underline cursor-pointer">{gig.bands.name}</button>}
+      </div>
+      {zoom && gig.poster_url && (
+        <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-3" onClick={() => setZoom(false)} role="dialog" aria-label="Gig poster">
+          <img src={gig.poster_url} alt={`${gig.title} poster`} className="max-w-full max-h-full object-contain" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** An upcoming gig's poster shown automatically in the Connect feed. A Self (fan) user can repost it to the feed. */
+const GigFeedCard: React.FC<{ gig: Gig; onReposted: () => void }> = ({ gig, onReposted }) => {
+  const go = useNav();
+  const { user, profile, termsAccepted } = useAuth();
+  const [zoom, setZoom] = useState(false);
+  const [reposting, setReposting] = useState(false);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const isFan = profile?.role === 'fan';   // "Self" accounts
+
+  const repost = async () => {
+    if (!user || !text.trim()) return;
+    setBusy(true); setErr(null);
+    const { error } = await supabase.from('posts').insert({ author_id: user.id, content: text.trim(), gig_id: gig.id, district_tag: profile?.district || null });
+    setBusy(false);
+    if (error) return setErr(errorMessage(error));
+    setReposting(false); setText(''); onReposted();
+  };
+
+  return (
+    <article className="rounded-2xl bg-[#1D232A] border border-[#6045F4]/30 overflow-hidden">
+      <div className="flex items-center gap-2 px-3.5 pt-3">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#6045F4]/20 border border-[#6045F4]/40 text-[10px] font-bold tracking-wider text-[#B7A8FF]"><Ticket className="w-3 h-3" />UPCOMING GIG</span>
+        <span className="font-mono text-[10px] text-[#8E9AA7]">{formatGigDate(gig.starts_at)}</span>
+      </div>
+      {gig.poster_url && (
+        <button onClick={() => setZoom(true)} aria-label="View full poster" className="block w-full bg-black cursor-zoom-in mt-2.5">
+          <img src={gig.poster_url} alt={`${gig.title} poster`} className="w-full max-h-[520px] object-contain mx-auto" />
+        </button>
+      )}
+      <div className="p-3.5 space-y-2">
+        <h3 className="font-heading font-bold text-white text-lg leading-snug">{gig.title}</h3>
+        {gig.bands && (
+          <button onClick={() => go({ name: 'band', id: gig.bands!.id })} className="text-[13px] text-[#EBEBED] text-left cursor-pointer">
+            Headliner: <strong className="text-[#53E6D4] hover:underline">{gig.bands.name}</strong>
+          </button>
+        )}
+        <p className="flex items-start gap-1.5 text-[13px] text-[#FFB800]"><MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{gig.venue}{gig.address ? ` — ${gig.address}` : ''}</span></p>
+        {isFan && termsAccepted && !reposting && (
+          <button onClick={() => { setText(`Catch this gig — ${gig.title}`); setErr(null); setReposting(true); }} className={`${btn.ghost} w-full !py-2 !text-xs`}>
+            <Repeat2 className="w-4 h-4 text-[#53E6D4]" />Repost to Connect
+          </button>
+        )}
+        {isFan && reposting && (
+          <div className="space-y-2 pt-1">
+            <MentionInput ariaLabel="Add a caption to your repost" rows={2} value={text} onChange={setText} placeholder="Say something about this gig…" className="w-full px-3 py-2 rounded-xl bg-[#0F1417] border border-white/15 text-sm text-[#EBEBED] outline-none resize-none" />
+            <ErrorNote text={err} />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setReposting(false)} className={`${btn.ghost} !py-1.5 !px-3 !text-xs`}>Cancel</button>
+              <button onClick={repost} disabled={busy || !text.trim()} className={`${btn.primary} !py-1.5 !px-3 !text-xs`}><Repeat2 className="w-3.5 h-3.5" />{busy ? 'Reposting…' : 'Repost'}</button>
+            </div>
+          </div>
+        )}
+      </div>
+      {zoom && gig.poster_url && (
+        <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-3" onClick={() => setZoom(false)} role="dialog" aria-label="Gig poster">
+          <img src={gig.poster_url} alt={`${gig.title} poster`} className="max-w-full max-h-full object-contain" />
+        </div>
+      )}
+    </article>
+  );
+};
+
 /** Connect feed. Pass authorId to show only one person’s posts (used on profiles), or taggedVenue for posts that tag a venue. */
 export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; taggedVenue?: { id: string; username: string }; postId?: string }> = ({ authorId, showComposer = true, taggedVenue, postId }) => {
   const go = useNav();
   const { user, profile, termsAccepted } = useAuth();
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [gigs, setGigs] = useState<Gig[]>([]);
+  const mainFeed = !authorId && !taggedVenue && !postId;   // gig posters show only in the main Connect feed
   const [reacts, setReacts] = useState<{ post_id: string; user_id: string; reaction: Reaction }[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [report, setReport] = useState<{ type: 'post' | 'comment'; id: string } | null>(null);
@@ -87,6 +183,8 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
       list = list.filter((p) => p.venue_id === taggedVenue.id || re.test(p.content));
     }
     setPosts(list);
+    // the Connect tab automatically shows every upcoming gig that has a poster
+    if (!authorId && !taggedVenue && !postId) setGigs((await fetchUpcomingGigs(20)).filter((g) => g.poster_url));
     const ids = list.map((p) => p.id);
     if (ids.length) {
       const [{ data: r }, { data: c }] = await Promise.all([
@@ -155,9 +253,19 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
       )}
 
       <ErrorNote text={loadErr} />
-      {loading ? <Spinner /> : posts.length === 0 ? (
+      {(() => {
+        // one chronological feed: posts + auto gig posters (main feed only), newest first by when they were posted
+        type FeedItem = { kind: 'post'; p: Post } | { kind: 'gig'; g: Gig };
+        const when = (i: FeedItem) => i.kind === 'post' ? i.p.created_at : ((i.g as any).created_at || i.g.starts_at);
+        const feed: FeedItem[] = [
+          ...posts.map((p) => ({ kind: 'post', p }) as FeedItem),
+          ...(mainFeed ? gigs.map((g) => ({ kind: 'gig', g }) as FeedItem) : []),
+        ].sort((a, b) => String(when(b)).localeCompare(String(when(a))));
+        return loading ? <Spinner /> : feed.length === 0 ? (
         <EmptyState icon={MessageCircle} title={postId ? 'This post isn’t available' : taggedVenue ? 'No tagged posts yet' : 'No posts yet'} text={postId ? 'It may have been deleted or removed by moderators.' : taggedVenue ? 'Posts that tag this venue will show up here.' : authorId ? 'Nothing posted here yet.' : 'Be the first to share a gig update or concert photo with the Davao scene.'} />
-      ) : posts.map((p) => {
+      ) : feed.map((item) => {
+        if (item.kind === 'gig') return <GigFeedCard key={`gig-${item.g.id}`} gig={item.g} onReposted={load} />;
+        const p = item.p;
         const mineAll = reacts.filter((x) => x.post_id === p.id);
         const total = mineAll.length;
         const isMine = p.author_id === user?.id;
@@ -193,6 +301,7 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
               <p className="text-[13px] leading-relaxed text-[#EBEBED]"><MentionText text={p.content} /></p>
             )}
             {(p as any).playlist_id && <PlaylistEmbed pl={(p as any).playlists} />}
+            {p.gig_id && <GigEmbed gig={p.gig} />}
             {p.venue ? (
               <button onClick={() => go({ name: 'profile', id: p.venue!.id })} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFB800]/10 border border-[#FFB800]/40 text-[10px] font-bold text-[#FFC34D] cursor-pointer hover:bg-[#FFB800]/20">
                 <Building2 className="w-3 h-3" />{p.venue.display_name}
@@ -222,7 +331,8 @@ export const ConnectFeed: React.FC<{ authorId?: string; showComposer?: boolean; 
             <Comments postId={p.id} startOpen={!!postId} onReport={(id) => setReport({ type: 'comment', id })} onChange={load} />
           </article>
         );
-      })}
+      });
+      })()}
 
       {report && (
         <ReportModal targetType={report.type} targetId={report.id} label={report.type === 'post' ? 'this post' : 'this comment'} onClose={() => setReport(null)} onLogin={() => go({ name: 'auth' })} />

@@ -5,7 +5,6 @@ import type { Band, Gig } from '../lib/db';
 import { BAND_COLS, fetchMyRsvps, fetchRsvpCounts, fetchTopBands, fetchUpcomingGigs, genreNames } from '../lib/queries';
 import { useAuth } from '../context/AuthContext';
 import { useNav } from '../nav';
-import { SponsoredSpotlight } from '../components/SponsoredSpotlight';
 import { Photo, cropOf } from '../components/CardBackground';
 import { BandRow, GigCard } from '../components/cards';
 import { EmptyState, SectionHead, Spinner, btn } from '../components/ui';
@@ -120,10 +119,7 @@ export const HomeScreen: React.FC = () => {
         )}
       </section>
 
-      {/* SPONSORED (kept as-is) */}
-      <SponsoredSpotlight onGoToDeals={() => go({ name: 'deals' })} />
-
-      {/* GIGS */}
+      {/* GIGS — now in the spot where the sponsored spotlight used to be */}
       <section className="space-y-3">
         <SectionHead icon={Calendar} title="Upcoming Gigs" sub="Live shows across Davao City" />
         {loading ? <Spinner /> : gigs.length === 0 ? (

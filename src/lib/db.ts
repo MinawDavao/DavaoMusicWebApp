@@ -129,8 +129,10 @@ export interface Post {
   district_tag: string | null;
   created_at: string;
   edited_at: string | null;
+  gig_id: string | null;
   venue?: Pick<Profile, 'id' | 'display_name' | 'username'> | null;
   profiles?: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url' | 'role' | 'is_verified'> | null;
+  gig?: Pick<Gig, 'id' | 'title' | 'poster_url' | 'venue' | 'starts_at' | 'district' | 'band_id'> & { bands?: Pick<Band, 'id' | 'name' | 'logo_url'> | null } | null;
 }
 
 export interface Comment {
