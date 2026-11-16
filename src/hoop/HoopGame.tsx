@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock, Flag, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Search, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock, Flag, Keyboard, LogIn, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Search, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -51,6 +51,9 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [events, setEvents] = useState<HoopEvent[]>([]);
   const [jersey, setJersey] = useState<Record<string, number | null>>({});
   const [faces, setFaces] = useState<Record<string, { url: string; crop: any }>>({});
+  const [tab, setTab] = useState<'game' | 'checkin'>('game');   // Check-In is a separate tab for arrivals
+  const [kbd, setKbd] = useState(false);   // keyboard mode (tablet + physical keyboard): type stats fast
+  const [checkPick, setCheckPick] = useState(false);   // Check-In tab: the "add a player" search is open
   const [sel, setSelRaw] = useState<string | null>(() => { try { return sessionStorage.getItem(`hoop-sel-${id}`); } catch { return null; } });
   const setSel = (v: string | null) => { setSelRaw(v); try { if (v) sessionStorage.setItem(`hoop-sel-${id}`, v); else sessionStorage.removeItem(`hoop-sel-${id}`); } catch { /* ignore */ } };
   // someone else subbed the selected player out (live update): drop the selection so stats don't go to the bench
@@ -533,6 +536,30 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
   const undo = () => { const last = [...events].reverse().find((e) => !removing.current.has(e.id)); if (last) removeEvent(last); };
 
+  // ---------- keyboard shortcuts (tablet / computer with a physical keyboard)
+  // 1/2/3 = +1/+2/+3 pts · R A B S T F = reb/ast/blk/stl/tov/foul · hold Shift = take one back.
+  // Acts on the selected player; only while a live game is open and keyboard mode is on.
+  const KEY_KIND: Record<string, Kind> = { '1': 'p1', '2': 'p2', '3': 'p3', r: 'reb', a: 'ast', b: 'blk', s: 'stl', t: 'tov', f: 'foul' };
+  const kbRef = useRef<{ on: boolean; mod: boolean; live: boolean; sel: string | null; record: (k: Kind) => void; takeBack: (p: string, k: Kind) => void; setErr: (m: string) => void }>();
+  kbRef.current = { on: kbd, mod: isModerator, live: game.status === 'live', sel, record, takeBack, setErr };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const st = kbRef.current; if (!st || !st.on || !st.mod || !st.live) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+      const shiftDigit: Record<string, string> = { '!': '1', '@': '2', '#': '3' };   // Shift+1/2/3 arrive as symbols
+      let key = e.key; if (shiftDigit[key]) key = shiftDigit[key];
+      key = key.length === 1 ? key.toLowerCase() : key;
+      const kind = KEY_KIND[key]; if (!kind) return;
+      e.preventDefault();
+      if (!st.sel) { st.setErr('Tap a player first, then use the keys.'); return; }
+      if (e.shiftKey) st.takeBack(st.sel, kind); else st.record(kind);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+
   const live = game.status === 'live';
   const showScore = live || game.status === 'final';
   const winner = game.status === 'final' ? (score.A > score.B ? 'A' : score.B > score.A ? 'B' : null) : null;
@@ -637,15 +664,6 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     );
   };
 
-  const playedChip = (pid: string) => {
-    const n = played[pid] || 0;
-    return (
-      <span title={`Played ${n} game${n === 1 ? '' : 's'} of this schedule`}
-        className={`px-1.5 py-0.5 rounded-md text-[9px] font-black whitespace-nowrap ${n === 0 ? 'bg-[#8FE36B]/15 text-[#8FE36B] border border-[#8FE36B]/40' : 'bg-white/10 text-[#D6D3D1] border border-white/15'}`}>
-        {n === 0 ? 'FRESH' : `${n} GP`}
-      </span>
-    );
-  };
   const rosterRow = (p: GamePlayer) => {
     const t = teamOf(p.profile_id);
     return (
@@ -661,14 +679,11 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               {(() => {
                 const b = bookingOf(p.profile_id) || p;
                 const r = arrivalRank(p.profile_id);
-                return (
-                  <button onClick={() => toggleArrived(b)} disabled={busy} aria-pressed={!!b.arrived_at} title={b.arrived_at ? 'Arrived — tap to undo' : 'Tap when this player arrives at the court'}
-                    className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black cursor-pointer border ${b.arrived_at ? 'bg-[var(--hp)]/20 text-[var(--hp)] border-[var(--hp)]/50' : 'bg-white/[0.04] text-[#A8A29E] border-white/15 border-dashed'}`}>
-                    {b.arrived_at ? <><CheckCircle2 className="w-2.5 h-2.5" />ARRIVED #{r}</> : 'NOT HERE YET'}
-                  </button>
-                );
+                // read-only presence marker — checking players in happens on the Check-In tab
+                return b.arrived_at ? (
+                  <span title="Checked in on the Check-In tab" className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black border bg-[var(--hp)]/20 text-[var(--hp)] border-[var(--hp)]/50"><CheckCircle2 className="w-2.5 h-2.5" />HERE{r ? ` #${r}` : ''}</span>
+                ) : null;
               })()}
-              {session.length > 1 || !isFirst ? playedChip(p.profile_id) : null}
               <button onClick={() => togglePaid(p)} disabled={busy} aria-pressed={!!p.paid} title={p.paid ? 'Paid — tap to undo' : 'Not paid yet — tap when paid'}
                 className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black cursor-pointer border ${p.paid ? 'bg-[#53E6D4]/15 text-[#53E6D4] border-[#53E6D4]/45' : 'bg-[#FF6B7A]/10 text-[#FF8A9C] border-[#FF6B7A]/40'}`}>
                 {p.paid ? <><Check className="w-2.5 h-2.5" />PAID</> : <><CircleDollarSign className="w-2.5 h-2.5" />UNPAID</>}
@@ -862,6 +877,59 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     </div>
   );
 
+  // ---------- CHECK-IN tab: the arrival queue (admins). Check players in as they show up; this order feeds the next games.
+  const checkInAdd = async (p: { member_id?: string; profile_id?: string }) => {
+    setCheckPick(false);
+    await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p, arrived_at: new Date(now()).toISOString() }));
+    loadPlayers();
+  };
+  const checkedIn = [...bookings].filter((b) => b.arrived_at).sort(byArrival);
+  const notYet = [...bookings].filter((b) => !b.arrived_at).sort(byQueue);
+  const checkInPanel = (
+    <section className="rounded-2xl p-3.5 space-y-3 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 6%, transparent)' }}>
+      <div className="space-y-1">
+        <p className="text-[11px] font-black tracking-wider text-[var(--hp)] flex items-center gap-1.5"><LogIn className="w-4 h-4" />CHECK-IN · ARRIVAL QUEUE</p>
+        <p className="text-[11px] text-[#A8A29E]">Check players in as they arrive — this order is the queue for the next games (first in, first up). Add anyone from the club or a guest.</p>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => setCheckPick(!checkPick)} aria-expanded={checkPick} className={`${checkPick ? hbtn.primary : hbtn.ghost} flex-1 !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Add a player</button>
+        <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} flex-1 !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Add a guest</button>
+      </div>
+      {checkPick && <MemberPicker clubId={club!.id} exclude={everyone.map((p) => p.profile_id)} excludeAccounts={everyone.map((p) => p.account_id || '')} onPick={checkInAdd} onCancel={() => setCheckPick(false)} />}
+
+      <div className="space-y-1.5">
+        <p className="text-[12px] font-bold text-white">Checked in <span className="text-[var(--hp)]">({checkedIn.length})</span></p>
+        {checkedIn.length === 0 ? <p className="text-[12px] text-[#A8A29E]">No one checked in yet. Check in a booked player below, or add a player/guest.</p> : checkedIn.map((b, i) => {
+          const n = played[b.profile_id] || 0;
+          return (
+            <div key={b.profile_id} className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.03] border border-white/10">
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center font-hoop italic font-black text-[14px] bg-[var(--hp)] text-[#111] flex-shrink-0">{i + 1}</span>
+              <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={28} />
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-1.5"><span className="text-[12px] font-bold text-white truncate">{b.profiles?.display_name || 'Player'}</span>{b.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1] flex-shrink-0">GUEST</span>}</span>
+                <span className="block text-[10px] text-[#A8A29E]">{n === 0 ? 'Not played yet' : `${n} game${n === 1 ? '' : 's'} played`}{b.paid ? ' · paid' : ''}</span>
+              </span>
+              <button onClick={() => toggleArrived(b)} disabled={busy} title="Undo check-in" className="px-2 py-1 rounded-lg text-[10px] font-black bg-white/[0.06] border border-white/15 text-[#A8A29E] hover:text-[#FF8A9C] cursor-pointer">Undo</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {notYet.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <p className="text-[12px] font-bold text-[#A8A29E]">Booked · not here yet ({notYet.length})</p>
+          {notYet.map((b) => (
+            <div key={b.profile_id} className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/10 border-dashed">
+              <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={28} />
+              <span className="flex-1 min-w-0 text-[12px] font-bold text-white truncate">{b.profiles?.display_name || 'Player'}</span>
+              <button onClick={() => toggleArrived(b)} disabled={busy} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-[var(--hp)] text-[#111] cursor-pointer"><Check className="w-3.5 h-3.5" />Check in</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <div className="px-3 py-4 space-y-4">
       <button onClick={() => go(clubHome)} className={`${hbtn.ghost} !py-2 !text-xs`}><ArrowLeft className="w-4 h-4" />All games</button>
@@ -881,6 +949,20 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
           </div>
         </div>
       )}
+
+      {/* CHECK-IN / GAME tabs (admins, while the schedule is open) */}
+      {isModerator && !root.closed_at && (
+        <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/10">
+          {([['game', 'Game'], ['checkin', 'Check In']] as const).map(([t, l]) => (
+            <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
+              className={`flex-1 h-9 rounded-lg text-[12px] font-black cursor-pointer flex items-center justify-center gap-1.5 ${tab === t ? 'bg-[var(--hp)] text-[#111]' : 'text-[#D6D3D1] hover:bg-white/5'}`}>
+              {t === 'checkin' ? <LogIn className="w-4 h-4" /> : <Users className="w-4 h-4" />}{l}{t === 'checkin' && arrivedN > 0 ? ` · ${arrivedN}` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isModerator && tab === 'checkin' ? checkInPanel : (<>
 
       {/* games of this schedule */}
       {session.length > 1 && (
@@ -1068,8 +1150,10 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <p className="flex-1 min-w-0 text-[12px] font-bold truncate" style={{ color: sel ? H.orange : '#A8A29E' }}>
                 {sel ? <>{nameOf(sel)}{jersey[sel] != null ? ` #${jersey[sel]}` : ''} <span className="font-normal text-[#A8A29E]">· {lines[sel]?.pts ?? 0} pts</span></> : 'Tap a player above first'}
               </p>
+              <button onClick={() => setKbd((v) => !v)} aria-pressed={kbd} title="Use a keyboard to type stats fast (tablet / computer)" className={`flex items-center gap-1 px-2.5 h-8 rounded-lg border text-[11px] font-bold cursor-pointer ${kbd ? 'bg-[var(--hp)] text-[#111] border-[var(--hp)]' : 'bg-white/[0.06] text-white border-white/15'}`}><Keyboard className="w-4 h-4" />Keys</button>
               <button onClick={undo} disabled={!events.length} aria-label="Undo the last stat" className="flex items-center gap-1 px-2.5 h-8 rounded-lg bg-white/[0.06] border border-white/15 text-[11px] font-bold text-white cursor-pointer disabled:opacity-35"><Undo2 className="w-4 h-4" />Undo last</button>
             </div>
+            {kbd && <p className="text-[10px] text-[#A8A29E] leading-snug -mt-1">Keyboard on: <strong className="text-white">1 2 3</strong> = points · <strong className="text-white">R A B S T F</strong> = reb, ast, blk, stl, to, foul · hold <strong className="text-white">Shift</strong> + a key to take one back. Tap a player first.</p>}
             <div className="grid grid-cols-5 gap-1.5">
               {KINDS.map((k) => {
                 const n = sel ? events.filter((e) => e.profile_id === sel && e.kind === k.k).length : 0;
@@ -1420,6 +1504,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         </section>
       )}
 
+      </>)}
 
       {editing && <GameForm game={game} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {landscape && !courtsideOff && (live || game.status === 'final') && courtside}
