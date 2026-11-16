@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock, Flag, Keyboard, LogIn, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Search, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleDollarSign, Clock, Flag, Keyboard, LogIn, LogOut, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Search, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -886,13 +886,38 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p, arrived_at: new Date(now()).toISOString() }));
     loadPlayers();
   };
-  const checkedIn = [...bookings].filter((b) => b.arrived_at).sort(byArrival);
-  const notYet = [...bookings].filter((b) => !b.arrived_at).sort(byQueue);
+  const checkedIn = [...bookings].filter((b) => b.arrived_at && !b.left_at).sort(byArrival);
+  const notYet = [...bookings].filter((b) => !b.arrived_at && !b.left_at).sort(byQueue);
+  const checkedOut = [...bookings].filter((b) => b.left_at).sort(byArrival);
+  // Reorder the queue (pair friends / place a player): swap a player's spot with the one above/below by swapping arrival times.
+  const reorderCheckIn = async (b: GamePlayer, dir: -1 | 1) => {
+    const i = checkedIn.findIndex((x) => x.profile_id === b.profile_id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= checkedIn.length) return;
+    const other = checkedIn[j];
+    setBusy(true); setErr(null);
+    const r1 = await supabase.from('hoop_game_players').update({ arrived_at: other.arrived_at }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id);
+    const r2 = r1.error ? r1 : await supabase.from('hoop_game_players').update({ arrived_at: b.arrived_at }).eq('game_id', sessionId).eq(col(other.profile_id), other.profile_id);
+    setBusy(false);
+    if (r1.error || r2.error) setErr(errorMessage(r1.error || r2.error));
+    loadPlayers();
+  };
+  // Check out: take a player out of the rotation (keeps their stats + payment). They also come off any prepared next game.
+  const checkOut = async (b: GamePlayer) => {
+    if (!confirm(`Check out ${nameOf(b.profile_id)}?\n\nThey’re taken out of the rotation for the next games. Their stats and payment stay. You can check them back in anytime.`)) return;
+    setBusy(true); setErr(null);
+    const r1 = await supabase.from('hoop_game_players').update({ left_at: new Date(now()).toISOString() }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id);
+    const r2 = !r1.error && nextG && nextTeam(b.profile_id) ? await supabase.from('hoop_game_players').delete().eq('game_id', nextG.id).eq(col(b.profile_id), b.profile_id) : { error: null };
+    setBusy(false);
+    if (r1.error || r2.error) setErr(errorMessage(r1.error || r2.error));
+    loadPlayers();
+  };
+  const checkBackIn = (b: GamePlayer) => run(() => supabase.from('hoop_game_players').update({ left_at: null }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id)).then(loadPlayers);
   const checkInPanel = (
     <section className="rounded-2xl p-3.5 space-y-3 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 6%, transparent)' }}>
       <div className="space-y-1">
         <p className="text-[11px] font-black tracking-wider text-[var(--hp)] flex items-center gap-1.5"><LogIn className="w-4 h-4" />CHECK-IN · ARRIVAL QUEUE</p>
-        <p className="text-[11px] text-[#A8A29E]">Check players in as they arrive — this order is the queue for the next games (first in, first up). Add anyone from the club or a guest.</p>
+        <p className="text-[11px] text-[#A8A29E]">Check players in as they arrive — this order is the queue for the next games (first in, first up). Use ↑ ↓ to reorder (pair friends), and <strong className="text-[#D6D3D1]">Out</strong> to take someone out of the rotation. Add anyone from the club or a guest.</p>
       </div>
       <div className="flex gap-2">
         <button onClick={() => setCheckPick(!checkPick)} aria-expanded={checkPick} className={`${checkPick ? hbtn.primary : hbtn.ghost} flex-1 !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Add a player</button>
@@ -912,7 +937,12 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                 <span className="flex items-center gap-1.5"><span className="text-[12px] font-bold text-white truncate">{b.profiles?.display_name || 'Player'}</span>{b.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1] flex-shrink-0">GUEST</span>}</span>
                 <span className="block text-[10px] text-[#A8A29E]">{n === 0 ? 'Not played yet' : `${n} game${n === 1 ? '' : 's'} played`}{b.paid ? ' · paid' : ''}</span>
               </span>
-              <button onClick={() => toggleArrived(b)} disabled={busy} title="Undo check-in" className="px-2 py-1 rounded-lg text-[10px] font-black bg-white/[0.06] border border-white/15 text-[#A8A29E] hover:text-[#FF8A9C] cursor-pointer">Undo</button>
+              <div className="flex flex-col gap-0.5 flex-shrink-0">
+                <button onClick={() => reorderCheckIn(b, -1)} disabled={busy || i === 0} aria-label={`Move ${b.profiles?.display_name || 'player'} up`} className="w-6 h-5 rounded-md bg-white/[0.06] border border-white/15 text-[#D6D3D1] flex items-center justify-center cursor-pointer disabled:opacity-30"><ChevronUp className="w-3.5 h-3.5" /></button>
+                <button onClick={() => reorderCheckIn(b, 1)} disabled={busy || i === checkedIn.length - 1} aria-label={`Move ${b.profiles?.display_name || 'player'} down`} className="w-6 h-5 rounded-md bg-white/[0.06] border border-white/15 text-[#D6D3D1] flex items-center justify-center cursor-pointer disabled:opacity-30"><ChevronDown className="w-3.5 h-3.5" /></button>
+              </div>
+              <button onClick={() => checkOut(b)} disabled={busy} title="Check out — remove from the rotation" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-black bg-white/[0.06] border border-white/15 text-[#A8A29E] hover:text-[#FF8A9C] cursor-pointer flex-shrink-0"><LogOut className="w-3.5 h-3.5" />Out</button>
+              <button onClick={() => toggleArrived(b)} disabled={busy} title="Undo check-in" aria-label="Undo check-in" className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/15 text-[#A8A29E] hover:text-[#FF8A9C] flex items-center justify-center cursor-pointer flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
             </div>
           );
         })}
@@ -926,6 +956,19 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={28} />
               <span className="flex-1 min-w-0 text-[12px] font-bold text-white truncate">{b.profiles?.display_name || 'Player'}</span>
               <button onClick={() => toggleArrived(b)} disabled={busy} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-[var(--hp)] text-[#111] cursor-pointer"><Check className="w-3.5 h-3.5" />Check in</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {checkedOut.length > 0 && (
+        <div className="space-y-1.5 pt-1">
+          <p className="text-[12px] font-bold text-[#A8A29E] flex items-center gap-1"><LogOut className="w-3.5 h-3.5" />Checked out ({checkedOut.length}) — out of the rotation</p>
+          {checkedOut.map((b) => (
+            <div key={b.profile_id} className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/10 opacity-70">
+              <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={28} />
+              <span className="flex-1 min-w-0 text-[12px] font-bold text-white truncate">{b.profiles?.display_name || 'Player'}</span>
+              <button onClick={() => checkBackIn(b)} disabled={busy} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-white/[0.06] border border-white/15 text-[var(--hp)] cursor-pointer"><LogIn className="w-3.5 h-3.5" />Check back in</button>
             </div>
           ))}
         </div>
