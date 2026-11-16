@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleDollarSign, Clock, Flag, Keyboard, LogIn, LogOut, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Search, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
+  ArrowLeft, Ban, Check, IdCard, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock, Flag, Keyboard, LogIn, LogOut, MapPin, Minus, Pause, Pencil, Play, Plus, RotateCcw, Search, Shuffle, SkipForward, Sparkles, Trash2, Undo2, UserPlus, Users, X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { errorMessage } from '../lib/db';
@@ -59,6 +59,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [checkPick, setCheckPick] = useState(false);   // Check-In tab: the "add a player" search is open
   const [subSearch, setSubSearch] = useState('');   // live game: filter the sub-in candidates by name
   const [nextDrops, setNextDrops] = useState<string[]>([]);   // next-game line-up: auto-previewed players the admin removed
+  const [swapSel, setSwapSel] = useState<string | null>(null);   // Check-In tab: first player tapped to switch spots
   const [sel, setSelRaw] = useState<string | null>(() => { try { return sessionStorage.getItem(`hoop-sel-${id}`); } catch { return null; } });
   const setSel = (v: string | null) => { setSelRaw(v); try { if (v) sessionStorage.setItem(`hoop-sel-${id}`, v); else sessionStorage.removeItem(`hoop-sel-${id}`); } catch { /* ignore */ } };
   // someone else subbed the selected player out (live update): drop the selection so stats don't go to the bench
@@ -153,7 +154,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     return () => { supabase.removeChannel(ch); };
   }, [id, load, loadPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { setNextAdds([]); setNextDrops([]); }, [id]);   // new game opened → reset next-game line-up tweaks
+  useEffect(() => { setNextAdds([]); setNextDrops([]); setSwapSel(null); }, [id]);   // new game opened → reset next-game line-up tweaks
   useTick(!!game?.clock_running);
   const landscape = usePhoneLandscape();   // phone turned sideways → full-screen courtside view during a live game
   const [courtsideOff, setCourtsideOff] = useState(false);   // closed with ✕ → back to the normal page until the phone turns again
@@ -620,7 +621,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <div className={`flex items-stretch rounded-xl border transition-colors ${on ? 'border-[var(--hp)] bg-[var(--hp)]/15' : 'border-white/10 bg-white/[0.03]'}`}>
                 <button onClick={() => setSel(on ? null : p.profile_id)} aria-pressed={on}
                   className="flex-1 min-w-0 flex items-center gap-2 p-1.5 text-left cursor-pointer hover:bg-white/[0.04] rounded-l-xl">
-                  <span className="w-7 h-7 rounded-lg flex items-center justify-center font-hoop italic font-black text-[15px] flex-shrink-0" style={{ background: team === 'A' ? H.orange : '#3A3A3A', color: team === 'A' ? '#111' : '#F4F1EE' }}>{jersey[p.profile_id] ?? '–'}</span>
+                  <span className="w-6 h-6 rounded-md flex items-center justify-center font-hoop italic font-black text-[13px] flex-shrink-0" style={{ background: team === 'A' ? H.orange : '#3A3A3A', color: team === 'A' ? '#111' : '#F4F1EE' }}>{jersey[p.profile_id] ?? '–'}</span>
+                  <HoopFace avatar={p.profiles?.avatar_url} name={p.profiles?.display_name} cardPhoto={faces[p.profile_id]?.url} cardCrop={faces[p.profile_id]?.crop} size={30} />
                   <span className="flex-1 min-w-0">
                     <span className="block text-[12px] font-bold text-white truncate">{short(p.profiles?.display_name)}</span>
                     <span className="block text-[10px] leading-tight text-[#A8A29E]"><strong className="text-white">{l?.pts ?? 0}</strong> pts · {l?.reb ?? 0} reb · {l?.ast ?? 0} ast</span>
@@ -904,18 +906,22 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const checkedIn = [...bookings].filter((b) => b.arrived_at && !b.left_at).sort(byArrival);
   const notYet = [...bookings].filter((b) => !b.arrived_at && !b.left_at).sort(byQueue);
   const checkedOut = [...bookings].filter((b) => b.left_at).sort(byArrival);
-  // Reorder the queue (pair friends / place a player): swap a player's spot with the one above/below by swapping arrival times.
-  const reorderCheckIn = async (b: GamePlayer, dir: -1 | 1) => {
-    const i = checkedIn.findIndex((x) => x.profile_id === b.profile_id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= checkedIn.length) return;
-    const other = checkedIn[j];
+  // Switch two players' spots in the queue (pair friends / place a player) by swapping their arrival times.
+  const swapCheckIn = async (a: GamePlayer, b: GamePlayer) => {
     setBusy(true); setErr(null);
-    const r1 = await supabase.from('hoop_game_players').update({ arrived_at: other.arrived_at }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id);
-    const r2 = r1.error ? r1 : await supabase.from('hoop_game_players').update({ arrived_at: b.arrived_at }).eq('game_id', sessionId).eq(col(other.profile_id), other.profile_id);
+    const r1 = await supabase.from('hoop_game_players').update({ arrived_at: b.arrived_at }).eq('game_id', sessionId).eq(col(a.profile_id), a.profile_id);
+    const r2 = r1.error ? r1 : await supabase.from('hoop_game_players').update({ arrived_at: a.arrived_at }).eq('game_id', sessionId).eq(col(b.profile_id), b.profile_id);
     setBusy(false);
     if (r1.error || r2.error) setErr(errorMessage(r1.error || r2.error));
     loadPlayers();
+  };
+  // Tap one player to pick, tap another to switch — with a confirm first.
+  const tapSwap = (b: GamePlayer) => {
+    if (!swapSel) return setSwapSel(b.profile_id);
+    if (swapSel === b.profile_id) return setSwapSel(null);   // tapped the same one → deselect
+    const a = checkedIn.find((x) => x.profile_id === swapSel);
+    if (a && confirm(`Switch ${nameOf(a.profile_id)} and ${nameOf(b.profile_id)} in the queue?`)) swapCheckIn(a, b);
+    setSwapSel(null);
   };
   // Check out: take a player out of the rotation (keeps their stats + payment). They also come off any prepared next game.
   const checkOut = async (b: GamePlayer) => {
@@ -932,8 +938,15 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     <section className="rounded-2xl p-3.5 space-y-3 border border-[var(--hp)]/40" style={{ background: 'color-mix(in srgb, var(--hp) 6%, transparent)' }}>
       <div className="space-y-1">
         <p className="text-[11px] font-black tracking-wider text-[var(--hp)] flex items-center gap-1.5"><LogIn className="w-4 h-4" />CHECK-IN · ARRIVAL QUEUE</p>
-        <p className="text-[11px] text-[#A8A29E]">Check players in as they arrive — this order is the queue for the next games (first in, first up). Use ↑ ↓ to reorder (pair friends), and <strong className="text-[#D6D3D1]">Out</strong> to take someone out of the rotation. Add anyone from the club or a guest.</p>
+        <p className="text-[11px] text-[#A8A29E]">Check players in as they arrive — this order is the queue for the next games (first in, first up). To switch two players (pair friends), <strong className="text-[#D6D3D1]">tap one, then tap the other</strong>. Use <strong className="text-[#D6D3D1]">Out</strong> to take someone out of the rotation. Add anyone from the club or a guest.</p>
       </div>
+      {swapSel && (() => { const a = checkedIn.find((x) => x.profile_id === swapSel); return a ? (
+        <div className="flex items-center gap-2 p-2 rounded-xl border border-[var(--hp)]/60 bg-[var(--hp)]/10">
+          <Shuffle className="w-4 h-4 text-[var(--hp)] flex-shrink-0" />
+          <span className="flex-1 min-w-0 text-[11px] font-bold text-white">Switching <span className="text-[var(--hp)]">{a.profiles?.display_name || 'Player'}</span> — tap another player to swap.</span>
+          <button onClick={() => setSwapSel(null)} className="px-2 py-1 rounded-lg text-[10px] font-black bg-white/[0.06] border border-white/15 text-[#A8A29E] cursor-pointer">Cancel</button>
+        </div>
+      ) : null; })()}
       <div className="flex gap-2">
         <button onClick={() => setCheckPick(!checkPick)} aria-expanded={checkPick} className={`${checkPick ? hbtn.primary : hbtn.ghost} flex-1 !py-2 !text-xs`}><UserPlus className="w-3.5 h-3.5" />Add a player</button>
         <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} flex-1 !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Add a guest</button>
@@ -945,17 +958,15 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
         {checkedIn.length === 0 ? <p className="text-[12px] text-[#A8A29E]">No one checked in yet. Check in a booked player below, or add a player/guest.</p> : checkedIn.map((b, i) => {
           const n = played[b.profile_id] || 0;
           return (
-            <div key={b.profile_id} className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.03] border border-white/10">
-              <span className="w-7 h-7 rounded-lg flex items-center justify-center font-hoop italic font-black text-[14px] bg-[var(--hp)] text-[#111] flex-shrink-0">{i + 1}</span>
-              <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={28} />
-              <span className="flex-1 min-w-0">
-                <span className="flex items-center gap-1.5"><span className="text-[12px] font-bold text-white truncate">{b.profiles?.display_name || 'Player'}</span>{b.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1] flex-shrink-0">GUEST</span>}</span>
-                <span className="block text-[10px] text-[#A8A29E]">{n === 0 ? 'Not played yet' : `${n} game${n === 1 ? '' : 's'} played`}{b.paid ? ' · paid' : ''}</span>
-              </span>
-              <div className="flex flex-col gap-0.5 flex-shrink-0">
-                <button onClick={() => reorderCheckIn(b, -1)} disabled={busy || i === 0} aria-label={`Move ${b.profiles?.display_name || 'player'} up`} className="w-6 h-5 rounded-md bg-white/[0.06] border border-white/15 text-[#D6D3D1] flex items-center justify-center cursor-pointer disabled:opacity-30"><ChevronUp className="w-3.5 h-3.5" /></button>
-                <button onClick={() => reorderCheckIn(b, 1)} disabled={busy || i === checkedIn.length - 1} aria-label={`Move ${b.profiles?.display_name || 'player'} down`} className="w-6 h-5 rounded-md bg-white/[0.06] border border-white/15 text-[#D6D3D1] flex items-center justify-center cursor-pointer disabled:opacity-30"><ChevronDown className="w-3.5 h-3.5" /></button>
-              </div>
+            <div key={b.profile_id} className={`flex items-center gap-2 p-2 rounded-xl border ${swapSel === b.profile_id ? 'border-[var(--hp)] bg-[var(--hp)]/15' : 'border-white/10 bg-white/[0.03]'}`}>
+              <button onClick={() => tapSwap(b)} title={swapSel ? 'Tap to switch spots with the selected player' : 'Tap, then tap another player to switch spots'} className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer">
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center font-hoop italic font-black text-[14px] bg-[var(--hp)] text-[#111] flex-shrink-0">{i + 1}</span>
+                <HoopFace avatar={b.profiles?.avatar_url} name={b.profiles?.display_name} cardPhoto={faces[b.profile_id]?.url} cardCrop={faces[b.profile_id]?.crop} size={28} />
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-1.5"><span className="text-[12px] font-bold text-white truncate">{b.profiles?.display_name || 'Player'}</span>{b.is_guest && <span className="px-1 rounded text-[8px] font-black bg-white/15 text-[#D6D3D1] flex-shrink-0">GUEST</span>}</span>
+                  <span className="block text-[10px] text-[#A8A29E]">{n === 0 ? 'Not played yet' : `${n} game${n === 1 ? '' : 's'} played`}{b.paid ? ' · paid' : ''}</span>
+                </span>
+              </button>
               <button onClick={() => checkOut(b)} disabled={busy} title="Check out — remove from the rotation" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-black bg-white/[0.06] border border-white/15 text-[#A8A29E] hover:text-[#FF8A9C] cursor-pointer flex-shrink-0"><LogOut className="w-3.5 h-3.5" />Out</button>
               <button onClick={() => toggleArrived(b)} disabled={busy} title="Undo check-in" aria-label="Undo check-in" className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/15 text-[#A8A29E] hover:text-[#FF8A9C] flex items-center justify-center cursor-pointer flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
             </div>
