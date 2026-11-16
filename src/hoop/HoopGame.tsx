@@ -57,6 +57,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const [tab, setTab] = useState<'game' | 'checkin'>('game');   // Check-In is a separate tab for arrivals
   const [kbd, setKbd] = useState(false);   // keyboard mode (tablet + physical keyboard): type stats fast
   const [checkPick, setCheckPick] = useState(false);   // Check-In tab: the "add a player" search is open
+  const [subSearch, setSubSearch] = useState('');   // live game: filter the sub-in candidates by name
+  const [nextDrops, setNextDrops] = useState<string[]>([]);   // next-game line-up: auto-previewed players the admin removed
   const [sel, setSelRaw] = useState<string | null>(() => { try { return sessionStorage.getItem(`hoop-sel-${id}`); } catch { return null; } });
   const setSel = (v: string | null) => { setSelRaw(v); try { if (v) sessionStorage.setItem(`hoop-sel-${id}`, v); else sessionStorage.removeItem(`hoop-sel-${id}`); } catch { /* ignore */ } };
   // someone else subbed the selected player out (live update): drop the selection so stats don't go to the bench
@@ -151,7 +153,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     return () => { supabase.removeChannel(ch); };
   }, [id, load, loadPlayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { setNextAdds([]); }, [id]);   // new game opened → start the next-game line-up empty again
+  useEffect(() => { setNextAdds([]); setNextDrops([]); }, [id]);   // new game opened → reset next-game line-up tweaks
   useTick(!!game?.clock_running);
   const landscape = usePhoneLandscape();   // phone turned sideways → full-screen courtside view during a live game
   const [courtsideOff, setCourtsideOff] = useState(false);   // closed with ✕ → back to the normal page until the phone turns again
@@ -251,7 +253,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   // late player added on the spot (they're booked and marked arrived at the same moment)
   const addedOnSpot = (b: GamePlayer) => !!b.is_guest || !!b.guest_id || (!!b.arrived_at && Math.abs(Date.parse(b.arrived_at) - Date.parse(b.booked_at)) < 120000);
   const arrivalsOn = bookings.some((b) => b.arrived_at && !addedOnSpot(b));
-  const present = (b: GamePlayer) => !arrivalsOn || !!b.arrived_at;
+  // the rotation pool is strictly the checked-in players — booked but not checked in are not in the pool
+  const present = (b: GamePlayer) => !!b.arrived_at;
   const canPlay = (b: GamePlayer) => !b.removed && !b.left_at && b.member_status !== 'suspended';
   // ---------- NEXT UP: the line-up for the next game, ready before this one even starts.
   // Games each player will have played once THIS game is done (this game counts for whoever is on a team),
@@ -411,14 +414,17 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   const latestPlayed = playedGames[playedGames.length - 1];
   const nextNo = nextG ? session.indexOf(nextG) + 1 : session.length + 1;
   const nextTeam = (pid: string) => (nextG?.hoop_game_players.find((x) => x.profile_id === pid)?.team as 'A' | 'B' | null) ?? null;
-  // the next-game line-up starts empty — it only shows players the admin searched and added, plus anyone already on the next game's teams
-  const nextIds = new Set<string>([...(nextG?.hoop_game_players || []).map((x) => x.profile_id), ...nextAdds]);
+  // the next-game line-up auto-previews the next players from the check-in rotation (nextUp), plus anyone the admin
+  // added or already put on the next game's teams, minus anyone the admin removed from the preview.
+  const nextIds = new Set<string>([...(nextG?.hoop_game_players || []).map((x) => x.profile_id), ...nextAdds, ...nextUp.map(({ b }) => b.profile_id)]);
+  nextDrops.forEach((pid) => { if (!nextAdds.includes(pid) && !(nextG?.hoop_game_players || []).some((x) => x.profile_id === pid)) nextIds.delete(pid); });
   const nextPool = bookings.filter((b) => nextIds.has(b.profile_id) && canPlay(b))
     .sort((a, b) => afterThis(a.profile_id) - afterThis(b.profile_id) || byArrival(a, b));
   /** Admin: add any club player (booked or not, arrived or not) to the next-game line-up. */
   const addToNext = async (p: { member_id?: string; profile_id?: string }) => {
     const pid = p.member_id || p.profile_id!;
     setLatePick(false);
+    setNextDrops((d) => d.filter((x) => x !== pid));
     setNextAdds((a) => (a.includes(pid) ? a : [...a, pid]));
     if (!bookings.some((b) => b.profile_id === pid)) {   // not booked yet → add them so their stats and payment are tracked
       await run(() => supabase.from('hoop_game_players').insert({ game_id: sessionId, ...p, arrived_at: new Date(now()).toISOString() }));
@@ -428,6 +434,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   /** Admin: take a player out of the next-game line-up (keeps their booking, stats and payment). */
   const dropFromNext = async (pid: string) => {
     if (nextTeam(pid)) await pickNext(pid, null);
+    setNextDrops((d) => (d.includes(pid) ? d : [...d, pid]));   // keep auto-previewed players out once removed
     setNextAdds((a) => a.filter((x) => x !== pid));
   };
   const pickNext = async (pid: string, team: 'A' | 'B' | null) => {
@@ -621,18 +628,26 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                   </span>
                 </button>
                 {canSub && (
-                  <button onClick={() => setSubFor(subFor === p.profile_id ? null : p.profile_id)} aria-expanded={subFor === p.profile_id} aria-label={`Sub out ${p.profiles?.display_name || 'player'}`}
+                  <button onClick={() => { setSubFor(subFor === p.profile_id ? null : p.profile_id); setSubSearch(''); }} aria-expanded={subFor === p.profile_id} aria-label={`Sub out ${p.profiles?.display_name || 'player'}`}
                     className={`w-10 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 border-l border-white/10 rounded-r-xl cursor-pointer text-[9px] font-black ${subFor === p.profile_id ? 'bg-[var(--hp)] text-[#111]' : 'text-[#D6D3D1] hover:bg-white/[0.06]'}`}>
                     <Shuffle className="w-3.5 h-3.5" />SUB
                   </button>
                 )}
               </div>
               {canSub && subFor === p.profile_id && (() => {
-                const cands = [...bench.filter((b) => b.profile_id !== p.profile_id && !bookingOf(b.profile_id)?.left_at), ...sittingOut.filter((b) => canPlay(b) && present(bookingOf(b.profile_id) || b))];
+                const all = [...bench.filter((b) => b.profile_id !== p.profile_id && !bookingOf(b.profile_id)?.left_at), ...sittingOut.filter((b) => canPlay(b) && present(bookingOf(b.profile_id) || b))];
+                const q = subSearch.trim().toLowerCase();
+                const cands = q ? all.filter((c) => (c.profiles?.display_name || '').toLowerCase().includes(q)) : all;
                 return (
                   <div className="p-2 rounded-xl border border-[var(--hp)]/50 space-y-1.5" style={{ background: 'color-mix(in srgb, var(--hp) 8%, #141414)' }}>
                     <p className="text-[10px] font-bold text-white">{short(p.profiles?.display_name)} goes to the bench — who comes in?</p>
-                    {cands.length === 0 && <p className="text-[10px] text-[#A8A29E]">No one is available. Add a player with “Change teams / add a player”.</p>}
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#A8A29E] pointer-events-none" />
+                      <input type="text" inputMode="search" value={subSearch} onChange={(e) => setSubSearch(e.target.value)} placeholder="Search checked-in players…"
+                        className="w-full h-8 pl-7 pr-2 rounded-lg bg-black/40 border border-white/15 text-[11px] text-white outline-none focus:border-[var(--hp)]" />
+                    </div>
+                    {all.length === 0 ? <p className="text-[10px] text-[#A8A29E]">No one is available. Add a player on the Check-In tab.</p>
+                      : cands.length === 0 && <p className="text-[10px] text-[#A8A29E]">No checked-in player matches “{subSearch.trim()}”.</p>}
                     {cands.map((c) => (
                       <button key={c.profile_id} onClick={() => swapSub(p.profile_id, c.profile_id, team)} disabled={busy}
                         className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-black/30 border border-white/10 text-left cursor-pointer hover:border-[var(--hp)]">
@@ -641,7 +656,7 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
                         <span className="text-[9px] font-black text-[var(--hp)]">{c.team === team ? 'BENCH' : 'IN'}</span>
                       </button>
                     ))}
-                    <button onClick={() => setSubFor(null)} className="w-full text-[10px] font-bold text-[#A8A29E] cursor-pointer py-0.5">Cancel</button>
+                    <button onClick={() => { setSubFor(null); setSubSearch(''); }} className="w-full text-[10px] font-bold text-[#A8A29E] cursor-pointer py-0.5">Cancel</button>
                   </div>
                 );
               })()}
@@ -1363,19 +1378,19 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
               <span className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--hp)] text-[#111] flex-shrink-0"><Shuffle className="w-5 h-5" /></span>
               <span className="flex-1 min-w-0">
                 <span className="block font-hoop italic font-black text-[20px] uppercase text-white leading-none">Line-up for Game {nextNo}</span>
-                <span className="block text-[11px] text-[#D6D3D1] mt-1">{nA + nB ? `${game.team_a} ${nA} · ${game.team_b} ${nB} ready` : 'Search and add players'} · {showNext ? 'tap to hide' : 'tap to show'}</span>
+                <span className="block text-[11px] text-[#D6D3D1] mt-1">{nA + nB ? `${game.team_a} ${nA} · ${game.team_b} ${nB} ready` : 'Previewed from Check-In'} · {showNext ? 'tap to hide' : 'tap to show'}</span>
               </span>
               <ChevronDown className={`w-5 h-5 text-[#D6D3D1] flex-shrink-0 transition-transform ${showNext ? 'rotate-180' : ''}`} />
             </button>
             {showNext && (
               <div className="rounded-2xl p-3 space-y-2 border border-white/10" style={{ background: H.surface }}>
-                <p className="text-[11px] text-[#A8A29E] leading-snug"><strong className="text-white">Search and add</strong> the players for Game {nextNo} — any club player shows up, booked or not. Tap a team to put them in; tap again to take them off. When this game ends, Game {nextNo} is ready to start.</p>
+                <p className="text-[11px] text-[#A8A29E] leading-snug">The next players from the <strong className="text-white">Check-In queue</strong> are previewed here automatically. Tap a team to put them in; tap again to take them off. Add anyone else with the button below. When this game ends, Game {nextNo} is ready to start.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setLatePick(!latePick)} disabled={busy} aria-expanded={latePick} className={`${latePick ? hbtn.primary : hbtn.ghost} !py-2 !text-xs`}><Search className="w-3.5 h-3.5" />Add a club player</button>
                   <button onClick={addGuest} disabled={busy} className={`${hbtn.ghost} !py-2 !text-xs`}><Plus className="w-3.5 h-3.5" />Add a guest</button>
                 </div>
                 {latePick && <MemberPicker clubId={club!.id} exclude={[...nextIds]} excludeAccounts={[]} onPick={addToNext} onCancel={() => setLatePick(false)} />}
-                {nextPool.length === 0 ? <p className="text-[12px] text-[#A8A29E] py-1">No one added yet. Tap <strong className="text-white">Add a club player</strong> and search by name.</p> : nextPool.map((b) => {
+                {nextPool.length === 0 ? <p className="text-[12px] text-[#A8A29E] py-1">No checked-in players to line up yet. Check players in on the <strong className="text-white">Check-In</strong> tab, or add someone below.</p> : nextPool.map((b) => {
                   const n = afterThis(b.profile_id);
                   const nowOn = teamOf(b.profile_id);
                   return (
