@@ -22,6 +22,9 @@ import { MessageButton } from '../screens/MessagesScreen';
 const MIN_PLAYERS = 10;
 const MIN_PER_TEAM = 5;
 
+/** Keyboard stat shortcuts (tablet / computer): 1/2/3 = points, letters = other stats, hold Shift = take one back. */
+const KEY_KIND: Record<string, Kind> = { '1': 'p1', '2': 'p2', '3': 'p3', r: 'reb', a: 'ast', b: 'blk', s: 'stl', t: 'tov', f: 'foul' };
+
 const short = (name?: string | null) => {
   const parts = (name || 'Player').trim().split(/\s+/);
   return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0];
@@ -180,6 +183,27 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
     io.observe(el);
     return () => io.disconnect();
   }, [game?.id]);
+
+  // keyboard shortcuts for live stat entry. The listener (registered once) reads the latest state from this ref,
+  // which is refreshed every render further down. Declared here — above the early returns — so hook order never changes.
+  const kbRef = useRef<{ on: boolean; mod: boolean; live: boolean; sel: string | null; record: (k: Kind) => void; takeBack: (p: string, k: Kind) => void; setErr: (m: string) => void }>();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const st = kbRef.current; if (!st || !st.on || !st.mod || !st.live) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+      const shiftDigit: Record<string, string> = { '!': '1', '@': '2', '#': '3' };   // Shift+1/2/3 arrive as symbols
+      let key = e.key; if (shiftDigit[key]) key = shiftDigit[key];
+      key = key.length === 1 ? key.toLowerCase() : key;
+      const kind = KEY_KIND[key]; if (!kind) return;
+      e.preventDefault();
+      if (!st.sel) { st.setErr('Tap a player first, then use the keys.'); return; }
+      if (e.shiftKey) st.takeBack(st.sel, kind); else st.record(kind);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (game === undefined) return <Spinner label="Loading game…" />;
   if (game === null) return (
@@ -536,29 +560,8 @@ export const HoopGameScreen: React.FC<{ id: string }> = ({ id }) => {
   };
   const undo = () => { const last = [...events].reverse().find((e) => !removing.current.has(e.id)); if (last) removeEvent(last); };
 
-  // ---------- keyboard shortcuts (tablet / computer with a physical keyboard)
-  // 1/2/3 = +1/+2/+3 pts · R A B S T F = reb/ast/blk/stl/tov/foul · hold Shift = take one back.
-  // Acts on the selected player; only while a live game is open and keyboard mode is on.
-  const KEY_KIND: Record<string, Kind> = { '1': 'p1', '2': 'p2', '3': 'p3', r: 'reb', a: 'ast', b: 'blk', s: 'stl', t: 'tov', f: 'foul' };
-  const kbRef = useRef<{ on: boolean; mod: boolean; live: boolean; sel: string | null; record: (k: Kind) => void; takeBack: (p: string, k: Kind) => void; setErr: (m: string) => void }>();
+  // keyboard shortcuts: keep the latest state in the ref the listener (registered up top) reads
   kbRef.current = { on: kbd, mod: isModerator, live: game.status === 'live', sel, record, takeBack, setErr };
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const st = kbRef.current; if (!st || !st.on || !st.mod || !st.live) return;
-      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
-      const shiftDigit: Record<string, string> = { '!': '1', '@': '2', '#': '3' };   // Shift+1/2/3 arrive as symbols
-      let key = e.key; if (shiftDigit[key]) key = shiftDigit[key];
-      key = key.length === 1 ? key.toLowerCase() : key;
-      const kind = KEY_KIND[key]; if (!kind) return;
-      e.preventDefault();
-      if (!st.sel) { st.setErr('Tap a player first, then use the keys.'); return; }
-      if (e.shiftKey) st.takeBack(st.sel, kind); else st.record(kind);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const live = game.status === 'live';
   const showScore = live || game.status === 'final';
