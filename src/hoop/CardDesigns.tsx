@@ -1127,7 +1127,7 @@ export const TwentyCard: React.FC<TradingCardProps & { serial?: number | null; t
       <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
         aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
         className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
-        style={{ left: cq(8), right: cq(8), top: cq(2), height: cq(80), background: 'radial-gradient(80% 60% at 50% 30%, #243764 0%, #0E1838 70%)' }}>
+        style={{ left: 0, right: 0, top: 0, height: cq(85), background: 'radial-gradient(80% 60% at 50% 30%, #243764 0%, #0E1838 70%)' }}>
         <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(40,60,110,0.25)" />
       </div>
       <img src={TWENTY_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
