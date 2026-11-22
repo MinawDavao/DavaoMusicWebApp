@@ -1102,6 +1102,70 @@ export const TenCard: React.FC<TradingCardProps & { serial?: number | null; tota
   );
 };
 
+// =====================================================================================================
+// 20-20 — the second numbered series (hoop_numbered_cards.series = 'twenty'). Only 20 per club (1-20 … 20-20).
+// Red / navy jersey-mesh frame (public/hoop-cards/twenty-frame.webp, see-through photo window). Jersey number
+// top-right, full name in script (Yellowtail), averages on the white plate, card number bottom-right. Can be signed.
+// =====================================================================================================
+export const TWENTY_FRAME = '/hoop-cards/twenty-frame.webp';
+export const TWENTY_SIG = { x: 14, y: 34, w: 72, h: 34 };
+export const TwentyCard: React.FC<TradingCardProps & { serial?: number | null; total?: number; signature?: string | null; glow?: boolean }> = (props) => {
+  const { serial, total = 20, signature, glow = true, ...p } = props;
+  const f = useFace(p as TradingCardProps);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const name = p.person.display_name.trim();
+  const nameSize = Math.min(9, 150 / Math.max(1, name.length));
+  const num = f.num != null ? String(f.num) : '–';
+  const stats: [string, number | undefined][] = [['PPG', f.s?.ppg], ['RPG', f.s?.rpg], ['APG', f.s?.apg], ['SPG', f.s?.spg], ['BPG', f.s?.bpg]];
+  const stroke = (w: number, c: string): React.CSSProperties => ({ WebkitTextStroke: `${cq(w)} ${c}`, paintOrder: 'stroke fill' } as React.CSSProperties);
+  return (
+    <div className="relative w-full aspect-[5/7] select-none" style={{
+      containerType: 'inline-size',
+      filter: glow ? `drop-shadow(0 0 ${cq(1)} rgba(120,150,255,0.85)) drop-shadow(0 0 ${cq(3.5)} rgba(190,30,70,0.55)) drop-shadow(0 0 ${cq(8)} rgba(220,220,230,0.3))` : undefined,
+    }}>
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: cq(8), right: cq(8), top: cq(2), height: cq(80), background: 'radial-gradient(80% 60% at 50% 30%, #243764 0%, #0E1838 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(40,60,110,0.25)" />
+      </div>
+      <img src={TWENTY_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {editing && (
+        <At x={0} r={0} y={54} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {signature && (
+        <At x={TWENTY_SIG.x} y={TWENTY_SIG.y} w={TWENTY_SIG.w} h={TWENTY_SIG.h} className="pointer-events-none">
+          <img src={signature} alt="Signed" draggable={false} className="w-full h-full object-contain" style={{ filter: `drop-shadow(0 ${cq(0.25)} ${cq(0.3)} rgba(0,0,0,0.55))` }} />
+        </At>
+      )}
+      {/* jersey number, top-right over the photo */}
+      <At x={58} r={6.5} y={2.6} h={14} className="flex items-start justify-end pointer-events-none">
+        <span className="font-hoop italic font-black leading-none" style={{ fontSize: cq(11), color: '#fff', ...stroke(0.5, '#15224c'), textShadow: `0 ${cq(0.4)} ${cq(0.9)} rgba(0,0,0,0.55)` }}>{num}</span>
+      </At>
+      {/* full name in script, below the photo */}
+      <At x={5} r={5} y={69} h={10} className="flex items-center justify-center pointer-events-none">
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: '"Yellowtail", cursive', fontSize: cq(nameSize), color: '#fff', ...stroke(0.3, '#15224c'), textShadow: `0 ${cq(0.3)} ${cq(1)} rgba(0,0,0,0.6)` }}>{name}</span>
+      </At>
+      {/* averages on the white plate */}
+      <At x={15} r={15} y={87} h={28} className="grid grid-cols-5 items-center pointer-events-none">
+        {stats.map(([k, v]) => (
+          <span key={k} className="flex flex-col items-center">
+            <span className="font-hoop italic font-black leading-none" style={{ fontSize: cq(9), color: '#15224c', textShadow: `0 ${cq(0.22)} ${cq(0.3)} rgba(0,0,0,0.14)` }}>{statNum(v, f.s)}</span>
+            <span className="font-hoop font-black leading-none" style={{ fontSize: cq(2.7), letterSpacing: cq(0.08), color: '#9a2230', marginTop: cq(0.5) }}>{statLabel(k, f.s)}</span>
+          </span>
+        ))}
+      </At>
+      {/* card number, e.g. 5-20 */}
+      <At x={64} r={6.5} y={129.4} h={6} className="flex items-center justify-end pointer-events-none">
+        <span className="font-hoop font-black leading-none" style={{ fontSize: cq(5), color: '#fff', textShadow: `0 ${cq(0.3)} ${cq(0.9)} rgba(0,0,0,0.6)` }}>{serial ?? '–'}-{total}</span>
+      </At>
+    </div>
+  );
+};
+
 /** design 'holo' = the Holo card; frame = the picture this card was won with (kept even if the club changes its design) */
 export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signature?: string | null; design?: string | null; frame?: string | null }> = (props) => {
   if (props.design === 'holo') { const { design: _d, ...rest } = props; void _d; return <HoloOneCard {...rest} />; }
@@ -1437,4 +1501,5 @@ export const CARD_SERIES: CardSeries[] = [
   { n: 7, key: 'selected', name: 'Chosen', tagline: 'Numbered limited series — only 10 ever (1/10 … 10/10). Hidden in 10 random players’ packs after a schedule. Can be signed.', Comp: SelectedCard, unlock: 'Random 10 packs' },
   { n: 8, key: 'oneofone-holo', name: '1 of 1 · Holo', tagline: 'The new 1-of-1 from Hoop Method’s 4th schedule on — holographic silver frame, club name and logo, gold last name, 1-1 shield. Cards won before keep the gold design.', Comp: HoloOneCard, unlock: 'Pack winner only' },
   { n: 9, key: 'ten', name: '10-10', tagline: 'Numbered series — only 10 per club (1-10 … 10-10). From Hoop Method’s 4th schedule, hidden in random players’ packs. Can be signed.', Comp: TenCard, unlock: 'Random 10 packs' },
+  { n: 10, key: 'twenty', name: '20-20', tagline: 'Numbered series — only 20 per club (1-20 … 20-20). Red & navy jersey frame, script name, big stats. Given to 20 random players after a schedule. Can be signed.', Comp: TwentyCard, unlock: 'Random 20 packs' },
 ];
