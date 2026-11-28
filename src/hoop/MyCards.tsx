@@ -32,7 +32,7 @@ export const MyCards: React.FC<{ memberId: string; choice: string | null | undef
   const owned: { key: string; level: CardLevel; label: string; oneId?: string; selId?: string; serial?: number; series?: string; design?: string | null; frame?: string | null; signed?: boolean; sig?: string | null }[] = [
     ...CARD_LEVELS.filter((l) => l.n <= level.n).map((l) => ({ key: `level${l.n}`, level: l.n as CardLevel, label: `Level ${l.n}` })),
     ...ones.map((o, i) => ({ key: `one:${o.id}`, level: 'one' as CardLevel, label: ones.length > 1 ? `1 of 1 · #${i + 1}` : '1 of 1', oneId: o.id, design: o.design, frame: o.frame_url, signed: !!o.signature_url, sig: o.signature_url })),
-    ...sels.map((x) => ({ key: `sel:${x.id}`, level: 'sel' as CardLevel, label: x.series === 'twenty' ? `20-20 · ${x.serial}-${x.total}` : x.series === 'ten' ? `10-10 · ${x.serial}-${x.total}` : `Chosen ${x.serial}/${x.total}`, selId: x.id, serial: x.serial, series: x.series, signed: !!x.signature_url, sig: x.signature_url })),
+    ...sels.map((x) => ({ key: `sel:${x.id}`, level: 'sel' as CardLevel, label: x.series === 'thirty' ? `Flawless · ${x.serial}/${x.total}` : x.series === 'twenty' ? `20-20 · ${x.serial}-${x.total}` : x.series === 'ten' ? `10-10 · ${x.serial}-${x.total}` : `Chosen ${x.serial}/${x.total}`, selId: x.id, serial: x.serial, series: x.series, signed: !!x.signature_url, sig: x.signature_url })),
   ];
   const current = choice && owned.some((o) => o.key === choice) ? choice : `level${level.n}`;
   if (owned.length < 2 && !ones.length && !sels.length) return null;   // only one card so far — nothing to choose yet
@@ -72,7 +72,7 @@ export const MyCards: React.FC<{ memberId: string; choice: string | null | undef
       {owned.filter((o) => o.selId).map((o) => (
         <button key={`sign-${o.selId}`} onClick={() => setSigning({ id: o.selId!, current: o.sig ?? null, kind: 'sel', serial: o.serial, series: o.series })}
           className={`${o.signed ? hbtnGhost : hbtnPrimary} w-full !py-2.5`}>
-          <PenLine className="w-4 h-4" />{o.series === 'twenty' ? (o.signed ? `Re-sign your 20-20 card (${o.serial}-20)` : `Sign your 20-20 card (${o.serial}-20) now`) : o.series === 'ten' ? (o.signed ? `Re-sign your 10-10 card (${o.serial}-10)` : `Sign your 10-10 card (${o.serial}-10) now`) : o.signed ? `Re-sign your Chosen ${o.serial}/10` : `Sign your Chosen ${o.serial}/10 card now`}
+          <PenLine className="w-4 h-4" />{o.series === 'thirty' ? (o.signed ? `Re-sign your Flawless card (${o.serial}/30)` : `Sign your Flawless card (${o.serial}/30) now`) : o.series === 'twenty' ? (o.signed ? `Re-sign your 20-20 card (${o.serial}-20)` : `Sign your 20-20 card (${o.serial}-20) now`) : o.series === 'ten' ? (o.signed ? `Re-sign your 10-10 card (${o.serial}-10)` : `Sign your 10-10 card (${o.serial}-10) now`) : o.signed ? `Re-sign your Chosen ${o.serial}/10` : `Sign your Chosen ${o.serial}/10 card now`}
         </button>
       ))}
       {owned.filter((o) => o.oneId).map((o) => (

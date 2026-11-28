@@ -8,11 +8,12 @@ import { Avatar, ErrorNote, Spinner } from '../components/ui';
 import { confirmDelete } from '../components/ConfirmDelete';
 import { H, HOOP_MAIN_ADMIN_ID, MEMBER_COLS, PERSON, fetchStats, gameDate, hbtn, forgetUnlocks, ordinal, personOf, useClub, useClubUnlocks, type HoopMember, type HoopStats } from './lib';
 import { DESIGNS, announceSigned, levelFor, useMemberSchedules } from './ClubCard';
-import { OneOfOneCard, SelectedCard, TenCard, TwentyCard } from './CardDesigns';
+import { FlawlessCard, OneOfOneCard, SelectedCard, TenCard, TwentyCard } from './CardDesigns';
 
-/** numbered series ('ten' = 10-10, 'twenty' = 20-20) use the "serial-total" format; 'selected' = Chosen ("serial/total"). */
-const isNumSeries = (s?: string | null) => s === 'ten' || s === 'twenty';
-const numSeriesName = (s?: string | null) => (s === 'twenty' ? '20-20' : '10-10');
+/** numbered series ('ten' = 10-10, 'twenty' = 20-20, 'thirty' = Flawless) use the "serial-total" format; 'selected' = Chosen ("serial/total"). */
+const isNumSeries = (s?: string | null) => s === 'ten' || s === 'twenty' || s === 'thirty';
+const numSeriesName = (s?: string | null) => (s === 'thirty' ? 'Flawless' : s === 'twenty' ? '20-20' : '10-10');
+const numSeriesTotal = (s?: string | null) => (s === 'thirty' ? 30 : s === 'twenty' ? 20 : 10);
 import { SignCard } from './SignCard';
 import { CardBack, TiltCard } from './CardDesigns';
 
@@ -132,9 +133,9 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
   const [draws, setDraws] = useState<Draw[]>([]);
   const [pick, setPick] = useState<Record<string, string>>({});
   // what each sealed schedule gives out (its own number decides, not the club's total)
-  const [gives, setGives] = useState<Record<string, { no: number; packs: boolean; chosen: boolean; holo?: boolean; ten?: boolean; ten_left?: number; twenty?: boolean; twenty_left?: number }>>({});
-  const chosenFor = (id: string) => !!gives[id]?.chosen || !!gives[id]?.ten || !!gives[id]?.twenty;
-  const extraText = (id: string) => [gives[id]?.chosen ? 'Chosen cards' : '', gives[id]?.ten ? '10-10 cards' : '', gives[id]?.twenty ? '20-20 cards' : ''].filter(Boolean).join(' and ');
+  const [gives, setGives] = useState<Record<string, { no: number; packs: boolean; chosen: boolean; holo?: boolean; ten?: boolean; ten_left?: number; twenty?: boolean; twenty_left?: number; thirty?: boolean; thirty_left?: number }>>({});
+  const chosenFor = (id: string) => !!gives[id]?.chosen || !!gives[id]?.ten || !!gives[id]?.twenty || !!gives[id]?.thirty;
+  const extraText = (id: string) => [gives[id]?.chosen ? 'Chosen cards' : '', gives[id]?.ten ? '10-10 cards' : '', gives[id]?.twenty ? '20-20 cards' : '', gives[id]?.thirty ? 'Flawless cards' : ''].filter(Boolean).join(' and ');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -221,6 +222,12 @@ const WinnerPicker: React.FC<{ clubId: string; onDone: () => void }> = ({ clubId
             <div className="flex items-center gap-2.5 p-2 rounded-xl border border-[#C2334F]/40 bg-[#C2334F]/[0.07]">
               <div className="w-12 flex-shrink-0 pointer-events-none"><TwentyCard glow={false} serial={1} person={{ id: 'x', display_name: 'Player Name', username: '', avatar_url: null } as any} card={{ jersey_number: null, position: null } as any} stats={null} club={club ? { name: club.name, logo_url: club.logo_url } : null} /></div>
               <p className="text-[11px] text-[#D6D3D1] leading-snug"><strong className="text-white">20-20 cards</strong> go to up to {Math.min(gives[s.id]?.twenty_left ?? 20, Math.max(0, s.list.length - 1))} random players in these packs (not the 1-of-1 winner). Only 20 will ever exist{(gives[s.id]?.twenty_left ?? 20) < 20 ? ` — ${gives[s.id]?.twenty_left} left` : ''}.</p>
+            </div>
+          )}
+          {gives[s.id]?.thirty && (
+            <div className="flex items-center gap-2.5 p-2 rounded-xl border border-[#2F6BFF]/40 bg-[#2F6BFF]/[0.07]">
+              <div className="w-12 flex-shrink-0 pointer-events-none"><FlawlessCard glow={false} serial={1} person={{ id: 'x', display_name: 'Player Name', username: '', avatar_url: null } as any} card={{ jersey_number: null, position: null } as any} stats={null} club={club ? { name: club.name, logo_url: club.logo_url } : null} /></div>
+              <p className="text-[11px] text-[#D6D3D1] leading-snug"><strong className="text-white">Flawless cards</strong> go to up to {Math.min(gives[s.id]?.thirty_left ?? 30, Math.max(0, s.list.length - 1))} random players in these packs (not the 1-of-1 winner). Only 30 will ever exist{(gives[s.id]?.thirty_left ?? 30) < 30 ? ` — ${gives[s.id]?.thirty_left} left` : ''}.</p>
             </div>
           )}
           {gives[s.id]?.holo && (
@@ -370,6 +377,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
     if (key === 'oneofone') return <OneOfOneCard {...cardProps} signature={sig} design={res!.one_design} frame={res!.one_frame} />;
     if (key === 'selected' && res!.sel_series === 'ten') return <TenCard {...cardProps} serial={res!.sel_serial} total={res!.sel_total ?? 10} signature={selSig} />;
     if (key === 'selected' && res!.sel_series === 'twenty') return <TwentyCard {...cardProps} serial={res!.sel_serial} total={res!.sel_total ?? 20} signature={selSig} />;
+    if (key === 'selected' && res!.sel_series === 'thirty') return <FlawlessCard {...cardProps} serial={res!.sel_serial} total={res!.sel_total ?? 30} signature={selSig} />;
     if (key === 'selected') return <SelectedCard {...cardProps} serial={res!.sel_serial} total={res!.sel_total ?? 10} signature={selSig} />;
     const [design, id] = key.split(':');
     const Comp = DESIGNS[design] || DESIGNS.glow;
@@ -403,7 +411,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
 
         {err ? <ErrorNote text={err} /> : !res ? <Spinner label="Opening your pack…" /> : (
           <>
-            <p className="text-center text-[13px] text-[#D6D3D1]">{all ? (res.one_slot ? 'You pulled the 1-of-1!' : res.sel_slot ? (isNumSeries(res.sel_series) ? `You pulled a ${numSeriesName(res.sel_series)} card — ${res.sel_serial}-${res.sel_total ?? (res.sel_series === 'twenty' ? 20 : 10)}!` : `You pulled a Chosen card — ${res.sel_serial} of ${res.sel_total ?? 10}!`) : 'All 5 cards revealed. Tap a card to see it big.') : `Tap a card to flip it · ${flipped.filter(Boolean).length} of 5`}</p>
+            <p className="text-center text-[13px] text-[#D6D3D1]">{all ? (res.one_slot ? 'You pulled the 1-of-1!' : res.sel_slot ? (isNumSeries(res.sel_series) ? `You pulled a ${numSeriesName(res.sel_series)} card — ${res.sel_serial}-${res.sel_total ?? (numSeriesTotal(res.sel_series))}!` : `You pulled a Chosen card — ${res.sel_serial} of ${res.sel_total ?? 10}!`) : 'All 5 cards revealed. Tap a card to see it big.') : `Tap a card to flip it · ${flipped.filter(Boolean).length} of 5`}</p>
             <div className="flex flex-wrap justify-center gap-3" style={{ perspective: '1100px' }}>
               {res.cards.map((key, i) => {
                 const isOne = key === 'oneofone';
@@ -436,7 +444,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
                           return <span key={k} className="pack-spark absolute left-1/2 top-1/2 w-2 h-2 -ml-1 -mt-1 rounded-full pointer-events-none"
                             style={{ background: k % 2 ? (isSel ? '#8EC5FF' : '#FFE38A') : '#FFFFFF', boxShadow: isSel ? '0 0 8px #4A9BFF' : '0 0 8px #FFC94A', ['--dx' as any]: `${Math.cos(a) * d}px`, ['--dy' as any]: `${Math.sin(a) * d}px` }} />;
                         })}
-                        {isSel && shown && <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black text-white whitespace-nowrap z-10" style={{ background: 'linear-gradient(180deg,#4FA3FF,#1D4FB8)', boxShadow: '0 0 12px rgba(80,160,255,0.8)', ...(isNumSeries(res.sel_series) ? { background: 'linear-gradient(180deg,#C2334F,#6E0F25)', boxShadow: '0 0 12px rgba(220,60,100,0.8)' } : {}) }}>{isNumSeries(res.sel_series) ? `${res.sel_serial}-${res.sel_total ?? (res.sel_series === 'twenty' ? 20 : 10)}` : `${res.sel_serial}/10`}</span>}
+                        {isSel && shown && <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black text-white whitespace-nowrap z-10" style={{ background: 'linear-gradient(180deg,#4FA3FF,#1D4FB8)', boxShadow: '0 0 12px rgba(80,160,255,0.8)', ...(isNumSeries(res.sel_series) ? { background: 'linear-gradient(180deg,#C2334F,#6E0F25)', boxShadow: '0 0 12px rgba(220,60,100,0.8)' } : {}) }}>{isNumSeries(res.sel_series) ? `${res.sel_serial}-${res.sel_total ?? (numSeriesTotal(res.sel_series))}` : `${res.sel_serial}/10`}</span>}
                         {isOne && shown && <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-black text-[#1A1205] whitespace-nowrap z-10" style={{ background: 'linear-gradient(180deg,#FFE98A,#F5A623)', boxShadow: '0 0 12px rgba(255,200,80,0.8)' }}>1 OF 1</span>}
                       </button>
                     </TiltCard>
@@ -449,7 +457,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
               <div className="p-4 rounded-2xl text-center space-y-2 border border-[#5AA2FF]/60" style={{ background: 'linear-gradient(160deg, rgba(60,130,255,0.25), rgba(246,201,76,0.12))', boxShadow: '0 0 40px rgba(80,150,255,0.25)' }}>
                 <Crown className="w-9 h-9 mx-auto text-[#8EC5FF]" />
                 <p className="font-hoop italic font-black text-[26px] uppercase text-white leading-none">{isNumSeries(res.sel_series) ? `You got a ${numSeriesName(res.sel_series)} card! No. ${res.sel_serial}` : `You’re Chosen! ${res.sel_serial}/${res.sel_total ?? 10}`}</p>
-                <p className="text-[12px] text-[#E7E5E4]">Only {res.sel_series === 'twenty' ? 20 : 10} {isNumSeries(res.sel_series) ? numSeriesName(res.sel_series) : 'Chosen'} cards will ever exist in {club?.name || 'the club'} — you got number {res.sel_serial}. It’s in your card list on My Card.</p>
+                <p className="text-[12px] text-[#E7E5E4]">Only {numSeriesTotal(res.sel_series)} {isNumSeries(res.sel_series) ? numSeriesName(res.sel_series) : 'Chosen'} cards will ever exist in {club?.name || 'the club'} — you got number {res.sel_serial}. It’s in your card list on My Card.</p>
                 {(demo || res.sel_id) && (
                   <button onClick={() => setSigning('sel')} className={`${hbtn.primary} w-full`}><PenLine className="w-4 h-4" />{selSig ? `Re-sign your ${isNumSeries(res.sel_series) ? numSeriesName(res.sel_series) : 'Chosen'} card` : `Sign your ${isNumSeries(res.sel_series) ? numSeriesName(res.sel_series) : 'Chosen'} card now`}</button>
                 )}
@@ -485,7 +493,7 @@ const PackOpener: React.FC<{ pack: Pack; me: HoopMember; stats: HoopStats | null
           className="pack-fade-in fixed inset-0 z-[80] flex flex-col items-center justify-center p-5 cursor-pointer"
           style={{ background: res.cards[big] === 'oneofone' ? 'radial-gradient(80% 60% at 50% 45%, rgba(120,84,10,0.85) 0%, rgba(5,4,8,0.96) 70%)' : res.cards[big] === 'selected' ? 'radial-gradient(80% 60% at 50% 45%, rgba(130,90,15,0.85) 0%, rgba(5,4,8,0.96) 70%)' : 'radial-gradient(80% 60% at 50% 45%, rgba(40,36,70,0.9) 0%, rgba(5,4,8,0.96) 70%)' }}>
           {res.cards[big] === 'selected' && (
-            <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>{isNumSeries(res.sel_series) ? `${numSeriesName(res.sel_series)} · ${res.sel_serial}-${res.sel_total ?? (res.sel_series === 'twenty' ? 20 : 10)}!` : `Chosen ${res.sel_serial}/10!`}</p>
+            <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>{isNumSeries(res.sel_series) ? `${numSeriesName(res.sel_series)} · ${res.sel_serial}-${res.sel_total ?? (numSeriesTotal(res.sel_series))}!` : `Chosen ${res.sel_serial}/10!`}</p>
           )}
           {res.cards[big] === 'oneofone' && (
             <p className="pack-fade-in mb-3 font-hoop italic font-black text-[28px] uppercase text-[#F6C94C] leading-none" style={{ textShadow: '0 0 18px rgba(255,200,80,0.7)' }}>1 of 1!</p>

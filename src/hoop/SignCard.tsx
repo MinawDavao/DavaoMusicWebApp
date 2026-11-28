@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { errorMessage, removeImageByUrl, uploadImage } from '../lib/db';
 import { useAuth } from '../context/AuthContext';
 import { ErrorNote } from '../components/ui';
-import { OneOfOneCard, SEL_ZONE, SIG_ZONE, SelectedCard, TenCard, TwentyCard, TWENTY_SIG } from './CardDesigns';
+import { FlawlessCard, FLAWLESS_SIG, OneOfOneCard, SEL_ZONE, SIG_ZONE, SelectedCard, TenCard, TwentyCard, TWENTY_SIG } from './CardDesigns';
 import { hbtn } from './lib';
 import type { TradingCardProps } from './TradingCard';
 
@@ -26,7 +26,8 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
   & Omit<TradingCardProps, 'photoUrl' | 'crop' | 'onCropChange'>> = ({ oneId, current, demo = false, onSaved, onClose, kind = 'one', serial, design, frame, series, ...card }) => {
   const ten = kind === 'sel' && series === 'ten';
   const twenty = kind === 'sel' && series === 'twenty';
-  const ZONE = twenty ? TWENTY_SIG : kind === 'sel' && !ten ? SEL_ZONE : SIG_ZONE;
+  const flawless = kind === 'sel' && series === 'thirty';
+  const ZONE = flawless ? FLAWLESS_SIG : twenty ? TWENTY_SIG : kind === 'sel' && !ten ? SEL_ZONE : SIG_ZONE;
   const W = ZONE.w * 12, H = ZONE.h * 12;
   const { user } = useAuth();
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -97,16 +98,16 @@ export const SignCard: React.FC<{ oneId: string | null; current?: string | null;
       <div className="max-w-[440px] mx-auto px-4 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">{demo ? 'TEST · NOTHING SAVED' : twenty ? `YOUR 20-20 · ${serial ?? ''}-20` : ten ? `YOUR 10-10 · ${serial ?? ''}-10` : kind === 'sel' ? `YOUR CHOSEN ${serial ?? ''}/10` : 'YOUR 1-OF-1'}</p>
+            <p className="text-[10px] font-black tracking-[0.3em] text-[#F6C94C]">{demo ? 'TEST · NOTHING SAVED' : flawless ? `YOUR FLAWLESS · ${serial ?? ''}/30` : twenty ? `YOUR 20-20 · ${serial ?? ''}-20` : ten ? `YOUR 10-10 · ${serial ?? ''}-10` : kind === 'sel' ? `YOUR CHOSEN ${serial ?? ''}/10` : 'YOUR 1-OF-1'}</p>
             <p className="font-hoop italic font-black text-[24px] uppercase text-white leading-none flex items-center gap-2"><PenLine className="w-6 h-6 text-[#F6C94C]" />Sign your card</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-white cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
-        <p className="text-[12px] text-[#D6D3D1]">Sign inside the dotted box with your finger (or mouse on a computer). Your autograph shows on your {twenty ? '20-20' : ten ? '10-10' : kind === 'sel' ? 'Chosen' : '1-of-1'} card.</p>
+        <p className="text-[12px] text-[#D6D3D1]">Sign inside the dotted box with your finger (or mouse on a computer). Your autograph shows on your {flawless ? 'Flawless' : twenty ? '20-20' : ten ? '10-10' : kind === 'sel' ? 'Chosen' : '1-of-1'} card.</p>
 
         {/* the card with the signing box exactly where the signature will sit */}
         <div className="relative mx-auto w-full max-w-[340px]">
-          {twenty ? <TwentyCard {...card} serial={serial} signature={null} glow={false} /> : ten ? <TenCard {...card} serial={serial} signature={null} glow={false} /> : kind === 'sel' ? <SelectedCard {...card} serial={serial} signature={null} glow={false} /> : <OneOfOneCard {...card} design={design} frame={frame} signature={null} glow={false} />}
+          {flawless ? <FlawlessCard {...card} serial={serial} signature={null} glow={false} /> : twenty ? <TwentyCard {...card} serial={serial} signature={null} glow={false} /> : ten ? <TenCard {...card} serial={serial} signature={null} glow={false} /> : kind === 'sel' ? <SelectedCard {...card} serial={serial} signature={null} glow={false} /> : <OneOfOneCard {...card} design={design} frame={frame} signature={null} glow={false} />}
           <div className="absolute rounded-lg" style={{
             left: `${ZONE.x}%`, top: `${(ZONE.y / 140) * 100}%`, width: `${ZONE.w}%`, height: `${(ZONE.h / 140) * 100}%`,
             outline: '2px dashed rgba(246,201,76,0.85)', background: 'rgba(0,0,0,0.18)',

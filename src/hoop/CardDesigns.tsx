@@ -1166,6 +1166,71 @@ export const TwentyCard: React.FC<TradingCardProps & { serial?: number | null; t
   );
 };
 
+// =====================================================================================================
+// FLAWLESS — the signature series (only 30 per club, 1/30 … 30/30). Blue & silver jersey-swatch frame
+// (public/hoop-cards/flawless-frame.webp) with a green photo window: FLAWLESS EDITION title top-left,
+// script first name + block surname and stats over the photo, the autograph on the jersey swatch,
+// and the card number bottom-right. Can be signed.
+// =====================================================================================================
+export const FLAWLESS_FRAME = '/hoop-cards/flawless-frame.webp';
+export const FLAWLESS_SIG = { x: 30, y: 90, w: 28, h: 26 };
+const FL_CHAKRA = '"Chakra Petch", sans-serif';
+const FL_DANCING = '"Dancing Script", cursive';
+export const FlawlessCard: React.FC<TradingCardProps & { serial?: number | null; total?: number; signature?: string | null; glow?: boolean }> = (props) => {
+  const { serial, total = 30, signature, glow = true, ...p } = props;
+  const f = useFace(p as TradingCardProps);
+  const editing = !!p.onCropChange;
+  const drag = useDragCrop(f.c, p.onCropChange || (() => {}));
+  const first = f.first;
+  const last = (f.last || '').toUpperCase();
+  const lastSize = Math.min(7.6, 95 / Math.max(1, last.length));
+  const firstSize = Math.min(9.6, lastSize * 1.3);
+  const stats: [string, number | undefined][] = [['PPG', f.s?.ppg], ['RPG', f.s?.rpg], ['APG', f.s?.apg]];
+  const stroke = (w: number, c: string): React.CSSProperties => ({ WebkitTextStroke: `${cq(w)} ${c}`, paintOrder: 'stroke fill' } as React.CSSProperties);
+  const count = serial != null ? String(serial).padStart(2, '0') : '–';
+  return (
+    <div className="relative w-full aspect-[5/7] select-none" style={{
+      containerType: 'inline-size',
+      filter: glow ? `drop-shadow(0 0 ${cq(1)} rgba(180,200,255,0.8)) drop-shadow(0 0 ${cq(3.5)} rgba(40,90,190,0.5)) drop-shadow(0 0 ${cq(8)} rgba(220,220,230,0.3))` : undefined,
+    }}>
+      <div ref={editing ? drag.box : undefined} {...(editing ? drag.handlers : {})} role={editing ? 'slider' : undefined} tabIndex={editing ? 0 : undefined}
+        aria-label={editing ? 'Card photo position. Drag, or use the arrow keys.' : undefined}
+        className={`absolute overflow-hidden ${editing ? `touch-none outline-none ${drag.active ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+        style={{ left: 0, right: 0, top: 0, height: cq(72), background: 'radial-gradient(80% 70% at 50% 35%, #3f7d45 0%, #255f2b 70%)' }}>
+        <PhotoOr url={f.url} c={f.c} initial={f.initial} color="rgba(255,255,255,0.3)" />
+      </div>
+      <img src={FLAWLESS_FRAME} alt="" draggable={false} className="absolute inset-0 w-full h-full pointer-events-none" />
+      {editing && (
+        <At x={0} r={0} y={40} className="flex justify-center pointer-events-none">
+          <span className="flex items-center rounded-full font-bold text-white" style={{ padding: `${cq(1)} ${cq(2.6)}`, fontSize: cq(3), background: 'rgba(0,0,0,0.6)' }}>{drag.active ? 'Moving…' : 'Drag the photo'}</span>
+        </At>
+      )}
+      {/* FLAWLESS EDITION title, top-left */}
+      <At x={3.2} y={3.6} className="flex flex-col items-center pointer-events-none">
+        <span className="leading-none" style={{ fontFamily: FL_CHAKRA, fontWeight: 700, fontSize: cq(6.2), letterSpacing: cq(0.05), color: '#0e1a3a' }}>FLAWLESS</span>
+        <span className="leading-none" style={{ fontFamily: FL_CHAKRA, fontWeight: 600, fontSize: cq(2.3), letterSpacing: cq(0.9), color: '#2b3a63', marginTop: cq(0.4) }}>EDITION</span>
+      </At>
+      {/* name + stats over the photo window, upper-left */}
+      <At x={5.5} y={33} w={72} className="flex flex-col items-start pointer-events-none">
+        {first && <span className="whitespace-nowrap" style={{ fontFamily: FL_DANCING, fontWeight: 700, fontSize: cq(firstSize), lineHeight: 0.72, color: '#fff', ...stroke(0.28, '#0e1a3a'), filter: `drop-shadow(0 ${cq(0.3)} ${cq(0.6)} rgba(0,0,0,0.55))` }}>{first}</span>}
+        <span className="whitespace-nowrap" style={{ fontFamily: FL_CHAKRA, fontWeight: 700, fontSize: cq(lastSize), lineHeight: 0.86, letterSpacing: cq(0.04), color: '#fff', ...stroke(0.34, '#0e1a3a'), textShadow: `0 ${cq(0.3)} ${cq(0.9)} rgba(0,0,0,0.6)` }}>{last || first}</span>
+        <span className="whitespace-nowrap leading-none" style={{ fontFamily: FL_CHAKRA, fontWeight: 700, fontSize: cq(3.1), letterSpacing: cq(0.06), color: '#eaf1ff', marginTop: cq(0.9), ...stroke(0.14, '#0e1a3a'), textShadow: `0 ${cq(0.2)} ${cq(0.7)} rgba(0,0,0,0.7)` }}>
+          {stats.map(([k, v], i) => `${i ? ' · ' : ''}${statNum(v, f.s)} ${statLabel(k, f.s)}`).join('')}
+        </span>
+      </At>
+      {signature && (
+        <At x={FLAWLESS_SIG.x} y={FLAWLESS_SIG.y} w={FLAWLESS_SIG.w} h={FLAWLESS_SIG.h} className="pointer-events-none">
+          <img src={signature} alt="Signed" draggable={false} className="w-full h-full object-contain" style={{ filter: `drop-shadow(0 ${cq(0.2)} ${cq(0.3)} rgba(0,0,0,0.4))` }} />
+        </At>
+      )}
+      {/* card number bottom-right */}
+      <At r={4.5} b={3.4} h={6} className="flex items-end justify-end pointer-events-none">
+        <span className="leading-none" style={{ fontFamily: '"Orbitron", sans-serif', fontWeight: 800, fontSize: cq(4.4), letterSpacing: cq(0.05), color: '#15224c', textShadow: `0 ${cq(0.12)} 0 rgba(255,255,255,0.4)` }}>{count}/{total}</span>
+      </At>
+    </div>
+  );
+};
+
 /** design 'holo' = the Holo card; frame = the picture this card was won with (kept even if the club changes its design) */
 export const OneOfOneCard: React.FC<TradingCardProps & { glow?: boolean; signature?: string | null; design?: string | null; frame?: string | null }> = (props) => {
   if (props.design === 'holo') { const { design: _d, ...rest } = props; void _d; return <HoloOneCard {...rest} />; }
@@ -1502,4 +1567,5 @@ export const CARD_SERIES: CardSeries[] = [
   { n: 8, key: 'oneofone-holo', name: '1 of 1 · Holo', tagline: 'The new 1-of-1 from Hoop Method’s 4th schedule on — holographic silver frame, club name and logo, gold last name, 1-1 shield. Cards won before keep the gold design.', Comp: HoloOneCard, unlock: 'Pack winner only' },
   { n: 9, key: 'ten', name: '10-10', tagline: 'Numbered series — only 10 per club (1-10 … 10-10). From Hoop Method’s 4th schedule, hidden in random players’ packs. Can be signed.', Comp: TenCard, unlock: 'Random 10 packs' },
   { n: 10, key: 'twenty', name: '20-20', tagline: 'Numbered series — only 20 per club (1-20 … 20-20). Red & navy jersey frame, script name, big stats. Given to 20 random players after a schedule. Can be signed.', Comp: TwentyCard, unlock: 'Random 20 packs' },
+  { n: 11, key: 'thirty', name: 'Flawless', tagline: 'FLAWLESS EDITION signature series — only 30 per club (1/30 … 30/30). Blue & silver jersey-swatch frame, green photo window, script name and stats. Given to 30 random players after a schedule. Can be signed.', Comp: FlawlessCard, unlock: 'Random 30 packs' },
 ];
